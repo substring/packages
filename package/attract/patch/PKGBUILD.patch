@@ -1,0 +1,22 @@
+diff --git a/PKGBUILD b/PKGBUILD
+index 5b5af91..b228862 100644
+--- a/PKGBUILD
++++ b/PKGBUILD
+@@ -1,7 +1,7 @@
+ # Maintainer: Jeffrey Clark (h0tw1r3) <dude@zaplabs.com>
+ 
+ pkgname=attract
+-pkgver=2.1.0
++pkgver=2.5.1
+ pkgrel=1
+ pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
+ arch=('i686' 'x86_64')
+@@ -16,7 +16,7 @@ source=("https://github.com/mickelson/${pkgname}/archive/v${pkgver}.tar.gz"
+ 	"https://github.com/mickelson/${pkgname}/releases/download/v1.6.2/ATTRACT.MODE.intro.4-3.v6.1080p.mp4"
+ 	attract.desktop
+ 	attract.install)
+-sha1sums=('138f593b84756cf05d312e97eb928261f90a278b'
++sha1sums=('257c3499b2fa1ddc1de84f3ab25daba24c31c8b8'
+ 	'37885c5f2e6194e689c36eb88c43bd5bb23363d0'
+ 	'445bb161b9c06749347974b6c19c846d86b00ceb'
+ 	'cf599edbff2962b5ff0a77560a95d80cec828264'

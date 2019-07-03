@@ -1,0 +1,23 @@
+diff --git a/PKGBUILD b/PKGBUILD
+index 54e0b0d..f1b76fa 100644
+--- a/PKGBUILD
++++ b/PKGBUILD
+@@ -1,14 +1,14 @@
+ # Contributor: Hy Goldsher <hyness-at-hyness-dot-com>
+ pkgname=retrofe
+-pkgver=0.6.165
+-pkgrel=3
++pkgver=0.8.18
++pkgrel=1
+ pkgdesc="A cross-platform frontend designed for MAME cabinets/game centers/etc. with a focus on simplicity and customization"
+ arch=('i686' 'x86_64')
+ url="http://www.retrofe.com"
+ license=('GPL3')
+-depends=('glib2' 'zlib' 'gstreamer0.10-good' 'sdl2_image' 'sdl2_mixer' 'sdl2_ttf')
++depends=('glib2' 'zlib' 'gstreamer' 'gst-plugins-base' 'sdl2_image' 'sdl2_mixer' 'sdl2_ttf')
+ makedepends=('cmake' 'mercurial' 'python2')
+-source=('hg+https://bitbucket.org/teamretro/retrofe#branch=default'
++source=('hg+https://bitbucket.org/phulshof/retrofe#branch=default'
+ 	$pkgname.desktop
+ 	'icon.png')
+ md5sums=('SKIP' 

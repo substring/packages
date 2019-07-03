@@ -1,0 +1,29 @@
+# Maintainer: Rémy Mathieu <me@remy.io>
+# source: https://remy.io/files/PKGBUILDs/mehstation/PKGBUILD
+pkgname=mehstation
+pkgver=1.0
+pkgrel=1
+pkgdesc="Multiplatform front-end for emulation / retro / TV box.".
+arch=('i686' 'x86_64')
+depends=(sdl2_ttf sdl2_image ffmpeg open_al sqlite)
+url="https://github.com/remeh/mehstation"
+license=('MIT')
+groups=()
+depends=()
+makedepends=('cmake' 'git' 'sdl2' 'sdl2_image' 'sdl2_ttf' 'ffmpeg' 'sqlite' 'glib2' 'openal')
+install=
+source=("git://github.com/remeh/mehstation.git")
+md5sums=('SKIP')
+
+build() {
+    cd ${srcdir}/mehstation
+    cmake .
+    make
+}
+
+package() {
+    cd $_gitname
+    install -Dm755 "${srcdir}/mehstation/mehstation" "$pkgdir/usr/bin/mehstation"
+    install -Ddm755 "${pkgdir}/usr/share/mehstation/res/fonts"
+    cp -R ${srcdir}/mehstation/res/* "${pkgdir}/usr/share/mehstation/res"
+}

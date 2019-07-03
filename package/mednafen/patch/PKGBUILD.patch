@@ -1,0 +1,47 @@
+diff --git a/mednafen/trunk/PKGBUILD b/mednafen/trunk/PKGBUILD
+index c6bc9abf6dc..e17e2b06259 100644
+--- a/mednafen/trunk/PKGBUILD
++++ b/mednafen/trunk/PKGBUILD
+@@ -5,7 +5,8 @@
+ # Contributor: kagan <juanynie@mi.madritel.es>
+ # Contributor: Hans-Kristian Arntzen <maister@archlinux.us>
+ 
+-pkgname=mednafen
++pkgname=emu4crt
++origpkg=mednagen
+ pkgver=1.22.2
+ pkgrel=1
+ pkgdesc="Command-line multi-system gaming emulator"
+@@ -14,11 +15,20 @@ license=('GPL2')
+ arch=('x86_64')
+ depends=('libsndfile' 'sdl2' 'zlib')
+ makedepends=('mesa' 'glu')
+-source=(https://mednafen.github.io/releases/files/$pkgname-$pkgver.tar.xz)
+-md5sums=('de3f23360a5db97038aa30b731e03570')
++source=(https://mednafen.github.io/releases/files/$pkgname-$pkgver.tar.xz https://github.com/emu4crt/files/raw/master/patches/mednafen-1.22.1-emu4crt-A09.patch)
++md5sums=('de3f23360a5db97038aa30b731e03570' SKIP)
+ 
+ build() {
+-  cd $pkgname
++  cd $origpkg
++
++  local src
++  for src in "${source[@]}"; do
++    src="${src%%::*}"
++    src="${src##*/}"
++    [[ $src = *.patch ]] || continue
++    msg2 "Applying patch $src..."
++    patch -Np1 < "../$src"
++  done
+ 
+   ./configure --prefix=/usr
+ 
+@@ -26,7 +36,7 @@ build() {
+ }
+ 
+ package() {
+-  cd $pkgname
++  cd $origpkg
+ 
+   make DESTDIR="$pkgdir" install
+ 

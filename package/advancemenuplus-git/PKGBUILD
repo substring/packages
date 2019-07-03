@@ -1,0 +1,41 @@
+_pkgname=advancemenuplus
+pkgname=${_pkgname}-git
+pkgver=ff27752
+pkgrel=1
+pkgdesc="An enhanced version of the advancemenu front-end".
+arch=('i686' 'x86_64')
+depends=(sdl2_ttf sdl2_image ffmpeg open_al sqlite)
+url="https://sourceforge.net/p/advmenuplus/"
+license=('GPLv2')
+groups=()
+depends=()
+makedepends=('git' 'alsa-lib' 'freetype2' 'sdl')
+conflicts=('advancemenuplus')
+provides=('advancemenuplus')
+install=
+source=("${_pkgname}::git+https://git.code.sf.net/p/advmenuplus/code#commit=${pkgver}")
+md5sums=('SKIP')
+
+pkgver() {
+    cd "${srcdir}/${_pkgname}"
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd ${srcdir}/${_pkgname}
+  ./configure CFLAGS="-O2 -fno-strict-aliasing -fno-strict-overflow -fsigned-char -fno-stack-protector" --prefix=/usr
+  make || return 1
+}
+
+package() {
+  cd ${srcdir}/${_pkgname}
+
+  # Install files
+  make bindir="${pkgdir}/usr/bin/" \
+       datadir="${pkgdir}/usr/share/" \
+       mandir="${pkgdir}/usr/share/man/" \
+       pkgdocdir="${pkgdir}/usr/share/doc/${pkgname}/" \
+       install
+
+  ln -s advmenup "${pkgdir}/usr/bin/advmenu"
+}

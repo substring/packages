@@ -1,0 +1,15 @@
+diff --git a/switchres.c b/switchres.c
+index 87ae943..762aa91 100644
+--- a/switchres.c
++++ b/switchres.c
+@@ -43,8 +43,8 @@ int main(int argc, char **argv) {
+ 	int calcres = 0;
+ 	int create_edid = 0;
+ 	char modeline[100000]={'\x00'};
+-	char mamecmd[255] = "groovyume";
+-	char messcmd[255] = "groovyume";
++	char mamecmd[255] = "groovymame";
++	char messcmd[255] = "groovymame";
+ 	char *mamearg[32];
+ 	int mameargc = 0;
+ 	char *extraarg[32];

@@ -1,0 +1,92 @@
+image: archlinux/base:latest
+
+stages:
+  - prechecks
+  - makepkg
+  - release
+
+before_script:
+  - pacman-key --init && \
+    pacman-key --populate archlinux || true
+  - pacman -Sy --noconfirm reflector
+  - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+  - pacman -Su --noconfirm
+
+.build_packages_template: &buildpackages
+  script:
+    - pacman -S --noconfirm --needed mkinitcpio asp base-devel ccache haveged namcap wget sed dos2unix
+    - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
+    - sed -ri 's/^BUILDENV=(.*)\!ccache(.*)/BUILDENV=\1ccache\2/' /etc/makepkg.conf
+    - mkdir -p work/cache/ccache work/output
+    - ln -s "$(pwd)"/work /work
+    - cp packages_*.lst buildContainer.sh /work
+    - cp -R package /work
+    - useradd -ms /bin/bash -d /work build
+    - echo 'build ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user
+    - chown -R build:build work /work
+    - chmod -R 777 work /work
+    - CCACHE_DIR=/work/cache/ccache ccache -s
+    - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" ./buildContainer.sh" 2>&1 | tee work/output/build.log
+    - CCACHE_DIR=/work/cache/ccache ccache -s
+  cache:
+    key: one-key-to-rule-them-all
+    paths:
+      - work/cache
+  artifacts:
+    paths:
+      - work/output
+    expire_in: 1 mos
+
+.branches_but_master: &notmaster
+  when: manual
+  only:
+    - branches
+  except:
+    - master
+
+.only_master: &onlymasterortags
+  only:
+    - master
+    - tags
+
+bash_lint:
+  image: koalaman/shellcheck-alpine
+  stage: prechecks
+  allow_failure: true
+  when: always
+  before_script:
+    - shellcheck -V
+  script:
+    - shellcheck -x *.sh
+
+basic_checks:
+  stage: prechecks
+  <<: *notmaster
+  variables:
+    MAKEPKG_OPTS: "--nobuild --nodeps"
+  <<: *buildpackages
+  when: always
+
+build_packages_manual:
+  stage: makepkg
+  <<: *notmaster
+  <<: *buildpackages
+  tags:
+    - bigCPU
+
+build_packages:
+  stage: makepkg
+  <<: *onlymasterortags
+  <<: *buildpackages
+  tags:
+    - bigCPU
+
+release_github:
+  stage: release
+  script:
+    - echo "Releasing GroovyArcade"
+    - pacman -Sy --noconfirm --needed tar xz grep
+    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - ./release.sh
+  only:
+    - tags

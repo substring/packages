@@ -1,0 +1,37 @@
+pkgname=switchres
+pkgver=1.53
+pkgrel=1
+pkgdesc="Modeline generator engine and MAME resolution switcher"
+url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
+license=(GPL3)
+arch=(x86_64)
+depends=(libxml2)
+source=("https://github.com/Ansa89/switchres/archive/${pkgver}.tar.gz"
+        01-makefile-cc-order.patch
+        02-groovyume-to-groovymame.patch)
+sha256sums=('007273ba0fe5940786ffde75115e087b8d9c2f54dd50ec9bf4447a83e17a4dc0'
+           'efafe49f0dc04b1236b895917ccb9a38708bda0aaea0a7b2fddb8f4bfb247be1'
+           'a606568e3a9c12566c4e891b8f1db51d7791cf3bd5d8069a40edfe3fa03f4ed0')
+
+prepare() {
+  cd ${pkgname}-${pkgver}
+  local src
+  for src in "${source[@]}"; do
+    src="${src%%::*}"
+    src="${src##*/}"
+    [[ $src = *.patch ]] || continue
+    msg2 "Applying patch $src..."
+    patch -Np1 < "../$src"
+  done
+}
+
+build() {
+  cd ${pkgname}-${pkgver}
+  make
+}
+
+package ()
+{
+  cd "$srcdir/$pkgname-$pkgver"
+  make PREFIX="$pkgdir/usr/local" install
+}

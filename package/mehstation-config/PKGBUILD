@@ -1,0 +1,33 @@
+# Maintainer: Rémy Mathieu <me@remy.io>
+# source: https://remy.io/files/PKGBUILDs/mehstation-config/PKGBUILD
+# patched according to https://github.com/remeh/mehtadata/issues/2
+pkgname=mehstation-config
+pkgver=1.0
+pkgrel=1
+pkgdesc="Configuration application for mehstation.".
+arch=('i686' 'x86_64')
+url="https://github.com/remeh/mehstation-config"
+license=('MIT')
+groups=()
+depends=(qt5-base)
+makedepends=('git' 'qt5-base' 'qt5-tools' 'go')
+install=
+source=("git://github.com/remeh/mehstation-config.git" "git://github.com/remeh/mehtadata.git")
+md5sums=('SKIP' 'SKIP')
+
+build() {
+    export GOPATH=$srcdir
+    cd ${srcdir}/mehstation-config
+    qmake
+    make
+    mkdir -p ${srcdir}/metadata/gopath
+    export GOPATH=${srcdir}/mehtadata/gopath
+    go get github.com/remeh/mehtadata
+    cp ${srcdir}/mehtadata/gopath/bin/mehtadata ${srcdir}/mehtadata
+}
+
+package() {
+    cd $_gitname
+    install -Dm755 "${srcdir}/mehtadata/mehtadata" "$pkgdir/usr/bin/mehtadata"
+    install -Dm755 "${srcdir}/mehstation-config/mehstation-config" "$pkgdir/usr/bin/mehstation-config"
+}
