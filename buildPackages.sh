@@ -1,10 +1,11 @@
 #!/bin/bash
-_output=/work/output
-export CCACHE_DIR=/work/cache/ccache
-built_packages="$_output/built_packages_$(date +%s%3N)"
+#set -x
 
 # shellcheck disable=SC1091
 source include.sh
+_output="$_OUTPUT"
+built_packages="$_output/built_packages_$(date +%s%3N)"
+export CCACHE_DIR=/work/cache/ccache
 
 extract_package_name() {
   # sadly this method doesn't work fine for a git package in the form of advancemenuplus-git-ff27752-1-x86_64.pkg.tar.xz
@@ -19,13 +20,21 @@ check_if_download_or_build() {
   for pkgfile in $(makepkg --packagelist) ; do
     filename=$(basename "$pkgfile")
     pkgname=$(extract_package_name "$filename")
+    
+    # Exceptions ... This is dirty sadly
+    if [[ $pkgname == "mame" ]] ; then
+      pkgname=groovymame
+      filename="groovy$filename"
+    fi
+    
     echo "Package name was determined as: $pkgname"
-    repo_package_name=$(pacman -Sl groovyarcade | sed -E "s/groovyarcade ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
-    if [[ $repo_package_name == $filename ]] ; then
+    repo_package_name=$(pacman -Sl groovyarcade | sed -E "s/groovyarcade ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/" | grep "^$pkgname")
+    if [[ $repo_package_name == "$filename" ]] ; then
       # YES: fine, just download it for a createrepo later, no need to build
       log "$filename is in the groovy repo -> download and copy to $_output"
       sudo pacman -Sddw --noconfirm "$pkgname" || return 255
       cp /var/cache/pacman/pkg/"$filename" "$_output" || return 255
+      return 1
     else
       log "$filename is not in the repo -> BUILD IT!!!"
       return 0
@@ -53,6 +62,7 @@ do_the_job() {
   package="$1"
 
   if [[ -x /work/package/$package/patch.sh ]] ; then
+    echo "Applying patch /work/package/$package/patch.sh"
     /work/package/"$package"/patch.sh || return 1
   fi
 
@@ -135,9 +145,7 @@ done
 
 rm "$_output"/built_packages* 2>/dev/null
 
-# Default is to build all packages
 package_to_build=".*"
-
 # Parse command line
 # shellcheck disable=SC2220
 while getopts "nagc" option; do

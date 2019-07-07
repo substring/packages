@@ -25,11 +25,18 @@ need_assets() {
 #
 create_release() {
   echo "Creating release $tag"
+  if [[ $1 == unstable ]] ; then
 $ghr release \
     --tag "$tag" \
     --name "$release_name" \
     --description "automatic build" \
     --pre-release
+  else
+$ghr release \
+    --tag "$tag" \
+    --name "$release_name" \
+    --description "automatic build"
+  fi
 }
 
 #
@@ -47,8 +54,6 @@ while read -r file ; do
     --name "$filename" \
     --file "${_OUTPUT}/$filename" || cancel_and_exit
 done < "$packages_list"
-# Need to sort + uniq because branches have the prebuil stage that 
-# generates a work/output/built_packages file
 }
 
 #
@@ -59,7 +64,8 @@ need_assets
 
 # Just build the repo only if packages are available
 echo "Preparing the AUR repo"
-command -v repo-add && ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/groovyarcade.db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
+command -v repo-add || cancel_and_exit
+ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/groovyarcade.db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
 
 for file in "${_OUTPUT}"/groovyarcade.db* "${_OUTPUT}"/groovyarcade.files* ; do
   filename=$(basename "$file")
@@ -74,21 +80,6 @@ done
 
 
 #
-# Upload the iso
-#
-upload_iso() {
-need_assets
-
-[[ ! -f ${_OUTPUT}/${_iso}.xz ]] && cancel_and_exit
-
-echo "Uploading ${_iso}.xz..."
-$ghr upload \
-    --tag "$tag" \
-    --name "${_iso}.xz" \
-    --file "${_OUTPUT}/${_iso}.xz" || cancel_and_exit
-}
-
-#
 # Make the release definitive
 #
 publish_release() {
@@ -96,22 +87,22 @@ echo "Publihing release $tag"
 $ghr edit \
     --tag "$tag" \
     --name "GroovyArcade $tag" \
-    --description "automatic build" || cancel_and_exit
+    --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
 }
 
 #
 # Remove a release
 #
 delete_release() {
+# Shouldn't crash if the release doesn't exist
+set +e
 echo "Deleting release $tag..."
 $ghr delete \
     --tag "$tag"
 }
 
-_iso=groovyarcade_${GA_VERSION}.iso
-tag=${GA_VERSION}
-
-release_name="GroovyArcade $tag"
+release_name="GroovyArcade "
+tag=stable
 ghr=$([[ -f ~/go/bin/github-release ]] && echo "$HOME/go/bin/github-release" || echo "/usr/local/bin/github-release")
 
 # Make sure all env vars exist
@@ -125,7 +116,7 @@ if [[ -z $GITHUB_TOKEN ]] ; then
 fi
 
 # Parse command line
-while getopts "curipd" option; do
+while getopts "curtpd" option; do
   case "${option}" in
     c)
       create_release
@@ -136,17 +127,23 @@ while getopts "curipd" option; do
     u)
       upload_assets
       ;;
-    i)
-      upload_iso
-      ;;
     p)
       publish_release
       ;;
     d)
       delete_release
       ;;
+    t)
+      # Testing release
+      tag=testing
+      delete_release
+      create_release $tag
+      upload_assets
+      upload_repo
+      publish_release
+      ;;
     *)
-      echo "ERROR: options can be -c -u -p or -d only" >&2
+      echo "ERROR: options can be -c -r -u -p -d or -t only" >&2
       exit 1
       ;;
   esac

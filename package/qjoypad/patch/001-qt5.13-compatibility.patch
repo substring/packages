@@ -1,0 +1,116 @@
+diff --git a/src/axisw.cpp b/src/axisw.cpp
+index d8e6e80..816ea46 100644
+--- a/src/axisw.cpp
++++ b/src/axisw.cpp
+@@ -2,7 +2,7 @@
+ 
+ 
+ AxisWidget::AxisWidget( Axis* a, QWidget* parent )
+-        : FlashButton(QString::null, QString::null, parent) {
++        : FlashButton(QString(), QString(), parent) {
+     axis = a;
+     ae = NULL;
+     update();
+diff --git a/src/buttonw.cpp b/src/buttonw.cpp
+index 96d9f5c..bdcba28 100644
+--- a/src/buttonw.cpp
++++ b/src/buttonw.cpp
+@@ -2,7 +2,7 @@
+ 
+ 
+ ButtonWidget::ButtonWidget( Button* b, QWidget* parent )
+-        : FlashButton(QString::null, QString::null, parent), on(false), button(b) {
++        : FlashButton(QString(), QString(), parent), on(false), button(b) {
+     update();
+ }
+ 
+diff --git a/src/flash.cpp b/src/flash.cpp
+index 9b468b7..9d5b4a0 100644
+--- a/src/flash.cpp
++++ b/src/flash.cpp
+@@ -51,7 +51,7 @@ FlashRadioArray::FlashRadioArray( const QStringList &names, bool horizontal, QWi
+         mainLayout->setSpacing(5);
+     }
+     foreach (const QString &name, names) {
+-        FlashButton *button = new FlashButton( name, QString::null, this );
++        FlashButton *button = new FlashButton( name, QString(), this );
+         buttons.append(button);
+         //when any of the buttons is clicked, it calls the same function on this.
+         connect( button, SIGNAL( clicked() ), this, SLOT( clicked() ));
+diff --git a/src/joyslider.cpp b/src/joyslider.cpp
+index 262d0f2..4f786f8 100644
+--- a/src/joyslider.cpp
++++ b/src/joyslider.cpp
+@@ -102,8 +102,8 @@ void JoySlider::drawBox( int x, int width ) {
+     //widget but is defined by x-coordinate and width
+     QPainter paint( this );
+ 
+-    paint.setPen( (isEnabled())?Qt::white:palette().background().color() );
+-    paint.setBrush( (isEnabled())?Qt::white:palette().background() );
++    paint.setPen( (isEnabled())?Qt::white:palette().window().color() );
++    paint.setBrush( (isEnabled())?Qt::white:palette().window() );
+     paint.drawRect( x, 1, width, boxheight);
+ 
+     paint.setPen( palette().dark().color() );
+diff --git a/src/layout.cpp b/src/layout.cpp
+index 7ed6104..00a8ccb 100644
+--- a/src/layout.cpp
++++ b/src/layout.cpp
+@@ -54,7 +54,7 @@ LayoutManager::LayoutManager( bool useTrayIcon, const QString &devdir, const QSt
+     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
+ 
+     //no layout loaded at start.
+-    setLayoutName(QString::null);
++    setLayoutName(QString());
+ }
+ 
+ LayoutManager::~LayoutManager() {
+@@ -289,7 +289,7 @@ void LayoutManager::clear() {
+         joypad->toDefault();
+     }
+     //and call our layout NL
+-    setLayoutName(QString::null);
++    setLayoutName(QString());
+ }
+ 
+ void LayoutManager::save() {
+@@ -328,7 +328,7 @@ void LayoutManager::saveAs() {
+     QString name = QInputDialog::getText(le,
+                                          tr("Name new layout - %1").arg(QJOYPAD_NAME),
+                                          tr("Enter a name for the new layout:"),
+-                                         QLineEdit::Normal, QString::null, &ok);
++                                         QLineEdit::Normal, QString(), &ok);
+     if (!ok) {
+         return;
+     }
+@@ -390,7 +390,7 @@ void LayoutManager::importLayout() {
+             if (QMessageBox::warning(le,
+                                      QString("%1 - %2").arg(tr("Layout exists"), QJOYPAD_NAME),
+                                      tr("Layout %1 exists. Do you want to overwrite it?"),
+-                                     tr("Over&write"), tr("&Cancel"), QString::null, 0, 1) == 1) {
++                                     tr("Over&write"), tr("&Cancel"), QString(), 0, 1) == 1) {
+                 return;
+             }
+             QFile::remove(filename);
+@@ -432,7 +432,7 @@ void LayoutManager::saveDefault() {
+ void LayoutManager::remove() {
+     if (currentLayout.isNull()) return;
+     if (QMessageBox::warning(le, tr("Delete layout? - %1").arg(QJOYPAD_NAME),
+-        tr("Remove layout %1 permanently from your hard drive?").arg(currentLayout), tr("&Delete"), tr("&Cancel"), QString::null, 0, 1 ) == 1) {
++        tr("Remove layout %1 permanently from your hard drive?").arg(currentLayout), tr("&Delete"), tr("&Cancel"), QString(), 0, 1 ) == 1) {
+         return;
+     }
+     QString filename = getFileName( currentLayout );
+diff --git a/src/layout_edit.cpp b/src/layout_edit.cpp
+index af6ba2f..0011270 100644
+--- a/src/layout_edit.cpp
++++ b/src/layout_edit.cpp
+@@ -158,7 +158,7 @@ void LayoutEdit::setLayout(const QString &layout) {
+ void LayoutEdit::updateLayoutList() {
+     //blank the list, then load in new names from the LayoutManager.
+     cmbLayouts->clear();
+-    cmbLayouts->addItem(tr("[NO LAYOUT]"), QVariant(QString::null));
++    cmbLayouts->addItem(tr("[NO LAYOUT]"), QVariant(QString()));
+     if (lm->currentLayout.isNull()) {
+         cmbLayouts->setCurrentIndex(0);
+     }

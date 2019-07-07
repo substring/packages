@@ -1,6 +1,6 @@
 diff -Nru scripts/src/emu.lua scripts/src/emu.lua
---- scripts/src/emu.lua	2019-05-30 19:28:54.000000000 +0200
-+++ scripts/src/emu.lua	2019-06-04 11:28:09.000000000 +0200
+--- scripts/src/emu.lua	2019-06-27 04:45:49.232460500 +0200
++++ scripts/src/emu.lua	2019-06-27 10:27:56.953382200 +0200
 @@ -257,6 +257,11 @@
  	MAME_DIR .. "src/emu/video/rgbsse.h",
  	MAME_DIR .. "src/emu/video/rgbvmx.cpp",
@@ -14,8 +14,8 @@ diff -Nru scripts/src/emu.lua scripts/src/emu.lua
  
  dependency {
 diff -Nru scripts/src/osd/sdl.lua scripts/src/osd/sdl.lua
---- scripts/src/osd/sdl.lua	2019-05-30 19:28:54.000000000 +0200
-+++ scripts/src/osd/sdl.lua	2019-06-04 11:28:09.000000000 +0200
+--- scripts/src/osd/sdl.lua	2019-06-27 04:45:49.284279600 +0200
++++ scripts/src/osd/sdl.lua	2019-06-27 10:27:56.973386600 +0200
 @@ -41,12 +41,19 @@
  	if BASE_TARGETOS=="unix" and _OPTIONS["targetos"]~="macosx" and _OPTIONS["targetos"]~="android" then
  		links {
@@ -45,8 +45,8 @@ diff -Nru scripts/src/osd/sdl.lua scripts/src/osd/sdl.lua
  		MAME_DIR .. "src/osd/modules/osdwindow.h",
  		MAME_DIR .. "src/osd/modules/render/drawsdl.cpp",
 diff -Nru scripts/src/osd/sdl_cfg.lua scripts/src/osd/sdl_cfg.lua
---- scripts/src/osd/sdl_cfg.lua	2019-05-30 19:28:54.000000000 +0200
-+++ scripts/src/osd/sdl_cfg.lua	2019-06-04 11:28:09.000000000 +0200
+--- scripts/src/osd/sdl_cfg.lua	2019-06-27 04:45:49.288188800 +0200
++++ scripts/src/osd/sdl_cfg.lua	2019-06-27 10:27:57.088418400 +0200
 @@ -125,6 +125,9 @@
  	configuration { }
  
@@ -58,8 +58,8 @@ diff -Nru scripts/src/osd/sdl_cfg.lua scripts/src/osd/sdl_cfg.lua
  		buildoptions {
  			"-I" .. backtick(_OPTIONS["QT_HOME"] .. "/bin/qmake -query QT_INSTALL_HEADERS"),
 diff -Nru scripts/src/osd/windows.lua scripts/src/osd/windows.lua
---- scripts/src/osd/windows.lua	2019-05-30 19:28:54.000000000 +0200
-+++ scripts/src/osd/windows.lua	2019-06-04 11:28:09.000000000 +0200
+--- scripts/src/osd/windows.lua	2019-06-27 04:45:49.310795400 +0200
++++ scripts/src/osd/windows.lua	2019-06-27 10:27:57.111423700 +0200
 @@ -170,6 +170,16 @@
  		MAME_DIR .. "src/osd/windows/winmenu.cpp",
  		MAME_DIR .. "src/osd/windows/winmain.cpp",
@@ -78,8 +78,8 @@ diff -Nru scripts/src/osd/windows.lua scripts/src/osd/windows.lua
  		MAME_DIR .. "src/osd/modules/debugger/win/consolewininfo.cpp",
  		MAME_DIR .. "src/osd/modules/debugger/win/consolewininfo.h",
 diff -Nru src/emu/drivenum.cpp src/emu/drivenum.cpp
---- src/emu/drivenum.cpp	2019-05-30 19:29:14.000000000 +0200
-+++ src/emu/drivenum.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/drivenum.cpp	2019-06-27 04:46:12.275371300 +0200
++++ src/emu/drivenum.cpp	2019-06-27 10:27:57.212445800 +0200
 @@ -238,7 +238,7 @@
  			if (m_included[index])
  				templist[arrayindex++] = index;
@@ -99,8 +99,8 @@ diff -Nru src/emu/drivenum.cpp src/emu/drivenum.cpp
  		for (int matchnum = 0; matchnum < count; matchnum++)
  			results[matchnum] = templist[matchnum % m_filtered_count];
 diff -Nru src/emu/drivers/empty.cpp src/emu/drivers/empty.cpp
---- src/emu/drivers/empty.cpp	2019-05-30 19:29:14.000000000 +0200
-+++ src/emu/drivers/empty.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/drivers/empty.cpp	2019-06-27 04:46:12.292969900 +0200
++++ src/emu/drivers/empty.cpp	2019-06-27 10:27:57.232450400 +0200
 @@ -50,7 +50,7 @@
  	screen.set_screen_update(FUNC(empty_state::screen_update));
  	screen.set_size(640, 480);
@@ -111,8 +111,8 @@ diff -Nru src/emu/drivers/empty.cpp src/emu/drivers/empty.cpp
  
  
 diff -Nru src/emu/emu.h src/emu/emu.h
---- src/emu/emu.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/emu.h	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/emu.h	2019-06-27 04:46:12.299813900 +0200
++++ src/emu/emu.h	2019-06-27 10:27:57.240451800 +0200
 @@ -83,6 +83,9 @@
  #include "gamedrv.h"
  #include "parameters.h"
@@ -132,8 +132,8 @@ diff -Nru src/emu/emu.h src/emu/emu.h
 +
  #endif // __EMU_H__
 diff -Nru src/emu/emuopts.cpp src/emu/emuopts.cpp
---- src/emu/emuopts.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/emuopts.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/emuopts.cpp	2019-06-27 04:46:12.431804700 +0200
++++ src/emu/emuopts.cpp	2019-06-27 10:27:57.359465600 +0200
 @@ -85,6 +85,8 @@
  	{ OPTION_FRAMESKIP ";fs(0-10)",                      "0",         OPTION_INTEGER,    "set frameskip to fixed value, 0-10 (autoframeskip must be disabled)" },
  	{ OPTION_SECONDS_TO_RUN ";str",                      "0",         OPTION_INTEGER,    "number of emulated seconds to run before automatically exiting" },
@@ -202,8 +202,8 @@ diff -Nru src/emu/emuopts.cpp src/emu/emuopts.cpp
  };
  
 diff -Nru src/emu/emuopts.h src/emu/emuopts.h
---- src/emu/emuopts.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/emuopts.h	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/emuopts.h	2019-06-27 04:46:12.435723600 +0200
++++ src/emu/emuopts.h	2019-06-27 10:27:57.373468700 +0200
 @@ -72,6 +72,8 @@
  #define OPTION_FRAMESKIP            "frameskip"
  #define OPTION_SECONDS_TO_RUN       "seconds_to_run"
@@ -301,8 +301,8 @@ diff -Nru src/emu/emuopts.h src/emu/emuopts.h
  	const char *comm_localhost() const { return value(OPTION_COMM_LOCAL_HOST); }
  	const char *comm_localport() const { return value(OPTION_COMM_LOCAL_PORT); }
 diff -Nru src/emu/machine.cpp src/emu/machine.cpp
---- src/emu/machine.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/machine.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/machine.cpp	2019-06-27 04:46:12.568684500 +0200
++++ src/emu/machine.cpp	2019-06-27 10:27:57.474491600 +0200
 @@ -134,6 +134,7 @@
  		m_dummy_space(_config, "dummy_space", &root_device(), 0)
  {
@@ -312,8 +312,8 @@ diff -Nru src/emu/machine.cpp src/emu/machine.cpp
  	m_dummy_space.set_machine(*this);
  	m_dummy_space.config_complete();
 diff -Nru src/emu/machine.h src/emu/machine.h
---- src/emu/machine.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/machine.h	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/machine.h	2019-06-27 04:46:12.572595600 +0200
++++ src/emu/machine.h	2019-06-27 10:27:57.494495900 +0200
 @@ -257,6 +257,9 @@
  	std::string compose_saveload_filename(std::string &&base_filename, const char **searchpath = nullptr);
  	std::string get_statename(const char *statename_opt) const;
@@ -325,8 +325,8 @@ diff -Nru src/emu/machine.h src/emu/machine.h
  	// side effect disable counter
  	u32                     m_side_effects_disabled;
 diff -Nru src/emu/sound.cpp src/emu/sound.cpp
---- src/emu/sound.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/sound.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/sound.cpp	2019-06-27 04:46:12.739782800 +0200
++++ src/emu/sound.cpp	2019-06-27 10:27:57.609522600 +0200
 @@ -871,16 +871,13 @@
  	machine.add_notifier(MACHINE_NOTIFY_RESUME, machine_notify_delegate(&sound_manager::resume, this));
  	machine.add_notifier(MACHINE_NOTIFY_RESET, machine_notify_delegate(&sound_manager::reset, this));
@@ -381,8 +381,8 @@ diff -Nru src/emu/sound.cpp src/emu/sound.cpp
  	// play the result
  	if (finalmix_offset > 0)
 diff -Nru src/emu/sound.h src/emu/sound.h
---- src/emu/sound.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/sound.h	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/sound.h	2019-06-27 04:46:12.749710700 +0200
++++ src/emu/sound.h	2019-06-27 10:27:57.633425700 +0200
 @@ -223,7 +223,7 @@
  	void config_load(config_type cfg_type, util::xml::data_node const *parentnode);
  	void config_save(config_type cfg_type, util::xml::data_node *parentnode);
@@ -394,7 +394,7 @@ diff -Nru src/emu/sound.h src/emu/sound.h
  	running_machine &   m_machine;              // reference to our machine
 diff -Nru src/emu/switchres/modeline.cpp src/emu/switchres/modeline.cpp
 --- src/emu/switchres/modeline.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/modeline.cpp	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/modeline.cpp	2019-06-27 10:27:57.639426800 +0200
 @@ -0,0 +1,690 @@
 +/**************************************************************
 +
@@ -1088,7 +1088,7 @@ diff -Nru src/emu/switchres/modeline.cpp src/emu/switchres/modeline.cpp
 +}
 diff -Nru src/emu/switchres/modeline.h src/emu/switchres/modeline.h
 --- src/emu/switchres/modeline.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/modeline.h	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/modeline.h	2019-06-27 10:27:57.736412100 +0200
 @@ -0,0 +1,118 @@
 +/**************************************************************
 +
@@ -1210,7 +1210,7 @@ diff -Nru src/emu/switchres/modeline.h src/emu/switchres/modeline.h
 +#endif
 diff -Nru src/emu/switchres/monitor.cpp src/emu/switchres/monitor.cpp
 --- src/emu/switchres/monitor.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/monitor.cpp	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/monitor.cpp	2019-06-27 10:27:57.752415100 +0200
 @@ -0,0 +1,481 @@
 +/**************************************************************
 +
@@ -1695,7 +1695,7 @@ diff -Nru src/emu/switchres/monitor.cpp src/emu/switchres/monitor.cpp
 +}
 diff -Nru src/emu/switchres/monitor.h src/emu/switchres/monitor.h
 --- src/emu/switchres/monitor.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/monitor.h	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/monitor.h	2019-06-27 10:27:57.758416900 +0200
 @@ -0,0 +1,66 @@
 +/**************************************************************
 +
@@ -1765,7 +1765,7 @@ diff -Nru src/emu/switchres/monitor.h src/emu/switchres/monitor.h
 +#endif
 diff -Nru src/emu/switchres/switchres.cpp src/emu/switchres/switchres.cpp
 --- src/emu/switchres/switchres.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/switchres.cpp	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/switchres.cpp	2019-06-27 10:27:57.870469200 +0200
 @@ -0,0 +1,386 @@
 +/**************************************************************
 +
@@ -2155,7 +2155,7 @@ diff -Nru src/emu/switchres/switchres.cpp src/emu/switchres/switchres.cpp
 +}
 diff -Nru src/emu/switchres/switchres.h src/emu/switchres/switchres.h
 --- src/emu/switchres/switchres.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/switchres.h	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/switchres.h	2019-06-27 10:27:57.890473700 +0200
 @@ -0,0 +1,80 @@
 +/**************************************************************
 +
@@ -2239,7 +2239,7 @@ diff -Nru src/emu/switchres/switchres.h src/emu/switchres/switchres.h
 +#endif
 diff -Nru src/emu/switchres/switchres_proto.h src/emu/switchres/switchres_proto.h
 --- src/emu/switchres/switchres_proto.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/switchres_proto.h	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/switchres_proto.h	2019-06-27 10:27:57.897475600 +0200
 @@ -0,0 +1,42 @@
 +/**************************************************************
 +
@@ -2285,7 +2285,7 @@ diff -Nru src/emu/switchres/switchres_proto.h src/emu/switchres/switchres_proto.
 +#endif
 diff -Nru src/emu/switchres/util.cpp src/emu/switchres/util.cpp
 --- src/emu/switchres/util.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/emu/switchres/util.cpp	2019-06-04 11:28:09.000000000 +0200
++++ src/emu/switchres/util.cpp	2019-06-27 10:27:57.995506700 +0200
 @@ -0,0 +1,34 @@
 +/**************************************************************
 +
@@ -2322,8 +2322,8 @@ diff -Nru src/emu/switchres/util.cpp src/emu/switchres/util.cpp
 +
 +int real_res(int x) {return (int) (x / 8) * 8;}
 diff -Nru src/emu/video.cpp src/emu/video.cpp
---- src/emu/video.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/video.cpp	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/video.cpp	2019-06-27 04:46:13.000499400 +0200
++++ src/emu/video.cpp	2019-06-27 10:27:58.013510400 +0200
 @@ -52,7 +52,7 @@
  	{ false, true , true , true , true , true , true , true , true , true , true , true  }
  };
@@ -2460,8 +2460,8 @@ diff -Nru src/emu/video.cpp src/emu/video.cpp
  		m_speed_last_realtime = realtime;
  		m_speed_last_emutime = emutime;
 diff -Nru src/emu/video.h src/emu/video.h
---- src/emu/video.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/emu/video.h	2019-06-04 11:28:09.000000000 +0200
+--- src/emu/video.h	2019-06-27 04:46:13.013211200 +0200
++++ src/emu/video.h	2019-06-27 10:27:58.023512800 +0200
 @@ -28,6 +28,7 @@
  constexpr int FRAMESKIP_LEVELS = 12;
  constexpr int MAX_FRAMESKIP = FRAMESKIP_LEVELS - 2;
@@ -2507,9 +2507,9 @@ diff -Nru src/emu/video.h src/emu/video.h
  
  	static const attoseconds_t ATTOSECONDS_PER_SPEED_UPDATE = ATTOSECONDS_PER_SECOND / 4;
 diff -Nru src/frontend/mame/clifront.cpp src/frontend/mame/clifront.cpp
---- src/frontend/mame/clifront.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/clifront.cpp	2019-06-04 11:28:09.000000000 +0200
-@@ -1710,6 +1710,7 @@
+--- src/frontend/mame/clifront.cpp	2019-06-27 04:46:13.245640100 +0200
++++ src/frontend/mame/clifront.cpp	2019-06-27 10:27:58.152477900 +0200
+@@ -1724,6 +1724,7 @@
  void cli_frontend::display_help(const char *exename)
  {
  	osd_printf_info("%s v%s\n%s\n\n", emulator_info::get_appname(),build_version,emulator_info::get_copyright_info());
@@ -2518,8 +2518,8 @@ diff -Nru src/frontend/mame/clifront.cpp src/frontend/mame/clifront.cpp
  					"of machines. But hardware is useless without software, so images of the ROMs and\n"
  					"other media which run on that hardware are also required.\n\n");
 diff -Nru src/frontend/mame/mameopts.h src/frontend/mame/mameopts.h
---- src/frontend/mame/mameopts.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/mameopts.h	2019-06-04 11:28:09.000000000 +0200
+--- src/frontend/mame/mameopts.h	2019-06-27 04:46:13.312275800 +0200
++++ src/frontend/mame/mameopts.h	2019-06-27 10:27:58.161479700 +0200
 @@ -29,6 +29,7 @@
  
  	// INI-based options are NORMAL priority, in increasing order:
@@ -2529,8 +2529,8 @@ diff -Nru src/frontend/mame/mameopts.h src/frontend/mame/mameopts.h
  	OPTION_PRIORITY_ORIENTATION_INI,
  	OPTION_PRIORITY_SYSTYPE_INI,
 diff -Nru src/frontend/mame/ui/info.cpp src/frontend/mame/ui/info.cpp
---- src/frontend/mame/ui/info.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/ui/info.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/frontend/mame/ui/info.cpp	2019-06-27 04:46:13.457953500 +0200
++++ src/frontend/mame/ui/info.cpp	2019-06-27 10:27:58.274523800 +0200
 @@ -402,6 +402,15 @@
  		}
  	}
@@ -2548,8 +2548,8 @@ diff -Nru src/frontend/mame/ui/info.cpp src/frontend/mame/ui/info.cpp
  }
  
 diff -Nru src/frontend/mame/ui/submenu.cpp src/frontend/mame/ui/submenu.cpp
---- src/frontend/mame/ui/submenu.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/ui/submenu.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/frontend/mame/ui/submenu.cpp	2019-06-27 04:46:13.641161100 +0200
++++ src/frontend/mame/ui/submenu.cpp	2019-06-27 10:27:58.283533300 +0200
 @@ -111,7 +111,7 @@
  	{ submenu::option_type::OSD,  __("Window Mode"),                             OSDOPTION_WINDOW },
  	{ submenu::option_type::EMU,  __("Enforce Aspect Ratio"),                    OPTION_KEEPASPECT },
@@ -2560,8 +2560,8 @@ diff -Nru src/frontend/mame/ui/submenu.cpp src/frontend/mame/ui/submenu.cpp
  };
  
 diff -Nru src/frontend/mame/ui/ui.cpp src/frontend/mame/ui/ui.cpp
---- src/frontend/mame/ui/ui.cpp	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/ui/ui.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/frontend/mame/ui/ui.cpp	2019-06-27 04:46:13.674401400 +0200
++++ src/frontend/mame/ui/ui.cpp	2019-06-27 10:27:58.413762600 +0200
 @@ -30,6 +30,7 @@
  #include "ui/state.h"
  #include "ui/viewgfx.h"
@@ -2716,8 +2716,8 @@ diff -Nru src/frontend/mame/ui/ui.cpp src/frontend/mame/ui/ui.cpp
 +}
 \ No newline at end of file
 diff -Nru src/frontend/mame/ui/ui.h src/frontend/mame/ui/ui.h
---- src/frontend/mame/ui/ui.h	2019-05-30 19:29:15.000000000 +0200
-+++ src/frontend/mame/ui/ui.h	2019-06-04 11:28:10.000000000 +0200
+--- src/frontend/mame/ui/ui.h	2019-06-27 04:46:13.678313300 +0200
++++ src/frontend/mame/ui/ui.h	2019-06-27 10:27:58.422764400 +0200
 @@ -77,6 +77,7 @@
  enum
  {
@@ -2755,8 +2755,8 @@ diff -Nru src/frontend/mame/ui/ui.h src/frontend/mame/ui/ui.h
  
  
 diff -Nru src/osd/modules/input/input_module.h src/osd/modules/input/input_module.h
---- src/osd/modules/input/input_module.h	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/input/input_module.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/input/input_module.h	2019-06-27 04:46:56.226206300 +0200
++++ src/osd/modules/input/input_module.h	2019-06-27 10:27:58.524789600 +0200
 @@ -26,6 +26,7 @@
  
  	virtual void input_init(running_machine &machine) = 0;
@@ -2766,8 +2766,8 @@ diff -Nru src/osd/modules/input/input_module.h src/osd/modules/input/input_modul
  	virtual void resume() = 0;
  };
 diff -Nru src/osd/modules/input/input_sdlcommon.cpp src/osd/modules/input/input_sdlcommon.cpp
---- src/osd/modules/input/input_sdlcommon.cpp	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/input/input_sdlcommon.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/input/input_sdlcommon.cpp	2019-06-27 04:46:56.249669900 +0200
++++ src/osd/modules/input/input_sdlcommon.cpp	2019-06-27 10:27:58.541793500 +0200
 @@ -280,10 +280,10 @@
  
  void sdl_osd_interface::poll_inputs(running_machine &machine)
@@ -2782,8 +2782,8 @@ diff -Nru src/osd/modules/input/input_sdlcommon.cpp src/osd/modules/input/input_
  
  void sdl_osd_interface::release_keys()
 diff -Nru src/osd/modules/input/input_windows.cpp src/osd/modules/input/input_windows.cpp
---- src/osd/modules/input/input_windows.cpp	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/input/input_windows.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/input/input_windows.cpp	2019-06-27 04:46:56.263359100 +0200
++++ src/osd/modules/input/input_windows.cpp	2019-06-27 10:27:58.550795200 +0200
 @@ -63,10 +63,10 @@
  
  void windows_osd_interface::poll_input(running_machine &machine) const
@@ -2798,8 +2798,8 @@ diff -Nru src/osd/modules/input/input_windows.cpp src/osd/modules/input/input_wi
  
  //============================================================
 diff -Nru src/osd/modules/lib/osdobj_common.cpp src/osd/modules/lib/osdobj_common.cpp
---- src/osd/modules/lib/osdobj_common.cpp	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/lib/osdobj_common.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/lib/osdobj_common.cpp	2019-06-27 04:46:56.304484300 +0200
++++ src/osd/modules/lib/osdobj_common.cpp	2019-06-27 10:27:58.679950200 +0200
 @@ -55,7 +55,6 @@
  	{ OSDOPTION_WINDOW ";w",                  "0",              OPTION_BOOLEAN,   "enable window mode; otherwise, full screen mode is assumed" },
  	{ OSDOPTION_MAXIMIZE ";max",              "1",              OPTION_BOOLEAN,   "default to maximized windows" },
@@ -2831,8 +2831,8 @@ diff -Nru src/osd/modules/lib/osdobj_common.cpp src/osd/modules/lib/osdobj_commo
  #ifndef NO_USE_PORTAUDIO
  	{ nullptr,                                nullptr,          OPTION_HEADER,    "PORTAUDIO OPTIONS" },
 diff -Nru src/osd/modules/lib/osdobj_common.h src/osd/modules/lib/osdobj_common.h
---- src/osd/modules/lib/osdobj_common.h	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/lib/osdobj_common.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/lib/osdobj_common.h	2019-06-27 04:46:56.308387100 +0200
++++ src/osd/modules/lib/osdobj_common.h	2019-06-27 10:27:58.689952100 +0200
 @@ -49,7 +49,6 @@
  #define OSDOPTION_WINDOW                "window"
  #define OSDOPTION_MAXIMIZE              "maximize"
@@ -2859,8 +2859,8 @@ diff -Nru src/osd/modules/lib/osdobj_common.h src/osd/modules/lib/osdobj_common.
  	// CoreAudio specific options
  	const char *audio_output() const { return value(OSDOPTION_AUDIO_OUTPUT); }
 diff -Nru src/osd/modules/osdwindow.h src/osd/modules/osdwindow.h
---- src/osd/modules/osdwindow.h	2019-05-30 19:29:55.000000000 +0200
-+++ src/osd/modules/osdwindow.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/osdwindow.h	2019-06-27 04:46:56.630954700 +0200
++++ src/osd/modules/osdwindow.h	2019-06-27 10:27:58.793424600 +0200
 @@ -213,9 +213,13 @@
  	virtual void record() { };
  	virtual void toggle_fsfx() { };
@@ -2884,8 +2884,8 @@ diff -Nru src/osd/modules/osdwindow.h src/osd/modules/osdwindow.h
  	// d3d, accel, opengl
  	int                 filter;                     // enable filtering
 diff -Nru src/osd/modules/render/d3d/d3dhlsl.h src/osd/modules/render/d3d/d3dhlsl.h
---- src/osd/modules/render/d3d/d3dhlsl.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/render/d3d/d3dhlsl.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/render/d3d/d3dhlsl.h	2019-06-27 04:46:57.734536500 +0200
++++ src/osd/modules/render/d3d/d3dhlsl.h	2019-06-27 10:27:58.811428400 +0200
 @@ -302,7 +302,7 @@
  
  	bool init(d3d_base *d3dintf, running_machine *machine, renderer_d3d9 *renderer);
@@ -2896,8 +2896,8 @@ diff -Nru src/osd/modules/render/d3d/d3dhlsl.h src/osd/modules/render/d3d/d3dhls
  
  	void begin_draw();
 diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
---- src/osd/modules/render/drawd3d.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/render/drawd3d.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/render/drawd3d.cpp	2019-06-27 04:46:57.753107200 +0200
++++ src/osd/modules/render/drawd3d.cpp	2019-06-27 10:27:58.929455100 +0200
 @@ -45,7 +45,7 @@
  //  INLINES
  //============================================================
@@ -2920,8 +2920,8 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  	if (!fullscreen || !menu)
  		return result;
  
-@@ -180,7 +186,14 @@
- 	GetClientRectExceptMenu(std::static_pointer_cast<win_window_info>(win)->platform_window(), &client, win->fullscreen());
+@@ -184,7 +190,14 @@
+ 	GetClientRectExceptMenu(hWnd, &client, win->fullscreen());
  	if (rect_width(&client) > 0 && rect_height(&client) > 0)
  	{
 -		win->target()->set_bounds(rect_width(&client), rect_height(&client), win->pixel_aspect());
@@ -2936,7 +2936,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  		win->target()->set_max_update_rate((get_refresh() == 0) ? get_origmode().RefreshRate : get_refresh());
  	}
  	if (m_shaders != nullptr)
-@@ -729,12 +742,111 @@
+@@ -733,12 +746,111 @@
  	if (FAILED(result))
  		osd_printf_verbose("Direct3D: Error %08lX during device end_scene call\n", result);
  
@@ -3048,7 +3048,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  void renderer_d3d9::update_presentation_parameters()
  {
  	auto win = assert_window();
-@@ -743,7 +855,7 @@
+@@ -747,7 +859,7 @@
  	m_presentation.BackBufferWidth = m_width;
  	m_presentation.BackBufferHeight = m_height;
  	m_presentation.BackBufferFormat = m_pixformat;
@@ -3057,7 +3057,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  	m_presentation.MultiSampleType = D3DMULTISAMPLE_NONE;
  	m_presentation.SwapEffect = D3DSWAPEFFECT_DISCARD;
  	m_presentation.hDeviceWindow = std::static_pointer_cast<win_window_info>(win)->platform_window();
-@@ -752,10 +864,10 @@
+@@ -756,10 +868,10 @@
  	m_presentation.AutoDepthStencilFormat = D3DFMT_D16;
  	m_presentation.Flags = 0;
  	m_presentation.FullScreen_RefreshRateInHz = m_refresh;
@@ -3071,7 +3071,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  			? D3DPRESENT_INTERVAL_ONE
  			: D3DPRESENT_INTERVAL_IMMEDIATE;
  }
-@@ -1177,6 +1289,34 @@
+@@ -1181,6 +1293,34 @@
  
  
  //============================================================
@@ -3106,7 +3106,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  //  config_adapter_mode
  //============================================================
  
-@@ -1195,6 +1335,9 @@
+@@ -1199,6 +1339,9 @@
  	}
  
  	osd_printf_verbose("Direct3D: Configuring adapter #%d = %s\n", m_adapter, id.Description);
@@ -3116,7 +3116,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  
  	// get the current display mode
  	result = d3dintf->d3dobj->GetAdapterDisplayMode(m_adapter, &m_origmode);
-@@ -1211,6 +1354,9 @@
+@@ -1215,6 +1358,9 @@
  	{
  		RECT client;
  
@@ -3126,7 +3126,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  		// bounds are from the window client rect
  		GetClientRectExceptMenu(std::static_pointer_cast<win_window_info>(win)->platform_window(), &client, win->fullscreen());
  		m_width = client.right - client.left;
-@@ -1294,6 +1440,20 @@
+@@ -1298,6 +1444,20 @@
  
  	auto win = assert_window();
  
@@ -3147,7 +3147,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  	// determine the refresh rate of the primary screen
  	const screen_device *primary_screen = screen_device_iterator(win->machine().root_device()).first();
  	if (primary_screen != nullptr)
-@@ -1335,10 +1495,6 @@
+@@ -1339,10 +1499,6 @@
  		if (mode.Width < minwidth || mode.Height < minheight)
  			size_score *= 0.01f;
  
@@ -3158,7 +3158,7 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  		// if we're looking for a particular mode, that's a winner
  		if (mode.Width == win->m_win_config.width && mode.Height == win->m_win_config.height)
  			size_score = 2.0f;
-@@ -1346,10 +1502,6 @@
+@@ -1350,10 +1506,6 @@
  		// compute refresh score
  		float refresh_score = 1.0f / (1.0f + fabs((double)mode.RefreshRate - target_refresh));
  
@@ -3170,8 +3170,8 @@ diff -Nru src/osd/modules/render/drawd3d.cpp src/osd/modules/render/drawd3d.cpp
  		if (mode.RefreshRate == win->m_win_config.refresh)
  			refresh_score = 2.0f;
 diff -Nru src/osd/modules/render/drawd3d.h src/osd/modules/render/drawd3d.h
---- src/osd/modules/render/drawd3d.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/render/drawd3d.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/render/drawd3d.h	2019-06-27 04:46:57.757017200 +0200
++++ src/osd/modules/render/drawd3d.h	2019-06-27 10:27:58.952461700 +0200
 @@ -67,6 +67,8 @@
  	virtual void add_audio_to_recording(const int16_t *buffer, int samples_this_frame) override;
  	virtual std::vector<ui::menu_item> get_slider_list() override;
@@ -3216,8 +3216,8 @@ diff -Nru src/osd/modules/render/drawd3d.h src/osd/modules/render/drawd3d.h
  	IDirect3DVertexBuffer9 *m_vertexbuf;                // pointer to the vertex buffer object
  	vertex *                m_lockedbuf;                // pointer to the locked vertex buffer
 diff -Nru src/osd/modules/render/drawogl.cpp src/osd/modules/render/drawogl.cpp
---- src/osd/modules/render/drawogl.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/render/drawogl.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/render/drawogl.cpp	2019-06-27 04:46:57.773639300 +0200
++++ src/osd/modules/render/drawogl.cpp	2019-06-27 10:27:59.065708200 +0200
 @@ -36,6 +36,13 @@
  #include "modules/opengl/gl_shader_tool.h"
  #include "modules/opengl/gl_shader_mgr.h"
@@ -3312,8 +3312,8 @@ diff -Nru src/osd/modules/render/drawogl.cpp src/osd/modules/render/drawogl.cpp
  //  texture_create
  //============================================================
 diff -Nru src/osd/modules/render/drawogl.h src/osd/modules/render/drawogl.h
---- src/osd/modules/render/drawogl.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/render/drawogl.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/render/drawogl.h	2019-06-27 04:46:57.776572800 +0200
++++ src/osd/modules/render/drawogl.h	2019-06-27 10:27:59.084712200 +0200
 @@ -120,6 +120,7 @@
  		, m_last_vofs(0.0f)
  		, m_surf_w(0)
@@ -3322,7 +3322,7 @@ diff -Nru src/osd/modules/render/drawogl.h src/osd/modules/render/drawogl.h
  	{
  		for (int i=0; i < HASH_SIZE + OVERFLOW_SIZE; i++)
  			m_texhash[i] = nullptr;
-@@ -230,6 +231,8 @@
+@@ -232,6 +233,8 @@
  
  	static bool     s_shown_video_info;
  	static bool     s_dll_loaded;
@@ -3332,8 +3332,8 @@ diff -Nru src/osd/modules/render/drawogl.h src/osd/modules/render/drawogl.h
  
  #endif // __DRAWOGL__
 diff -Nru src/osd/modules/sound/direct_sound.cpp src/osd/modules/sound/direct_sound.cpp
---- src/osd/modules/sound/direct_sound.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/sound/direct_sound.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/sound/direct_sound.cpp	2019-06-27 04:46:57.824480200 +0200
++++ src/osd/modules/sound/direct_sound.cpp	2019-06-27 10:27:59.200422600 +0200
 @@ -432,6 +432,7 @@
  		stream_buffer_size = std::max(DWORD(1024), (stream_buffer_size / 1024) * 1024);
  
@@ -3343,8 +3343,8 @@ diff -Nru src/osd/modules/sound/direct_sound.cpp src/osd/modules/sound/direct_so
  		// create the buffers
  		m_bytes_per_sample = stream_format.nBlockAlign;
 diff -Nru src/osd/modules/sound/sdl_sound.cpp src/osd/modules/sound/sdl_sound.cpp
---- src/osd/modules/sound/sdl_sound.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/modules/sound/sdl_sound.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/modules/sound/sdl_sound.cpp	2019-06-27 04:46:57.903876800 +0200
++++ src/osd/modules/sound/sdl_sound.cpp	2019-06-27 10:27:59.223030200 +0200
 @@ -333,7 +333,7 @@
  int sound_sdl::init(const osd_options &options)
  {
@@ -3355,8 +3355,8 @@ diff -Nru src/osd/modules/sound/sdl_sound.cpp src/osd/modules/sound/sdl_sound.cp
  	char audio_driver[16] = "";
  
 diff -Nru src/osd/osdcore.cpp src/osd/osdcore.cpp
---- src/osd/osdcore.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/osdcore.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/osdcore.cpp	2019-06-27 04:46:57.936142200 +0200
++++ src/osd/osdcore.cpp	2019-06-27 10:27:59.326463900 +0200
 @@ -175,13 +175,19 @@
  }
  #endif
@@ -3397,8 +3397,8 @@ diff -Nru src/osd/osdcore.cpp src/osd/osdcore.cpp
  }
  
 diff -Nru src/osd/osdepend.h src/osd/osdepend.h
---- src/osd/osdepend.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/osdepend.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/osdepend.h	2019-06-27 04:46:57.948847400 +0200
++++ src/osd/osdepend.h	2019-06-27 10:27:59.346290200 +0200
 @@ -64,6 +64,7 @@
  	// general overridables
  	virtual void init(running_machine &machine) = 0;
@@ -3408,8 +3408,8 @@ diff -Nru src/osd/osdepend.h src/osd/osdepend.h
  
  	// debugger overridables
 diff -Nru src/osd/sdl/osdsdl.h src/osd/sdl/osdsdl.h
---- src/osd/sdl/osdsdl.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/sdl/osdsdl.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/sdl/osdsdl.h	2019-06-27 04:46:57.968400700 +0200
++++ src/osd/sdl/osdsdl.h	2019-06-27 10:27:59.355292300 +0200
 @@ -20,7 +20,6 @@
  #define SDLOPTION_SCALEMODE             "scalemode"
  
@@ -3444,8 +3444,8 @@ diff -Nru src/osd/sdl/osdsdl.h src/osd/sdl/osdsdl.h
  
  	sdl_options &m_options;
 diff -Nru src/osd/sdl/sdlmain.cpp src/osd/sdl/sdlmain.cpp
---- src/osd/sdl/sdlmain.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/sdl/sdlmain.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/sdl/sdlmain.cpp	2019-06-27 04:46:57.972312400 +0200
++++ src/osd/sdl/sdlmain.cpp	2019-06-27 10:27:59.466257500 +0200
 @@ -62,6 +62,10 @@
  #endif // INI_PATH
  
@@ -3481,7 +3481,7 @@ diff -Nru src/osd/sdl/sdlmain.cpp src/osd/sdl/sdlmain.cpp
  	if (bench > 0)
 diff -Nru src/osd/sdl/switchres_sdl.cpp src/osd/sdl/switchres_sdl.cpp
 --- src/osd/sdl/switchres_sdl.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/sdl/switchres_sdl.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/sdl/switchres_sdl.cpp	2019-06-27 10:27:59.483261400 +0200
 @@ -0,0 +1,606 @@
 +/**************************************************************
 +
@@ -4090,8 +4090,8 @@ diff -Nru src/osd/sdl/switchres_sdl.cpp src/osd/sdl/switchres_sdl.cpp
 +	osd_printf_verbose("SwitchRes: Setting option -%s%s\n", machine.options().bool_value(option_ID)?"":"no", option_ID);
 +}
 diff -Nru src/osd/sdl/video.cpp src/osd/sdl/video.cpp
---- src/osd/sdl/video.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/sdl/video.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/sdl/video.cpp	2019-06-27 04:46:57.982089100 +0200
++++ src/osd/sdl/video.cpp	2019-06-27 10:27:59.493263800 +0200
 @@ -93,6 +93,18 @@
  }
  
@@ -4137,8 +4137,8 @@ diff -Nru src/osd/sdl/video.cpp src/osd/sdl/video.cpp
  	if (video_config.prescale < 1 || video_config.prescale > 3)
  	{
 diff -Nru src/osd/sdl/window.cpp src/osd/sdl/window.cpp
---- src/osd/sdl/window.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/sdl/window.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/sdl/window.cpp	2019-06-27 04:46:57.986976400 +0200
++++ src/osd/sdl/window.cpp	2019-06-27 10:27:59.593569400 +0200
 @@ -80,6 +80,7 @@
  //  PROTOTYPES
  //============================================================
@@ -4205,8 +4205,8 @@ diff -Nru src/osd/sdl/window.cpp src/osd/sdl/window.cpp
  		}
  
 diff -Nru src/osd/sdl/window.h src/osd/sdl/window.h
---- src/osd/sdl/window.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/sdl/window.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/sdl/window.h	2019-06-27 04:46:57.990887300 +0200
++++ src/osd/sdl/window.h	2019-06-27 10:27:59.610572800 +0200
 @@ -73,7 +73,6 @@
  	// Pointer to next window
  	sdl_window_info *   m_next;
@@ -4225,7 +4225,7 @@ diff -Nru src/osd/sdl/window.h src/osd/sdl/window.h
  	running_machine &   m_machine;
 diff -Nru src/osd/windows/custom_video.cpp src/osd/windows/custom_video.cpp
 --- src/osd/windows/custom_video.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video.cpp	2019-06-27 10:27:59.617574400 +0200
 @@ -0,0 +1,359 @@
 +/**************************************************************
 +
@@ -4588,7 +4588,7 @@ diff -Nru src/osd/windows/custom_video.cpp src/osd/windows/custom_video.cpp
 +}
 diff -Nru src/osd/windows/custom_video.h src/osd/windows/custom_video.h
 --- src/osd/windows/custom_video.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video.h	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video.h	2019-06-27 10:27:59.725753800 +0200
 @@ -0,0 +1,31 @@
 +/**************************************************************
 +
@@ -4623,7 +4623,7 @@ diff -Nru src/osd/windows/custom_video.h src/osd/windows/custom_video.h
 +modeline *custom_video_get_backup_mode();
 diff -Nru src/osd/windows/custom_video_adl.cpp src/osd/windows/custom_video_adl.cpp
 --- src/osd/windows/custom_video_adl.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_adl.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_adl.cpp	2019-06-27 10:27:59.744761800 +0200
 @@ -0,0 +1,376 @@
 +/**************************************************************
 +
@@ -5003,7 +5003,7 @@ diff -Nru src/osd/windows/custom_video_adl.cpp src/osd/windows/custom_video_adl.
 +}
 diff -Nru src/osd/windows/custom_video_adl.h src/osd/windows/custom_video_adl.h
 --- src/osd/windows/custom_video_adl.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_adl.h	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_adl.h	2019-06-27 10:27:59.751764300 +0200
 @@ -0,0 +1,130 @@
 +/**************************************************************
 +
@@ -5137,7 +5137,7 @@ diff -Nru src/osd/windows/custom_video_adl.h src/osd/windows/custom_video_adl.h
 +bool adl_set_modeline(char *target_display, modeline *m, int update_mode);
 diff -Nru src/osd/windows/custom_video_ati.cpp src/osd/windows/custom_video_ati.cpp
 --- src/osd/windows/custom_video_ati.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_ati.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_ati.cpp	2019-06-27 10:27:59.849668200 +0200
 @@ -0,0 +1,309 @@
 +/**************************************************************
 +
@@ -5450,7 +5450,7 @@ diff -Nru src/osd/windows/custom_video_ati.cpp src/osd/windows/custom_video_ati.
 +}
 diff -Nru src/osd/windows/custom_video_ati.h src/osd/windows/custom_video_ati.h
 --- src/osd/windows/custom_video_ati.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_ati.h	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_ati.h	2019-06-27 10:27:59.867672000 +0200
 @@ -0,0 +1,20 @@
 +/**************************************************************
 +
@@ -5474,7 +5474,7 @@ diff -Nru src/osd/windows/custom_video_ati.h src/osd/windows/custom_video_ati.h
 +void ati_refresh_timings(void);
 diff -Nru src/osd/windows/custom_video_ati_family.cpp src/osd/windows/custom_video_ati_family.cpp
 --- src/osd/windows/custom_video_ati_family.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_ati_family.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_ati_family.cpp	2019-06-27 10:27:59.873673700 +0200
 @@ -0,0 +1,850 @@
 +/**************************************************************
 +
@@ -6329,7 +6329,7 @@ diff -Nru src/osd/windows/custom_video_ati_family.cpp src/osd/windows/custom_vid
 \ No newline at end of file
 diff -Nru src/osd/windows/custom_video_pstrip.cpp src/osd/windows/custom_video_pstrip.cpp
 --- src/osd/windows/custom_video_pstrip.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_pstrip.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_pstrip.cpp	2019-06-27 10:27:59.987706400 +0200
 @@ -0,0 +1,529 @@
 +/**************************************************************
 +
@@ -6862,7 +6862,7 @@ diff -Nru src/osd/windows/custom_video_pstrip.cpp src/osd/windows/custom_video_p
 +}
 diff -Nru src/osd/windows/custom_video_pstrip.h src/osd/windows/custom_video_pstrip.h
 --- src/osd/windows/custom_video_pstrip.h	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/custom_video_pstrip.h	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/custom_video_pstrip.h	2019-06-27 10:28:00.006710700 +0200
 @@ -0,0 +1,63 @@
 +/**************************************************************
 + 
@@ -6929,7 +6929,7 @@ diff -Nru src/osd/windows/custom_video_pstrip.h src/osd/windows/custom_video_pst
 +int ps_monitor_index (const char *display_name);
 diff -Nru src/osd/windows/switchres_windows.cpp src/osd/windows/switchres_windows.cpp
 --- src/osd/windows/switchres_windows.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ src/osd/windows/switchres_windows.cpp	2019-06-04 11:28:10.000000000 +0200
++++ src/osd/windows/switchres_windows.cpp	2019-06-27 10:28:00.013712700 +0200
 @@ -0,0 +1,516 @@
 +/**************************************************************
 +
@@ -7448,8 +7448,8 @@ diff -Nru src/osd/windows/switchres_windows.cpp src/osd/windows/switchres_window
 +	return 1;
 +}
 diff -Nru src/osd/windows/video.cpp src/osd/windows/video.cpp
---- src/osd/windows/video.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/windows/video.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/windows/video.cpp	2019-06-27 04:46:58.061284000 +0200
++++ src/osd/windows/video.cpp	2019-06-27 10:28:00.114735200 +0200
 @@ -95,15 +95,22 @@
  //      profiler_mark(PROFILER_END);
  	}
@@ -7490,8 +7490,8 @@ diff -Nru src/osd/windows/video.cpp src/osd/windows/video.cpp
  	if (video_config.prescale < 1 || video_config.prescale > 3)
  	{
 diff -Nru src/osd/windows/window.cpp src/osd/windows/window.cpp
---- src/osd/windows/window.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/windows/window.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/windows/window.cpp	2019-06-27 04:46:58.073014800 +0200
++++ src/osd/windows/window.cpp	2019-06-27 10:28:00.132870600 +0200
 @@ -54,6 +54,8 @@
  #define MAKE_DI_SCAN(scan, isextended) (scan & 0x7f) | (isextended ? 0x80 : 0x00)
  #define WINOSD(machine) downcast<windows_osd_interface*>(&machine.osd())
@@ -7808,8 +7808,8 @@ diff -Nru src/osd/windows/window.cpp src/osd/windows/window.cpp
  bool winwindow_qt_filter(void *message)
  {
 diff -Nru src/osd/windows/window.h src/osd/windows/window.h
---- src/osd/windows/window.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/windows/window.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/windows/window.h	2019-06-27 04:46:58.077903300 +0200
++++ src/osd/windows/window.h	2019-06-27 10:28:00.246877400 +0200
 @@ -86,6 +86,7 @@
  	// static
  
@@ -7846,8 +7846,8 @@ diff -Nru src/osd/windows/window.h src/osd/windows/window.h
  	static POINT        s_saved_cursor_pos;
  
 diff -Nru src/osd/windows/winmain.cpp src/osd/windows/winmain.cpp
---- src/osd/windows/winmain.cpp	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/windows/winmain.cpp	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/windows/winmain.cpp	2019-06-27 04:46:58.081815800 +0200
++++ src/osd/windows/winmain.cpp	2019-06-27 10:28:00.270806400 +0200
 @@ -43,6 +43,9 @@
  
  #define DEBUG_SLOW_LOCKS    0
@@ -7880,8 +7880,8 @@ diff -Nru src/osd/windows/winmain.cpp src/osd/windows/winmain.cpp
  	g_current_machine = nullptr;
  
 diff -Nru src/osd/windows/winmain.h src/osd/windows/winmain.h
---- src/osd/windows/winmain.h	2019-05-30 19:29:56.000000000 +0200
-+++ src/osd/windows/winmain.h	2019-06-04 11:28:10.000000000 +0200
+--- src/osd/windows/winmain.h	2019-06-27 04:46:58.085725800 +0200
++++ src/osd/windows/winmain.h	2019-06-27 10:28:00.279808900 +0200
 @@ -278,6 +278,7 @@
  	// general overridables
  	virtual void init(running_machine &machine) override;
