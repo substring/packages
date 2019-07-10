@@ -21,6 +21,7 @@ check_if_download_or_build() {
   local rc
   [[ ! -f PKGBUILD ]] && return 255
   for pkgfile in $(makepkg --packagelist) ; do
+  log "Processing $pkgfile..."
     filename=$(basename "$pkgfile")
     pkgname=$(extract_package_name "$filename")
     
@@ -48,7 +49,7 @@ check_if_download_or_build() {
       # YES: fine, just download it for a createrepo later, no need to build
       log "$filename is in the $repo_found repo -> download and copy to $_output"
       sudo pacman -Sddw --noconfirm "$pkgname" || return 255
-      # Again dirty trick : linux means 4 packages, advancemenu-git packages name is tricked
+      # Again dirty trick : linux means 3 packages, advancemenu-git packages name is tricked
       # So circumvent those 2 cases
       if [[ -f /var/cache/pacman/pkg/"$repo_package_name" ]] ; then
         # Need to copy as $"filename because of what built_packages file will hold

@@ -1,16 +1,16 @@
-diff --git a/linux/trunk/PKGBUILD b/linux/trunk/PKGBUILD
+diff --git a/linux/repos/core-x86_64/PKGBUILD b/linux/repos/core-x86_64/PKGBUILD
 index 1895ca0c88e..fc486182337 100644
---- a/linux/trunk/PKGBUILD
-+++ b/linux/trunk/PKGBUILD
+--- a/linux/repos/core-x86_64/PKGBUILD
++++ b/linux/repos/core-x86_64/PKGBUILD
 @@ -19,6 +19,11 @@ source=(
    60-linux.hook  # pacman hook for depmod
    90-linux.hook  # pacman hook for initramfs regeneration
    linux.preset   # standard config files for mkinitcpio ramdisk
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/${_15kpatchcommitid}/linux-5.1/01_ati_9200_pllfix.diff
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/${_15kpatchcommitid}/linux-5.1/02_arcadevga_3000.diff
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/${_15kpatchcommitid}/linux-5.1/03_linux_15khz.diff
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/${_15kpatchcommitid}/linux-5.1/04_linux_15khz_scanoutpos.diff
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/${_15kpatchcommitid}/linux-5.1/05_linux_15khz_interlaced_mode_fix.diff
++  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_ati_9200_pllfix.diff
++  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_arcadevga_3000.diff
++  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/03_linux_15khz.diff
++  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/04_linux_15khz_scanoutpos.diff
++  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/05_linux_15khz_interlaced_mode_fix.diff
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
@@ -20,11 +20,11 @@ index 1895ca0c88e..fc486182337 100644
              'c043f3033bb781e2688794a59f6d1f7ed49ef9b13eb77ff9a425df33a244a636'
 -            'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65')
 +            'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65'
-+            '1800d3828ec69703865a5077291c8a312f0cf7dead919fc5cd857f9a49642af7'
-+            'd95707c7ccac4c558c2e2a60f39ede162a76019248a716e7d471f33d990b8ae9'
-+            'faad9d6f4950cf9db1067a8dab29b6fd62f678910b56f352686d64cc5d848014'
-+            'f1d402261ff33edec3f0441942b26f9d3c9b18fccd9f8a02c7413d0c125af7f0'
-+            '756c1a0bfcbe1cf42b5a954a99c081bd6ae40e995ff9e5993bf49d5b7c1e37d7')
++            SKIP
++            SKIP
++            SKIP
++            SKIP
++            SKIP)
  
  _kernelname=${pkgbase#linux}
  : ${_kernelname:=-ARCH}
