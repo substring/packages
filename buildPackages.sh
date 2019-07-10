@@ -11,30 +11,55 @@ extract_package_name() {
   # sadly this method doesn't work fine for a git package in the form of advancemenuplus-git-ff27752-1-x86_64.pkg.tar.xz
   echo "$1" | sed -E "s+([[:alnum:]-]*)-[0-9].*+\1+"
 }
+
 # Expects that cwd has a PKGBUILD
 # returns 0 if should build
 # returns 1 if package was downloaded from repo
 # returns 255 in case of an error
 check_if_download_or_build() {
+  local repo_found
   [[ ! -f PKGBUILD ]] && return 255
   for pkgfile in $(makepkg --packagelist) ; do
     filename=$(basename "$pkgfile")
     pkgname=$(extract_package_name "$filename")
     
     # Exceptions ... This is dirty sadly
-    if [[ $pkgname == "mame" ]] ; then
-      pkgname=groovymame
-      filename="groovy$filename"
-    fi
+    case $pkgname in
+      mame)
+        pkgname=groovymame
+        filename="groovy$filename"
+        ;;
+      advancemenuplus-git-*)
+        pkgname=advancemenuplus
+        ;;
+    esac
     
     echo "Package name was determined as: $pkgname"
-    repo_package_name=$(pacman -Sl groovyarcade | sed -E "s/groovyarcade ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/" | grep "^$pkgname")
-    if [[ $repo_package_name == "$filename" ]] ; then
+    for repo in groovyarcade-testing groovyarcade ; do
+      repo_package_name=$(pacman -Sl $repo | sed -E "s/groovyarcade ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/" | grep "^$pkgname")
+      if [[ -n $repo_package_name ]] ; then
+        echo "Found $pkgname in repo $repo"
+        repo_found="$repo"
+        break
+      fi
+    done
+    if [[ -n $repo_found ]] ; then
       # YES: fine, just download it for a createrepo later, no need to build
-      log "$filename is in the groovy repo -> download and copy to $_output"
+      log "$filename is in the $repo_found repo -> download and copy to $_output"
       sudo pacman -Sddw --noconfirm "$pkgname" || return 255
-      cp /var/cache/pacman/pkg/"$filename" "$_output" || return 255
-      return 1
+      # Again dirty trick : linux means 4 packages, advancemenu-git packages name is tricked
+      # So circumvent those 2 cases
+      if [[ -f /var/cache/pacman/pkg/"$repo_package_name" ]] ; then
+        # Need to copy as $"filename because of what built_packages file will hold
+        cp /var/cache/pacman/pkg/"$repo_package_name" "$_output"/"$filename" || return 255
+        return 1
+      elif [[ -f /var/cache/pacman/pkg/"$filename" ]] ; then
+        cp /var/cache/pacman/pkg/"$filename" "$_output" || return 255
+        return 1
+      else
+        echo "Couldn't determine downloaded package filename. Aborting..." >&2
+        return 255
+      fi
     else
       log "$filename is not in the repo -> BUILD IT!!!"
       return 0

@@ -30,12 +30,14 @@ $ghr release \
     --tag "$tag" \
     --name "$release_name" \
     --description "automatic build" \
+    --draft \
     --pre-release
   else
 $ghr release \
     --tag "$tag" \
     --name "$release_name" \
-    --description "automatic build"
+    --description "automatic build" \
+    --draft
   fi
 }
 
@@ -65,9 +67,12 @@ need_assets
 # Just build the repo only if packages are available
 echo "Preparing the AUR repo"
 command -v repo-add || cancel_and_exit
-ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/groovyarcade.db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
+# determine repo name
+repo_name=groovyarcade
+[[ $tag == "testing" ]] && repo_name="${repo_name}-tesing"
+ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/"$repo_name".db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
 
-for file in "${_OUTPUT}"/groovyarcade.db* "${_OUTPUT}"/groovyarcade.files* ; do
+for file in "${_OUTPUT}"/"$repo_name".db* "${_OUTPUT}"/"$repo_name".files* ; do
   filename=$(basename "$file")
   echo "Uploading repo data $filename ..."
   # Upload files
