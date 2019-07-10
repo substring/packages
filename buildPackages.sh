@@ -18,6 +18,7 @@ extract_package_name() {
 # returns 255 in case of an error
 check_if_download_or_build() {
   local repo_found
+  local rc
   [[ ! -f PKGBUILD ]] && return 255
   for pkgfile in $(makepkg --packagelist) ; do
     filename=$(basename "$pkgfile")
@@ -52,10 +53,8 @@ check_if_download_or_build() {
       if [[ -f /var/cache/pacman/pkg/"$repo_package_name" ]] ; then
         # Need to copy as $"filename because of what built_packages file will hold
         cp /var/cache/pacman/pkg/"$repo_package_name" "$_output"/"$filename" || return 255
-        return 1
       elif [[ -f /var/cache/pacman/pkg/"$filename" ]] ; then
         cp /var/cache/pacman/pkg/"$filename" "$_output" || return 255
-        return 1
       else
         echo "Couldn't determine downloaded package filename. Aborting..." >&2
         return 255
@@ -65,6 +64,9 @@ check_if_download_or_build() {
       return 0
     fi
   done
+
+  # If we reach this case, it's because we 've downloaded pkg from the repos
+  return 1
 }
 
 post_build() {
