@@ -2,6 +2,7 @@ image: archlinux/base:latest
 
 stages:
   - prechecks
+  - prepare
   - makepkg
   - release
 
@@ -66,6 +67,17 @@ bash_lint:
 #    MAKEPKG_OPTS: "--nobuild --nodeps"
 #  <<: *buildpackages
 #  when: always
+
+reset_releases:
+  stage: prepare
+  image: alpine
+  before_script:
+    - echo "Resetting draft releases"
+  script:
+    - apk add curl
+    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - github-release edit -t testing -p
+    - github-release edit -t stable
 
 build_linux_manual:
   stage: makepkg
@@ -171,7 +183,7 @@ release_github_stable:
     - echo "Releasing stable packages"
     - pacman -Sy --noconfirm --needed tar xz grep
     - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
-    - ./release.sh -crup
+    - ./release.sh -dcrup
 
 
 release_github_unstable:
