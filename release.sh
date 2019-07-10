@@ -108,6 +108,8 @@ $ghr delete \
 
 release_name="GroovyArcade "
 tag=stable
+# $BUILD_TYPE should be set by the CI for daily automatic builds for testing repo
+[[ -n $BUILD_TYPE ]] && tag="$BUILD_TYPE"
 ghr=$([[ -f ~/go/bin/github-release ]] && echo "$HOME/go/bin/github-release" || echo "/usr/local/bin/github-release")
 
 # Make sure all env vars exist
