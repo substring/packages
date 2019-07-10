@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+set -x
 
 # shellcheck disable=SC1091
 source include.sh
@@ -19,6 +19,8 @@ extract_package_name() {
 check_if_download_or_build() {
   local repo_found
   local rc
+  local repo_package_name
+  local pkg_version
   [[ ! -f PKGBUILD ]] && return 255
   for pkgfile in $(makepkg --packagelist) ; do
   log "Processing $pkgfile..."
@@ -27,19 +29,17 @@ check_if_download_or_build() {
     
     # Exceptions ... This is dirty sadly
     case $pkgname in
-      mame)
-        pkgname=groovymame
-        filename="groovy$filename"
-        ;;
       advancemenuplus-git-*)
-        pkgname=advancemenuplus
+        pkgname=advancemenuplus-git
         ;;
     esac
     
     echo "Package name was determined as: $pkgname"
     for repo in groovyarcade-testing groovyarcade ; do
-      repo_package_name=$(pacman -Sl $repo | sed -E "s/groovyarcade ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/" | grep "^$pkgname")
-      if [[ -n $repo_package_name ]] ; then
+      # Remove repo name, match exact package name, convert to filename
+      repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
+      pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
+      if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" ; then
         echo "Found $pkgname in repo $repo"
         repo_found="$repo"
         break
@@ -61,7 +61,8 @@ check_if_download_or_build() {
         return 255
       fi
     else
-      log "$filename is not in the repo -> BUILD IT!!!"
+      # If a PKGBUILD builds multiple packages, if any is not available, rebuild all anyway
+      log "$filename is in no repo -> BUILD IT!!!"
       return 0
     fi
   done
