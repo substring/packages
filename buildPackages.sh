@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 
 # shellcheck disable=SC1091
 source include.sh
