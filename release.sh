@@ -88,6 +88,9 @@ done
 # Make the release definitive
 #
 publish_release() {
+# Don't publish unstable branches, they should stay as pre-release
+[[ $tag == "unstable" ]] && return 0
+
 echo "Publihing release $tag"
 $ghr edit \
     --tag "$tag" \
