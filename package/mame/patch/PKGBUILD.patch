@@ -1,7 +1,7 @@
-diff --git a/mame/trunk/PKGBUILD b/mame/trunk/PKGBUILD
+diff --git a/mame/repos/community-x86_64/PKGBUILD b/mame/repos/community-x86_64/PKGBUILD
 index ca612c4512f..e743498e98b 100644
---- a/mame/trunk/PKGBUILD
-+++ b/mame/trunk/PKGBUILD
+--- a/mame/repos/community-x86_64/PKGBUILD
++++ b/mame/repos/community-x86_64/PKGBUILD
 @@ -3,46 +3,60 @@
  # Contributor: robb_force <robb_force@holybuffalo.net>
  # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>

@@ -1,14 +1,14 @@
-diff --git a/mednafen/trunk/PKGBUILD b/mednafen/trunk/PKGBUILD
+diff --git a/mednafen/repos/community-x86_64/PKGBUILD b/mednafen/repos/community-x86_64/PKGBUILD
 index c6bc9abf6dc..e17e2b06259 100644
---- a/mednafen/trunk/PKGBUILD
-+++ b/mednafen/trunk/PKGBUILD
+--- a/mednafen/repos/community-x86_64/PKGBUILD
++++ b/mednafen/repos/community-x86_64/PKGBUILD
 @@ -5,7 +5,8 @@
  # Contributor: kagan <juanynie@mi.madritel.es>
  # Contributor: Hans-Kristian Arntzen <maister@archlinux.us>
  
 -pkgname=mednafen
-+pkgname=emu4crt
-+origpkg=mednagen
++pkgname=mednafen-emu4crt
++origpkg=mednafen
  pkgver=1.22.2
  pkgrel=1
  pkgdesc="Command-line multi-system gaming emulator"

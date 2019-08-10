@@ -1,7 +1,7 @@
-diff --git a/linux/trunk/config b/linux/trunk/config
+diff --git a/linux/repos/core-x86_64/config b/linux/repos/core-x86_64/config
 index f9f36d1da9e..f1ae1fe63cf 100644
---- a/linux/trunk/config
-+++ b/linux/trunk/config
+--- a/linux/repos/core-x86_64/config
++++ b/linux/repos/core-x86_64/config
 @@ -5983,7 +5983,7 @@ CONFIG_DRM=m
  CONFIG_DRM_MIPI_DSI=y
  CONFIG_DRM_DP_AUX_CHARDEV=y
