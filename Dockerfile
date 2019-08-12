@@ -38,14 +38,19 @@ COPY packages_groovy.lst /work
 COPY groovy-ux-repo.conf /etc/pacman.d
 
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
+RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
+RUN sed -ri 's/^BUILDENV=(.*)\!ccache(.*)/BUILDENV=\1ccache\2/' /etc/makepkg.conf
+RUN CCACHE_DIR=/work/cache/ccache ccache -s
+
 
 USER build
 
 RUN mkdir -p /work /work/cache/ccache
 
-#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh mame
+CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh
 #CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh -g
-CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh -g
+#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /work/buildPackages.sh linux
+#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh -g
 #CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--packagelist" /work/buildPackages.sh
-#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh antimicro
+#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh linux
 #CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -g
