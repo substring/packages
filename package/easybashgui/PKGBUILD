@@ -1,0 +1,21 @@
+pkgname=easybashgui
+pkgver=11.0.1
+pkgrel=1
+pkgdesc="Create bash GUIs without worrying about running environment"
+arch=(any)
+url="https://sites.google.com/site/$pkgname"
+license=('GPL3')
+optdepends=('dialog: dialog support'
+            'kdebase-kdialog: kdialog support'
+            'xdialog: xdialog support'
+            'zenity: zenity support')
+install=$pkgname.install
+source=("https://github.com/BashGui/$pkgname/archive/$pkgver.tar.gz")
+sha256sums=('889bc3feecfdfe8898ea89b73c23cd8fe4603c3acf52b10d3c15e1fbe0116754')
+
+package() {
+   cd ${pkgname}-${pkgver}
+
+   msg2 "Running make install.."
+   make DESTDIR="${pkgdir}" install
+}
