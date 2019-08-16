@@ -25,11 +25,11 @@ need_assets() {
 #
 create_release() {
   echo "Creating release $tag"
-  if [[ $1 == unstable ]] ; then
+  if [[ $1 == "testing" ]] ; then
 $ghr release \
     --tag "$tag" \
-    --name "$release_name" \
-    --description "automatic build" \
+    --name "$tag" \
+    --description ""Automatic build for $(date +"%Y-%m-%d %T") update"" \
     --draft \
     --pre-release
   else
@@ -89,12 +89,12 @@ done
 #
 publish_release() {
 # Don't publish unstable branches, they should stay as pre-release
-[[ $tag == "unstable" ]] && return 0
+[[ $tag == "testing" ]] && return 0
 
 echo "Publihing release $tag"
 $ghr edit \
     --tag "$tag" \
-    --name "GroovyArcade $tag" \
+    --name "$tag" \
     --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
 }
 
