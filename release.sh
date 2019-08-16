@@ -29,7 +29,7 @@ create_release() {
 $ghr release \
     --tag "$tag" \
     --name "$tag" \
-    --description ""Automatic build for $(date +"%Y-%m-%d %T") update"" \
+    --description "Automatic build for $(date +"%Y-%m-%d %T") update" \
     --draft \
     --pre-release
   else
