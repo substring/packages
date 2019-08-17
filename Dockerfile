@@ -36,6 +36,8 @@ COPY packages_arch.lst /work
 COPY packages_aur.lst /work
 COPY packages_groovy.lst /work
 COPY groovy-ux-repo.conf /etc/pacman.d
+COPY release.sh /work
+COPY settings /work
 
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
 RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
