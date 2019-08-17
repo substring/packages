@@ -88,14 +88,19 @@ done
 # Make the release definitive
 #
 publish_release() {
-# Don't publish unstable branches, they should stay as pre-release
-[[ $tag == "testing" ]] && return 0
-
 echo "Publihing release $tag"
+if [[ $tag == "testing" ]] ; then
+$ghr edit \
+    --tag "$tag" \
+    --name "$tag" \
+    --pre-release \
+    --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
+else
 $ghr edit \
     --tag "$tag" \
     --name "$tag" \
     --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
+fi
 }
 
 #
