@@ -25,7 +25,7 @@ need_assets() {
 #
 create_release() {
   echo "Creating release $tag"
-  if [[ $1 == "testing" ]] ; then
+  if [[ $1 != "stable" ]] ; then
 $ghr release \
     --tag "$tag" \
     --name "$tag" \
@@ -69,7 +69,7 @@ echo "Preparing the AUR repo"
 command -v repo-add || cancel_and_exit
 # determine repo name
 repo_name=groovyarcade
-[[ $tag == "testing" ]] && repo_name="${repo_name}-${tag}"
+[[ $tag != "stable" ]] && repo_name="${repo_name}-${tag}"
 ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/"$repo_name".db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
 
 for file in "${_OUTPUT}"/"$repo_name".db* "${_OUTPUT}"/"$repo_name".files* ; do
@@ -89,7 +89,7 @@ done
 #
 publish_release() {
 echo "Publihing release $tag"
-if [[ $tag == "testing" ]] ; then
+if [[ $tag != "stable" ]] ; then
 $ghr edit \
     --tag "$tag" \
     --name "$tag" \
@@ -131,7 +131,7 @@ if [[ -z $GITHUB_TOKEN ]] ; then
 fi
 
 # Parse command line
-while getopts "curtpd" option; do
+while getopts "curtpdn:" option; do
   case "${option}" in
     c)
       create_release
@@ -147,6 +147,9 @@ while getopts "curtpd" option; do
       ;;
     d)
       delete_release
+      ;;
+    n)
+      tag="$OPTARG"
       ;;
     t)
       # Testing release

@@ -186,11 +186,33 @@ release_github_stable:
     - ./release.sh -dcrup
 
 
-release_github_unstable:
+deploy_staging:
   stage: release
-  <<: *notmaster
   script:
     - echo "Releasing unstable packages"
     - pacman -Sy --noconfirm --needed tar xz grep
     - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
-    - ./release.sh -t
+    - ./release.sh -n "$CI_COMMIT_REF_SLUG" -dcrup
+  environment:
+    name: testing/$CI_COMMIT_REF_SLUG
+    url: https://github.com/substring/packages/releases/tag/$CI_COMMIT_REF_SLUG
+    on_stop: clean_release
+  <<: *notmaster
+
+
+clean_release:
+  image: alpine
+  stage: release
+  dependencies: []
+  <<: *notmaster
+  before_script:
+    - echo "Deleting deployment $CI_COMMIT_REF_SLUG"
+
+  script:
+    - apk add curl
+    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - github-release delete -t "$CI_COMMIT_REF_SLUG"
+  environment:
+    name: testing/$CI_COMMIT_REF_SLUG
+    action: stop
+    

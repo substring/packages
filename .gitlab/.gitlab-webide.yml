@@ -1,0 +1,5 @@
+terminal:
+  image: archlinux/base
+  before_script:
+    - pacman -Sy
+  script: sleep 60
