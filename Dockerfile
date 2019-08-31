@@ -49,10 +49,12 @@ USER build
 
 RUN mkdir -p /work /work/cache/ccache
 
-CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh
+#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh
 #CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh -g
-#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /work/buildPackages.sh linux
+#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh linux-rt
 #CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh -g
 #CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--packagelist" /work/buildPackages.sh
-#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh linux
-#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -g
+#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh linux-rt
+#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "aur/gamemode"
+#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "groovy/switchres"
+CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "kitty"

@@ -12,6 +12,7 @@ extract_package_name() {
   echo "$1" | sed -E "s+([[:alnum:]-]*)-[0-9].*+\1+"
 }
 
+
 # Expects that cwd has a PKGBUILD
 # returns 0 if should build
 # returns 1 if package was downloaded from repo
@@ -71,6 +72,7 @@ check_if_download_or_build() {
   return 1
 }
 
+
 post_build() {
   # TODO: if we've exited just above, the following folder would always exist, could cause some confusion
   mkdir -p "${_output}/${package}"
@@ -82,6 +84,7 @@ post_build() {
   echo
   return 0
 }
+
 
 do_the_job() {
   echo "+-------------------------"
@@ -135,36 +138,57 @@ do_the_job() {
   post_build
 }
 
-build_native() {
-# Native arch packages
-while read -r package ; do
-  echo "$package" | grep -q "^#" && continue
+build_native_single() {
+  package="$1"
   cd /work || { echo "Couldn't cd to the work dir" ; exit 1 ; } 
   asp update "$package"
   asp checkout "$package"
   do_the_job "$package" || exit 1
+}
+
+
+build_native() {
+# Native arch packages
+while read -r package ; do
+  echo "$package" | grep -q "^#" && continue
+  build_native_single "$package" || exit 1
 done < <(grep "^${package_to_build}$" /work/packages_arch.lst)
 }
+
+
+build_aur_single() {
+  package="$1"
+  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
+  wget https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
+  tar xvzf "${package}".tar.gz
+  do_the_job "$package" || exit 1
+}
+
 
 build_aur() {
 # AUR packages
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
-  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
-  wget https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz
-  tar xvzf "${package}".tar.gz
-  do_the_job "$package" || exit 1
+  build_aur_single "$package" || exit 1
 done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 }
+
+
+build_groovy_single() {
+  package="$1"
+  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
+  cp -R package/"$package" . || return 1
+  do_the_job "$package" || exit 1
+}
+
 
 build_groovy() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
-  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
-  cp -R package/"$package" .
-  do_the_job "$package" || exit 1
+  build_groovy_single "$package" || exit 1
 done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 }
+
 
 namcap_packages() {
 for pack in /work/output/*.pkg.tar.xz ; do
@@ -172,12 +196,33 @@ for pack in /work/output/*.pkg.tar.xz ; do
 done
 }
 
+
+build_single_package() {
+  cmd_arg="$1"
+  pkgname=${1#*/}
+  if [[ $cmd_arg =~ ^aur/ ]] ; then
+    # that's a AUR package, let's build it
+    build_aur_single "$pkgname"
+    exit $?
+  elif [[ $cmd_arg =~ ^groovy/ ]] ; then
+    # that's a groovy package, let's build it
+    build_groovy_single "$pkgname"
+    exit $?
+  else
+    # Fallback to a genuine arch package
+    build_native_single "$pkgname"
+    exit $?
+  fi
+  return 1
+}
+
+
 rm "$_output"/built_packages* 2>/dev/null
 
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagc" option; do
+while getopts "nagcs:" option; do
   case "${option}" in
     n)
       build_native
@@ -195,11 +240,16 @@ while getopts "nagc" option; do
       namcap_packages
       exit $?
       ;;
+    s)
+      build_single_package "$OPTARG"
+      exit $?
+      ;;
   esac
 done
 
 # Tricky thing : if $1 exists, it's a package
 # as we'll grep the .lst files, we need a trick if $1 is empty
+
 package_to_build=${1:-".*"}
 
 build_native ; build_aur ; build_groovy
