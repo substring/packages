@@ -3,6 +3,7 @@ image: archlinux/base:latest
 stages:
   - prechecks
   - prepare
+  - pretests
   - makepkg
   - release
 
@@ -59,6 +60,27 @@ bash_lint:
     - shellcheck -V
   script:
     - shellcheck -x *.sh
+
+build_single_aur:
+  stage: pretests
+  variables:
+    MAKEPKG_ARGS: "-s 'aur/gamemode'"
+  <<: *buildpackages
+  cache:
+    key: cache-aur
+    paths:
+      - work/cache
+
+build_single_native:
+  stage: pretests
+  variables:
+    MAKEPKG_ARGS: "-s kitty"
+  <<: *buildpackages
+  cache:
+    key: cache-aur
+    paths:
+      - work/cache
+
 
 #basic_checks:
 #  stage: prechecks
