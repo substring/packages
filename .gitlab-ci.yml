@@ -14,7 +14,7 @@ before_script:
   - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
   - pacman -Su --noconfirm
 
-.build_packages_template: &buildpackages
+.build_pkg_no_artifact: &buildpkgnoartifact
   script:
     - pacman -S --noconfirm --needed mkinitcpio asp base-devel ccache haveged namcap wget sed dos2unix mercurial grep
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
@@ -34,6 +34,9 @@ before_script:
     - CCACHE_DIR=/work/cache/ccache ccache -s
     - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" ./buildPackages.sh $MAKEPKG_ARGS" 2>&1 | tee work/output/build.log
     - CCACHE_DIR=/work/cache/ccache ccache -s
+    
+.build_packages_template: &buildpackages
+  <<: *buildpkgnoartifact
   artifacts:
     paths:
       - work/output
@@ -65,7 +68,7 @@ build_single_aur:
   stage: pretests
   variables:
     MAKEPKG_ARGS: "-s 'aur/gamemode'"
-  <<: *buildpackages
+  <<: *buildpkgnoartifact
   cache:
     key: cache-aur
     paths:
@@ -75,7 +78,7 @@ build_single_native:
   stage: pretests
   variables:
     MAKEPKG_ARGS: "-s kitty"
-  <<: *buildpackages
+  <<: *buildpkgnoartifact
   cache:
     key: cache-aur
     paths:
@@ -237,4 +240,3 @@ clean_release:
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
     action: stop
-    
