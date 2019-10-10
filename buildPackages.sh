@@ -152,7 +152,7 @@ build_native() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
   build_native_single "$package" || exit 1
-done < <(egrep "^${package_to_build}$" /work/packages_arch.lst)
+done < <(grep -E "^${package_to_build}$" /work/packages_arch.lst)
 }
 
 
