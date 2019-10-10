@@ -152,7 +152,7 @@ build_native() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
   build_native_single "$package" || exit 1
-done < <(grep "^${package_to_build}$" /work/packages_arch.lst)
+done < <(egrep "^${package_to_build}$" /work/packages_arch.lst)
 }
 
 
@@ -225,6 +225,9 @@ package_to_build=".*"
 while getopts "nagcs:" option; do
   case "${option}" in
     n)
+      # WARNING: very dirty trick to exclude building mame and linux
+      # Those must be specified on the script args individually
+      package_to_build="($(grep -v -e "^linux$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
       build_native
       exit $?
       ;;
