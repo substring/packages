@@ -200,8 +200,10 @@ build_aur:
     paths:
       - work/cache
 
+# allow_failure: true to allow pushing the kernel even if broadcom-wl failed
 build_native:
   stage: makepkg
+  allow_failure: true
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-n"
