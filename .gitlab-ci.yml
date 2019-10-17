@@ -5,8 +5,10 @@ stages:
   - prepare
   - pretests
   - makepkg
+  - dkms
   - release
 
+# Warning : the dkms build jobs override this
 before_script:
   - pacman-key --init && \
     pacman-key --populate archlinux || true
@@ -32,7 +34,7 @@ before_script:
     - chown -R build:build work /work
     - chmod -R 777 work /work
     - CCACHE_DIR=/work/cache/ccache ccache -s
-    - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" ./buildPackages.sh $MAKEPKG_ARGS" 2>&1 | tee work/output/build.log
+    - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" DONT_DOWNLOAD_JUST_BUILD=\"$DONT_DOWNLOAD_JUST_BUILD\" ./buildPackages.sh $MAKEPKG_ARGS" 2>&1 | tee work/output/build.log
     - CCACHE_DIR=/work/cache/ccache ccache -s
     
 .build_packages_template: &buildpackages
@@ -141,17 +143,6 @@ build_aur_manual:
     paths:
       - work/cache
 
-build_native_manual:
-  stage: makepkg
-  <<: *notmaster
-  variables:
-    MAKEPKG_ARGS: "-n"
-  <<: *buildpackages
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
-
 build_groovy_manual:
   stage: makepkg
   <<: *notmaster
@@ -160,6 +151,27 @@ build_groovy_manual:
   <<: *buildpackages
   cache:
     key: cache-groovy
+    paths:
+      - work/cache
+
+build_native_manual:
+  stage: dkms
+  dependencies:
+    - build_linux_manual
+  before_script:
+    - pacman-key --init && \
+      pacman-key --populate archlinux || true
+    - pacman -Sy --noconfirm reflector
+    - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Su --noconfirm
+    - pacman -U --noconfirm work/output/linux-15khz-*
+  <<: *buildpackages
+  <<: *notmaster
+  variables:
+    MAKEPKG_ARGS: "-n"
+    DONT_DOWNLOAD_JUST_BUILD: "1"
+  cache:
+    key: cache-aur
     paths:
       - work/cache
 
@@ -202,11 +214,20 @@ build_aur:
 
 # allow_failure: true to allow pushing the kernel even if broadcom-wl failed
 build_native:
-  stage: makepkg
-  allow_failure: true
+  stage: dkms
+  dependencies:
+    - build_linux
+  before_script:
+    - pacman-key --init && \
+      pacman-key --populate archlinux || true
+    - pacman -Sy --noconfirm reflector
+    - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Su --noconfirm
+    - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-n"
+    DONT_DOWNLOAD_JUST_BUILD: 1
   <<: *buildpackages
   cache:
     key: cache-aur
@@ -256,7 +277,6 @@ clean_release:
   <<: *notmaster
   before_script:
     - echo "Deleting deployment $CI_COMMIT_REF_SLUG"
-
   script:
     - apk add curl
     - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release

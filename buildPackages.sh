@@ -111,9 +111,13 @@ do_the_job() {
     return 1
   fi
 
-  check_if_download_or_build
-  rc=$?
-  # Had to download the file
+  if [[ $DONT_DOWNLOAD_JUST_BUILD != 1 ]] ; then
+    check_if_download_or_build
+    rc=$?
+  else
+    rc=0
+  fi
+  # Could download the file
   [[ $rc == 1 ]] && post_build && return 0
   # Something went wrong, abort
   [[ $rc == 255 ]] && return 1
