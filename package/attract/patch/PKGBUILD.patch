@@ -7,7 +7,7 @@ index 5b5af91..b228862 100644
  
  pkgname=attract
 -pkgver=2.1.0
-+pkgver=2.5.1
++pkgver=2.6.0
  pkgrel=1
  pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
  arch=('i686' 'x86_64')
@@ -16,7 +16,7 @@ index 5b5af91..b228862 100644
  	attract.desktop
  	attract.install)
 -sha1sums=('138f593b84756cf05d312e97eb928261f90a278b'
-+sha1sums=('257c3499b2fa1ddc1de84f3ab25daba24c31c8b8'
++sha1sums=('c84e7aa8af927deb7e19a7c8f3193fd05560de3a'
  	'37885c5f2e6194e689c36eb88c43bd5bb23363d0'
  	'445bb161b9c06749347974b6c19c846d86b00ceb'
  	'cf599edbff2962b5ff0a77560a95d80cec828264'
