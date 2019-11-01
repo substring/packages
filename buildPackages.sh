@@ -7,6 +7,7 @@ _output="$_OUTPUT"
 built_packages="$_output/built_packages_$(date +%s%3N)"
 export CCACHE_DIR=/work/cache/ccache
 
+
 extract_package_name() {
   # sadly this method doesn't work fine for a git package in the form of advancemenuplus-git-ff27752-1-x86_64.pkg.tar.xz
   echo "$1" | sed -E "s+([[:alnum:]-]*)-[0-9].*+\1+"
@@ -93,6 +94,7 @@ do_the_job() {
 
   package="$1"
 
+  # Use the prepatch shell if it exists
   if [[ -x /work/package/$package/patch.sh ]] ; then
     echo "Applying patch /work/package/$package/patch.sh"
     /work/package/"$package"/patch.sh || return 1
@@ -110,6 +112,9 @@ do_the_job() {
     err "Haven't found any package dir for $package"
     return 1
   fi
+
+  # Copy required patch files that would be used in PKGBUILD
+  find /work/package/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   if [[ $DONT_DOWNLOAD_JUST_BUILD != 1 ]] ; then
     check_if_download_or_build
