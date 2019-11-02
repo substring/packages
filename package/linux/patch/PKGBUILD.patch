@@ -1,11 +1,11 @@
 diff --git a/linux/repos/core-x86_64/PKGBUILD b/linux/repos/core-x86_64/PKGBUILD
-index 1895ca0c88e..fc486182337 100644
+index 33acb5e9eb3..447fbef9caa 100644
 --- a/linux/repos/core-x86_64/PKGBUILD
 +++ b/linux/repos/core-x86_64/PKGBUILD
-@@ -19,6 +19,11 @@ source=(
-   60-linux.hook  # pacman hook for depmod
-   90-linux.hook  # pacman hook for initramfs regeneration
-   linux.preset   # standard config files for mkinitcpio ramdisk
+@@ -17,6 +17,11 @@ _srcname=archlinux-linux
+ source=(
+   "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
+   config         # the main kernel config file
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_ati_9200_pllfix.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_arcadevga_3000.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/03_linux_15khz.diff
@@ -14,21 +14,21 @@ index 1895ca0c88e..fc486182337 100644
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
-@@ -29,7 +34,12 @@ sha256sums=('SKIP'
-             'fdb355884faa86a2f9725d09657c9c32573b0f1e8bb31416823d1198bcb2f80d'
-             'ae2e95db94ef7176207c690224169594d49445e04249d2499e9d2fbc117a0b21'
-             'c043f3033bb781e2688794a59f6d1f7ed49ef9b13eb77ff9a425df33a244a636'
--            'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65')
-+            'ad6344badc91ad0630caacde83f7f9b97276f80d26a20619a87952be65492c65'
-+            SKIP
-+            SKIP
-+            SKIP
-+            SKIP
-+            SKIP)
+@@ -24,7 +29,12 @@ validpgpkeys=(
+   '8218F88849AAC522E94CF470A5E9288C4FA415FA'  # Jan Alexander Steffens (heftig)
+ )
+ sha256sums=('SKIP'
+-            'e6d2df92f3079c740ca2cafd7e8b34b5dd43832d292284c2dc133d47600d1f29')
++            'e6d2df92f3079c740ca2cafd7e8b34b5dd43832d292284c2dc133d47600d1f29'
++            'SKIP'
++            'SKIP'
++            'SKIP'
++            'SKIP'
++            'SKIP')
  
- _kernelname=${pkgbase#linux}
- : ${_kernelname:=-ARCH}
-@@ -46,7 +56,7 @@ prepare() {
+ export KBUILD_BUILD_HOST=archlinux
+ export KBUILD_BUILD_USER=$pkgbase
+@@ -42,7 +52,7 @@ prepare() {
    for src in "${source[@]}"; do
      src="${src%%::*}"
      src="${src##*/}"
