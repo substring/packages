@@ -1,0 +1,14 @@
+pkgname=gasetup
+pkgver=1.1
+pkgrel=1
+pkgdesc="GroovyArcade setup scripts"
+arch=(any)
+license=(GPL-2)
+depends=(bash)
+source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
+sha256sums=(f8df901ac1b48e1d8dc2fab48150d8090b49b50454b574083e8b170d48c70e30)
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  make DEST="$pkgdir/opt/gasetup" install
+}
