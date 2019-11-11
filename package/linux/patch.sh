@@ -1,6 +1,6 @@
 patch -p2 -d /work/linux < /work/package/linux/patch/PKGBUILD.patch || exit 1
 sed -i \
--e '/_srcname=archlinux-linux/a _kernelversion="$(echo ${_srcver%-*} | cut -d '.' -f 1,2)"' \
+-e '/_srcname=archlinux-linux/a _kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"' \
 -re 's/pkgbase=linux/pkgbase=linux-15khz/' \
 /work/linux/repos/core-x86_64/PKGBUILD || exit 1
 
