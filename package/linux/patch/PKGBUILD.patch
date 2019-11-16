@@ -14,20 +14,6 @@ index 33acb5e9eb3..447fbef9caa 100644
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
-@@ -24,7 +29,12 @@ validpgpkeys=(
-   '8218F88849AAC522E94CF470A5E9288C4FA415FA'  # Jan Alexander Steffens (heftig)
- )
- sha256sums=('SKIP'
--            'e749cd85d37d4d70099b0a7f54e852b039ae07c14e4ab8be299c64edae5d4ba4')
-+            'e749cd85d37d4d70099b0a7f54e852b039ae07c14e4ab8be299c64edae5d4ba4'
-+            'SKIP'
-+            'SKIP'
-+            'SKIP'
-+            'SKIP'
-+            'SKIP')
- 
- export KBUILD_BUILD_HOST=archlinux
- export KBUILD_BUILD_USER=$pkgbase
 @@ -42,7 +52,7 @@ prepare() {
    for src in "${source[@]}"; do
      src="${src%%::*}"
