@@ -1,0 +1,23 @@
+pkgname=gatools-git
+_gitname=${pkgname%-git}
+pkgver=0.1
+pkgrel=1
+pkgdesc="GroovyArcade configuration tools"
+arch=(any)
+license=(GPL-2)
+depends=(bash)
+makedepends=(git)
+provides=('gatools')
+conflicts=('gatools')
+source=("git+https://gitlab.com/groovyarcade/tools/gatools.git")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd "$_gitname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+  cd "$srcdir/$_gitname"
+  make DESTDIR="$pkgdir/opt/gatools" install
+}
