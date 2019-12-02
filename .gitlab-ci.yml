@@ -4,9 +4,10 @@ stages:
   - prechecks
   - prepare
   - pretests
-  - makepkg
+  - build
   - dkms
   - release
+  - deploy
 
 # Warning : the dkms build jobs override this
 before_script:
@@ -56,6 +57,7 @@ before_script:
     - master
     - tags
 
+
 bash_lint:
   image: koalaman/shellcheck-alpine
   stage: prechecks
@@ -66,6 +68,7 @@ bash_lint:
   script:
     - shellcheck -x *.sh
 
+
 build_single_aur:
   stage: pretests
   variables:
@@ -75,6 +78,7 @@ build_single_aur:
     key: cache-aur
     paths:
       - work/cache
+
 
 build_single_native:
   stage: pretests
@@ -95,6 +99,7 @@ build_single_native:
 #  <<: *buildpackages
 #  when: always
 
+
 reset_releases:
   stage: prepare
   image: alpine
@@ -106,8 +111,9 @@ reset_releases:
     - github-release edit -t testing -p
     - github-release edit -t stable
 
-build_linux_manual:
-  stage: makepkg
+
+build:linux:dev:
+  stage: build
   <<: *notmaster
   variables:
     MAKEPKG_ARGS: "linux"
@@ -119,8 +125,9 @@ build_linux_manual:
   tags:
     - longOps
 
-build_groovymame_manual:
-  stage: makepkg
+
+build:groovymame:dev:
+  stage: build
   <<: *notmaster
   variables:
     MAKEPKG_ARGS: "mame"
@@ -132,8 +139,9 @@ build_groovymame_manual:
   tags:
     - longOps
 
-build_aur_manual:
-  stage: makepkg
+
+build:aur:dev:
+  stage: build
   <<: *notmaster
   variables:
     MAKEPKG_ARGS: "-a"
@@ -143,8 +151,9 @@ build_aur_manual:
     paths:
       - work/cache
 
-build_groovy_manual:
-  stage: makepkg
+
+build:groovy:dev:
+  stage: build
   <<: *notmaster
   variables:
     MAKEPKG_ARGS: "-g"
@@ -154,10 +163,11 @@ build_groovy_manual:
     paths:
       - work/cache
 
-build_native_manual:
+
+dkms:native:dev:
   stage: dkms
   dependencies:
-    - build_linux_manual
+    - build:linux:dev
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
@@ -175,8 +185,9 @@ build_native_manual:
     paths:
       - work/cache
 
-build_linux:
-  stage: makepkg
+
+build:linux:
+  stage: build
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "linux"
@@ -188,8 +199,9 @@ build_linux:
   tags:
     - longOps
 
-build_groovymame:
-  stage: makepkg
+
+build:groovymame:
+  stage: build
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "mame"
@@ -201,8 +213,9 @@ build_groovymame:
   tags:
     - longOps
 
-build_aur:
-  stage: makepkg
+
+build:aur:
+  stage: build
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-a"
@@ -212,11 +225,12 @@ build_aur:
     paths:
       - work/cache
 
+
 # allow_failure: true to allow pushing the kernel even if broadcom-wl failed
-build_native:
+dkms:native:
   stage: dkms
   dependencies:
-    - build_linux
+    - build:linux
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
@@ -234,8 +248,9 @@ build_native:
     paths:
       - work/cache
 
-build_groovy:
-  stage: makepkg
+
+build:groovy:
+  stage: build
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-g"
@@ -246,17 +261,30 @@ build_groovy:
       - work/cache
 
 
-release_github_stable:
+release:testing:
   stage: release
+  <<: *onlymasterortags
+  script:
+    - echo "Releasing testing packages"
+    - pacman -Sy --noconfirm --needed tar xz grep
+    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - ./release.sh -t
+
+
+deploy:stable:
+  stage: deploy
+  when: manual
+  dependencies:
+    - release:testing
   <<: *onlymasterortags
   script:
     - echo "Releasing stable packages"
     - pacman -Sy --noconfirm --needed tar xz grep
     - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
-    - ./release.sh -dcrup
+    - BUILD_TYPE=stable ./release.sh -dcrup
 
 
-deploy_staging:
+release:testing:dev:
   stage: release
   script:
     - echo "Releasing unstable packages"
@@ -266,11 +294,11 @@ deploy_staging:
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
     url: https://github.com/substring/packages/releases/tag/$CI_COMMIT_REF_SLUG
-    on_stop: clean_release
+    on_stop: release:clean
   <<: *notmaster
 
 
-clean_release:
+release:clean:
   image: alpine
   stage: release
   dependencies: []
