@@ -10,5 +10,5 @@ sha256sums=(ba9bb6fcf36f0d58563e5fd3c087381749dc7a612c699fd1544f230c1a3f5a83)
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
-  make DEST="$pkgdir/opt/gasetup" install
+  make DESTDIR="$pkgdir/opt/gasetup" install
 }
