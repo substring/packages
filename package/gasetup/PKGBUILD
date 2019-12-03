@@ -10,5 +10,10 @@ sha256sums=(ba9bb6fcf36f0d58563e5fd3c087381749dc7a612c699fd1544f230c1a3f5a83)
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
-  make DESTDIR="$pkgdir/opt/gasetup" install
+  sed -i "/\/usr\/share/d" Makefile
+  make DESTDIR="${pkgdir}"/opt/gasetup install
+  
+  install -dm 755 "${pkgdir}"/usr/share/{applications,pixmaps}
+  install -m 644 gasetup.desktop "${pkgdir}"/usr/share/applications
+  install -m 644 gasetup.png "${pkgdir}"/usr/share/pixmaps
 }
