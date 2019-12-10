@@ -1,12 +1,12 @@
 pkgname=gatools
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="GroovyArcade configuration tools"
 arch=(any)
 license=(GPL-2)
 depends=(bash)
 source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
-sha256sums=(02ccfaa72d2d323232e3104b7da8648a5df07effea882a6639cfbf286ab1b171)
+sha256sums=(3d5f18d469bd3f4bebd8079bfa23716fe24e01cbcbccf1dbfa94e72dba90396b)
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
