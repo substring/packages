@@ -1,0 +1,27 @@
+pkgname=kronos-git
+_gitname=Kronos
+pkgver=r5942.aa392713
+pkgrel=1
+pkgdesc="A SEGA Saturn emulator"
+arch=(any)
+license=(GPL-2)
+depends=(sdl2 qt5-base libxrandr glew openal)
+makedepends=(git cmake)
+provides=('kronos')
+source=("git+https://github.com/FCare/Kronos.git")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd "$_gitname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "$srcdir/$_gitname"/yabause/
+  cmake .
+}
+
+package() {
+  cd "$srcdir/$_gitname"/yabause/
+  make DESTDIR="$pkgdir" install/strip
+}
