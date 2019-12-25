@@ -97,7 +97,7 @@ do_the_job() {
 
   cwd="$(pwd)"
   # Handle community/AUR package
-  for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR" "$BUILD_DIR"/"$package" ; do
+  for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR"/"$package" ; do
     if [[ -d "$pkgdir" ]] ; then
       cd "$pkgdir" || return 1
       break

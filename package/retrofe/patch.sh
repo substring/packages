@@ -1,1 +1,1 @@
-patch -p1 -d /work/retrofe < /work/package/retrofe/patch/PKGBUILD.patch
+patch -p1 -d /work/build/retrofe < /work/package/retrofe/patch/PKGBUILD.patch
