@@ -4,6 +4,7 @@
 # shellcheck disable=SC1091
 source include.sh
 _output="$_OUTPUT"
+BUILD_DIR=/work/build
 built_packages="$_output/built_packages_$(date +%s%3N)"
 export CCACHE_DIR=/work/cache/ccache
 
@@ -94,15 +95,9 @@ do_the_job() {
 
   package="$1"
 
-  # Use the prepatch shell if it exists
-  if [[ -x /work/package/$package/patch.sh ]] ; then
-    echo "Applying patch /work/package/$package/patch.sh"
-    /work/package/"$package"/patch.sh || return 1
-  fi
-
   cwd="$(pwd)"
   # Handle community/AUR package
-  for pkgdir in "/work/$package/repos/core-x86_64" "/work/$package/repos/community-x86_64" "/work/$package" "/work/package/$package" ; do
+  for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR" "$BUILD_DIR"/"$package" ; do
     if [[ -d "$pkgdir" ]] ; then
       cd "$pkgdir" || return 1
       break
@@ -115,6 +110,12 @@ do_the_job() {
 
   # Copy required patch files that would be used in PKGBUILD
   find /work/package/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
+
+  # Use the prepatch shell if it exists
+  if [[ -x /work/package/$package/patch.sh ]] ; then
+    echo "Applying patch /work/package/$package/patch.sh"
+    /work/package/"$package"/patch.sh || return 1
+  fi
 
   if [[ $DONT_DOWNLOAD_JUST_BUILD != 1 ]] ; then
     check_if_download_or_build
@@ -149,7 +150,7 @@ do_the_job() {
 
 build_native_single() {
   package="$1"
-  cd /work || { echo "Couldn't cd to the work dir" ; exit 1 ; } 
+  cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
   asp update "$package"
   asp checkout "$package"
   do_the_job "$package" || exit 1
@@ -167,7 +168,7 @@ done < <(grep -E "^${package_to_build}$" /work/packages_arch.lst)
 
 build_aur_single() {
   package="$1"
-  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
+  cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   wget https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
   tar xvzf "${package}".tar.gz
   do_the_job "$package" || exit 1
@@ -185,7 +186,7 @@ done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 
 build_groovy_single() {
   package="$1"
-  cd /work || { echo "Couldn't cd to work dir" ; exit 1 ; } 
+  cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   cp -R package/"$package" . || return 1
   do_the_job "$package" || exit 1
 }
@@ -227,6 +228,7 @@ build_single_package() {
 
 
 rm "$_output"/built_packages* 2>/dev/null
+mkdir -p "$BUILD_DIR"
 
 package_to_build=".*"
 # Parse command line
