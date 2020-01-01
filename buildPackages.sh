@@ -187,7 +187,7 @@ done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 build_groovy_single() {
   package="$1"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
-  cp -R package/"$package" . || return 1
+  cp -R /work/package/"$package" . || return 1
   do_the_job "$package" || exit 1
 }
 
