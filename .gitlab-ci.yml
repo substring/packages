@@ -19,7 +19,7 @@ before_script:
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
-    - pacman -S --noconfirm --needed mkinitcpio asp base-devel ccache haveged namcap wget sed dos2unix mercurial grep
+    - pacman -S --noconfirm --needed mkinitcpio asp base-devel ccache haveged namcap wget sed dos2unix mercurial grep pacman-contrib
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
     - sed -ri 's/^BUILDENV=(.*)\!ccache(.*)/BUILDENV=\1ccache\2/' /etc/makepkg.conf
     - mkdir -p work/cache/ccache work/output
