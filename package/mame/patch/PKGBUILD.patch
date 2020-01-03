@@ -26,7 +26,7 @@ index de22bb704c8..e1652c5b995 100644
 -         mame.sh mame.desktop mame.svg)
 +source=("https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
 +         mame.sh mame.desktop mame.svg
-+	 https://gitlab.com/arcademvs/mame/raw/master/diffs/mame${_mamever}_suppression.diff)
++	 http://mamestuff.lowtrucks.net/MKChamp/suppression_${_mamever}u2.txt)
  sha256sums=('b38873459a781d3b464a0f2c978690e3bdf12bdfee5de5e36fc5b45a32914abe'
              'ee1c59bafc5e5441e99fa4c58108a3e18048e60672f34de865c8a5a976094dba'
              '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
