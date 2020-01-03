@@ -60,7 +60,7 @@ index de22bb704c8..e1652c5b995 100644
  
  package() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-mame${_mamever}
++  cd mame-${pkgname}${_mamever}
  
 -  # Install the mame script
 -  install -Dm755 "$srcdir"/$pkgname.sh "$pkgdir"/usr/bin/$pkgname
