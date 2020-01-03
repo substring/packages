@@ -37,19 +37,19 @@ index de22bb704c8..e1652c5b995 100644
  
  prepare() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-mame${_mamever}
++  cd mame-${pkgname}${_mamever}
  
  # Use system libraries
    sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
 +
 +  msg2 "Apply suppression patch..."
-+  dos2unix -F "${srcdir}/mame${_mamever}_suppression.diff"
-+  patch -p0 --binary -i "${srcdir}/mame${_mamever}_suppression.diff"
++  dos2unix -F "${srcdir}/suppression_${_mamever}u2.txt"
++  patch -p0 --binary -i "${srcdir}/suppression_${_mamever}u2.txt"
  }
  
  build() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-mame${_mamever}
++  cd mame-${pkgname}${_mamever}
    make \
      NOWERROR=1 \
      OPTIMIZE=2 \
