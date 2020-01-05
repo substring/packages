@@ -6,6 +6,9 @@ pkgdesc="GroovyArcade setup scripts"
 arch=(any)
 license=(GPL-2)
 depends=(bash)
+makedepends=(git)
+provides=('gasetup')
+conflicts=('gasetup')
 source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
 sha256sums=(SKIP)
 
