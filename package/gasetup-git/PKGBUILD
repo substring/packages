@@ -9,7 +9,7 @@ depends=(bash)
 makedepends=(git)
 provides=('gasetup')
 conflicts=('gasetup')
-source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
+source=("git+https://gitlab.com/groovyarcade/gasetup.git")
 sha256sums=(SKIP)
 
 pkgver() {
@@ -18,7 +18,7 @@ pkgver() {
 }
 
 package() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$_gitname"
   sed -i "/\/usr\/share/d" Makefile
   make DESTDIR="${pkgdir}"/opt/gasetup install
   
