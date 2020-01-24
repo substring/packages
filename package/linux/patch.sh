@@ -3,6 +3,7 @@ patch -Np2 -d /work/build/linux < /work/package/linux/patch/PKGBUILD.patch
 sed -i \
 -e '/_srcname=archlinux-linux/a _kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"' \
 -re 's/pkgbase=linux.*/pkgbase=linux-15khz/' \
+-re 's/pkgrel=.*/pkgrel=10/' \
 /work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
 ( cd /work/build/linux/repos/core-x86_64 && makepkg -g >> PKGBUILD )
 

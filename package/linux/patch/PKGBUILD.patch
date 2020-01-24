@@ -1,25 +1,25 @@
 diff --git a/linux/repos/core-x86_64/PKGBUILD b/linux/repos/core-x86_64/PKGBUILD
-index 33acb5e9eb3..447fbef9caa 100644
+index c390d1ee215..1dad4538009 100644
 --- a/linux/repos/core-x86_64/PKGBUILD
 +++ b/linux/repos/core-x86_64/PKGBUILD
-@@ -17,6 +17,11 @@ _srcname=archlinux-linux
+@@ -18,6 +18,11 @@ _srcname=archlinux-linux
  source=(
-   "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
+   "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=$_srctag"
    config         # the main kernel config file
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_ati_9200_pllfix.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_arcadevga_3000.diff
-+  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/03_linux_15khz.diff
++  drm_switchres.patch
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/04_linux_15khz_interlaced_mode_fix.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/05_linux_15khz_scanoutpos.diff
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
-@@ -42,7 +52,7 @@ prepare() {
+@@ -43,7 +48,7 @@ prepare() {
    for src in "${source[@]}"; do
      src="${src%%::*}"
      src="${src##*/}"
 -    [[ $src = *.patch ]] || continue
 +    [[ $src = *.patch || $src = *.diff ]] || continue
-     msg2 "Applying patch $src..."
+     echo "Applying patch $src..."
      patch -Np1 < "../$src"
    done
