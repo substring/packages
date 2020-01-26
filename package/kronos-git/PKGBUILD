@@ -8,7 +8,7 @@ license=(GPL-2)
 depends=(sdl2 qt5-base libxrandr glew openal)
 makedepends=(git cmake)
 provides=('kronos')
-source=("git+https://github.com/FCare/Kronos.git")
+source=("git+https://github.com/FCare/Kronos.git#branch=extui-align")
 sha256sums=(SKIP)
 
 pkgver() {
@@ -16,6 +16,9 @@ pkgver() {
   printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
+prepare() {
+  sed -i "s/-march=native//g" "$srcdir/$_gitname"/yabause/src/CMakeLists.txt
+}
 build() {
   cd "$srcdir/$_gitname"/yabause/
   cmake .
