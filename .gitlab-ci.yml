@@ -19,10 +19,9 @@ before_script:
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
-    - pacman -S --noconfirm --needed mkinitcpio asp base-devel ccache haveged namcap wget sed dos2unix mercurial grep pacman-contrib
+    - pacman -S --noconfirm --needed mkinitcpio asp base-devel haveged namcap wget sed dos2unix mercurial grep pacman-contrib
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
-    - sed -ri 's/^BUILDENV=(.*)\!ccache(.*)/BUILDENV=\1ccache\2/' /etc/makepkg.conf
-    - mkdir -p work/cache/ccache work/output
+    - mkdir -p work/output
     - ln -s "$(pwd)"/work /work
     - cp packages_*.lst buildPackages.sh include.sh /work
     - cp -R package /work
@@ -34,10 +33,8 @@ before_script:
     - echo 'build ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user
     - chown -R build:build work /work
     - chmod -R 777 work /work
-    - CCACHE_DIR=/work/cache/ccache ccache -s
     - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" DONT_DOWNLOAD_JUST_BUILD=\"$DONT_DOWNLOAD_JUST_BUILD\" ./buildPackages.sh $MAKEPKG_ARGS" 2>&1 | tee work/output/build.log
-    - CCACHE_DIR=/work/cache/ccache ccache -s
-    
+
 .build_packages_template: &buildpackages
   <<: *buildpkgnoartifact
   artifacts:

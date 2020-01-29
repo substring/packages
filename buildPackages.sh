@@ -6,7 +6,6 @@ source include.sh
 _output="$_OUTPUT"
 BUILD_DIR=/work/build
 built_packages="$_output/built_packages_$(date +%s%3N)"
-export CCACHE_DIR=/work/cache/ccache
 
 
 extract_package_name() {

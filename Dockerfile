@@ -7,7 +7,6 @@ RUN pacman -Syu --noconfirm --needed \
   mkinitcpio \
   asp \
   base-devel \
-  ccache \
   haveged \
   namcap \
   wget \
@@ -21,9 +20,6 @@ RUN useradd -ms /bin/bash -d /work build
 
 # Don't build on a single thread
 RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
-
-# Activate ccache
-#RUN sed -ri 's/^BUILDENV=(.*)\!ccache(.*)/BUILDENV=\1ccache\2/' /etc/makepkg.conf
 
 WORKDIR /work
 
@@ -41,12 +37,11 @@ COPY release.sh /work
 COPY settings /work
 
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
-#RUN CCACHE_DIR=/work/cache/ccache ccache -s
 
 
 USER build
 
-RUN mkdir -p /work /work/output /work/cache/ccache
+RUN mkdir -p /work /work/output
 
 #CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh
 #CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh -g

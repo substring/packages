@@ -2,7 +2,6 @@
 RELEASE=${RELEASE:-dev}
 
 mkdir -p work/output
-mkdir -p work/cache/ccache
 chmod -R 777 work
 echo "+++++++++++++++++++++++++++++"
 echo "+++ Building docker image +++"
