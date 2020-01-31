@@ -41,16 +41,14 @@ check_if_download_or_build() {
       # Remove repo name, match exact package name, convert to filename
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
-      if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" ; then
-        echo "Found $pkgname in repo $repo"
+      if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo_found"/"$pkgname"; then
+        echo "Found $pkgname in repo $repon may not have been downloaded from it, but it's here at last"
         repo_found="$repo"
         break
       fi
     done
     if [[ -n $repo_found ]] ; then
       # YES: fine, just download it for a createrepo later, no need to build
-      log "$filename is in the $repo_found repo -> download and copy to $_output"
-      sudo pacman -Sddw --noconfirm "$repo_found"/"$pkgname" || return 255
       # Again dirty trick : linux means 3 packages, advancemenu-git packages name is tricked
       # So circumvent those 2 cases
       if [[ -f /var/cache/pacman/pkg/"$repo_package_name" ]] ; then
