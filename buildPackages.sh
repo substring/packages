@@ -41,7 +41,7 @@ check_if_download_or_build() {
       # Remove repo name, match exact package name, convert to filename
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
-      if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo_found"/"$pkgname"; then
+      if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo"/"$pkgname"; then
         echo "Found $pkgname in repo $repon may not have been downloaded from it, but it's here at last"
         repo_found="$repo"
         break
