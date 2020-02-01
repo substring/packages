@@ -38,7 +38,7 @@ check_if_download_or_build() {
     esac
     
     echo "Package name was determined as: $pkgname"
-    for repo in groovyarcade-33-make-newly-patched-kernel-available-for-testing groovyarcade ; do
+    for repo in groovyarcade-33-make-newly-patched-kernel-available-for-testing ; do
       # Remove repo name, match exact package name, convert to filename
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
