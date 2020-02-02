@@ -1,5 +1,5 @@
 diff --git a/mame/repos/community-x86_64/PKGBUILD b/mame/repos/community-x86_64/PKGBUILD
-index de22bb704c8..e1652c5b995 100644
+index 1a919300968..381b3a8fce9 100644
 --- a/mame/repos/community-x86_64/PKGBUILD
 +++ b/mame/repos/community-x86_64/PKGBUILD
 @@ -3,49 +3,59 @@
@@ -8,7 +8,7 @@ index de22bb704c8..e1652c5b995 100644
  
 -pkgname=mame
 +pkgname=groovymame
- pkgver=0.217
+ pkgver=0.218
  pkgrel=1
 -pkgdesc="A port of the popular Multiple Arcade Machine Emulator using SDL with OpenGL support."
 +_mamever=${pkgver/./}
@@ -17,8 +17,8 @@ index de22bb704c8..e1652c5b995 100644
  url="https://mamedev.org/"
  license=(GPL2)
  arch=(x86_64)
--depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio)
-+depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio libxrandr)
+-depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac)
++depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac libxrandr)
  makedepends=(nasm python asio rapidjson glm libxinerama)
  conflicts=(sdlmame)
  replaces=(sdlmame)
@@ -26,13 +26,13 @@ index de22bb704c8..e1652c5b995 100644
 -         mame.sh mame.desktop mame.svg)
 +source=("https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
 +         mame.sh mame.desktop mame.svg
-+	 http://mamestuff.lowtrucks.net/MKChamp/suppression_${_mamever}u2.txt)
- sha256sums=('b38873459a781d3b464a0f2c978690e3bdf12bdfee5de5e36fc5b45a32914abe'
++         http://mamestuff.lowtrucks.net/MKChamp/suppression_${_mamever}u2.txt)
+ sha256sums=('c855d2a53956d7ecc6b2d029747495278cd701dc785c50548f0f20ffa673b91f'
              'ee1c59bafc5e5441e99fa4c58108a3e18048e60672f34de865c8a5a976094dba'
              '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
 -            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
 +            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
-+	    SKIP)
++            SKIP)
  
  
  prepare() {
