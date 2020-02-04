@@ -71,10 +71,6 @@ build_single_aur:
   variables:
     MAKEPKG_ARGS: "-s 'aur/gamemode'"
   <<: *buildpkgnoartifact
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
 
 
 build_single_native:
@@ -82,10 +78,6 @@ build_single_native:
   variables:
     MAKEPKG_ARGS: "-s kitty"
   <<: *buildpkgnoartifact
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
 
 
 #basic_checks:
@@ -115,10 +107,6 @@ build:linux:dev:
   variables:
     MAKEPKG_ARGS: "linux"
   <<: *buildpackages
-  cache:
-    key: cache-linux
-    paths:
-      - work/cache
   tags:
     - longOps
 
@@ -129,10 +117,6 @@ build:groovymame:dev:
   variables:
     MAKEPKG_ARGS: "mame"
   <<: *buildpackages
-  cache:
-    key: cache-mame
-    paths:
-      - work/cache
   tags:
     - longOps
 
@@ -143,10 +127,6 @@ build:aur:dev:
   variables:
     MAKEPKG_ARGS: "-a"
   <<: *buildpackages
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
 
 
 build:groovy:dev:
@@ -155,16 +135,15 @@ build:groovy:dev:
   variables:
     MAKEPKG_ARGS: "-g"
   <<: *buildpackages
-  cache:
-    key: cache-groovy
-    paths:
-      - work/cache
 
 
 dkms:native:dev:
   stage: dkms
   dependencies:
     - build:linux:dev
+  variables:
+    MAKEPKG_ARGS: "-n"
+    DONT_DOWNLOAD_JUST_BUILD: "1"
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
@@ -174,13 +153,7 @@ dkms:native:dev:
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
   <<: *notmaster
-  variables:
-    MAKEPKG_ARGS: "-n"
-    DONT_DOWNLOAD_JUST_BUILD: "1"
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
+
 
 
 build:linux:
@@ -189,12 +162,8 @@ build:linux:
   variables:
     MAKEPKG_ARGS: "linux"
   <<: *buildpackages
-  cache:
-    key: cache-linux
-    paths:
-      - work/cache
   tags:
-    - longOps
+     - longOps
 
 
 build:groovymame:
@@ -203,10 +172,6 @@ build:groovymame:
   variables:
     MAKEPKG_ARGS: "mame"
   <<: *buildpackages
-  cache:
-    key: cache-mame
-    paths:
-      - work/cache
   tags:
     - longOps
 
@@ -240,10 +205,6 @@ dkms:native:
     MAKEPKG_ARGS: "-n"
     DONT_DOWNLOAD_JUST_BUILD: 1
   <<: *buildpackages
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
 
 
 build:groovy:
@@ -252,10 +213,6 @@ build:groovy:
   variables:
     MAKEPKG_ARGS: "-g"
   <<: *buildpackages
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
 
 
 release:testing:
