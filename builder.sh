@@ -10,4 +10,10 @@ docker build -f Dockerfile -t "groovy-ux-${RELEASE}" . &&
 echo "+++++++++++++++++++++++++++++"
 echo "+++ Running container     +++"
 echo "+++++++++++++++++++++++++++++"
-docker run --tty --name "groovy-ux-${RELEASE}" --rm -v "$(pwd)/work/output":/work/output -v "$(pwd)/work/cache":/work/cache "groovy-ux-${RELEASE}"
+docker run \
+  --tty \
+  --name "groovy-ux-${RELEASE}" \
+  --rm \
+  -v "$(pwd)/work/output":/work/output \
+  -v "$(pwd)/work/cache":/work/cache \
+  "groovy-ux-${RELEASE}"
