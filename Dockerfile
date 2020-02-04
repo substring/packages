@@ -38,19 +38,15 @@ COPY settings /work
 
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
 
+RUN pacman -Syu --noconfirm
 
 USER build
 
 RUN mkdir -p /work /work/output
 
-#CMD sudo pacman -Syu --noconfirm && /work/buildPackages.sh
-#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh -g
-#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--nobuild --nodeps" /bin/bash -x /work/buildPackages.sh linux-rt
-#CMD sudo pacman -Syu --noconfirm && MAKEPKG_ARGS="-n" DONT_DOWNLOAD_JUST_BUILD=1 /bin/bash -x /work/buildPackages.sh -n
-#CMD sudo pacman -Syu --noconfirm && MAKEPKG_OPTS="--packagelist" /work/buildPackages.sh
-CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh "mame" | tee /work/output/build.log
-#CMD sudo pacman -Syu --noconfirm && DONT_DOWNLOAD_JUST_BUILD=1 /bin/bash /work/buildPackages.sh "linux"
-#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "aur/gamemode"
-#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "groovy/switchres"
-#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -s "kitty"
-#CMD sudo pacman -Syu --noconfirm && /bin/bash -x /work/buildPackages.sh -g
+ENTRYPOINT ["/work/buildPackages.sh"]
+CMD ["-s","groovy/switchres"]
+#CMD ["-s","aur/gamemode"]
+#CMD ["-s", "kitty"]
+#CMD ["-g"]
+#CMD ["linux"]

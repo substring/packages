@@ -14,6 +14,8 @@ docker run \
   --tty \
   --name "groovy-ux-${RELEASE}" \
   --rm \
-  -v "$(pwd)/work/output":/work/output \
-  -v "$(pwd)/work/cache":/work/cache \
-  "groovy-ux-${RELEASE}"
+  --volume "$(pwd)/work/output":/work/output \
+  --volume "$(pwd)/work/cache":/work/cache \
+  --env MAKEPKG_OPTS \
+  --env DONT_DOWNLOAD_JUST_BUILD \
+  "groovy-ux-${RELEASE}" "$@"
