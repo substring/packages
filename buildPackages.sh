@@ -42,7 +42,7 @@ check_if_download_or_build() {
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
       if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo"/"$pkgname"; then
-        echo "Found $pkgname in repo $repon may not have been downloaded from it, but it's here at last"
+        echo "Found $pkgname in repo $repo may not have been downloaded from it, but it's here at last"
         repo_found="$repo"
         break
       fi
@@ -106,6 +106,7 @@ do_the_job() {
   fi
 
   # Copy required patch files that would be used in PKGBUILD
+  # shellcheck disable=SC2046,SC2014
   find /work/package/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   # Use the prepatch shell if it exists
