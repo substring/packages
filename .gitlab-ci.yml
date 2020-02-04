@@ -19,7 +19,7 @@ before_script:
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
-    - pacman -S --noconfirm --needed mkinitcpio asp base-devel haveged namcap wget sed dos2unix mercurial grep pacman-contrib
+    - pacman -S --noconfirm --needed base-devel devtools mkinitcpio asp haveged namcap wget sed dos2unix grep pacman-contrib
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
     - mkdir -p work/output
     - ln -s "$(pwd)"/work /work
