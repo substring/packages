@@ -113,6 +113,8 @@ do_the_job() {
   if [[ -x /work/package/$package/patch.sh ]] ; then
     echo "Applying patch /work/package/$package/patch.sh"
     /work/package/"$package"/patch.sh || return 1
+    # patch.sh may have added new files, let's update checksums
+    updpkgsums
   fi
 
   if [[ $DONT_DOWNLOAD_JUST_BUILD != 1 ]] ; then
@@ -127,8 +129,6 @@ do_the_job() {
   [[ $rc == 255 ]] && return 1
 
 
-  # patch.sh may have added new files, let's update checksums
-  updpkgsums
   # The CI can set MAKEPKG_OPTS to "--nobuild --nodeps" for a simple basic check for every branch not tag nor master)
   # So if empty, set some default value
   export MAKEPKG_OPTS=${MAKEPKG_OPTS:-"--syncdeps"}

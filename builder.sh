@@ -3,10 +3,12 @@ RELEASE=${RELEASE:-dev}
 
 mkdir -p work/output
 chmod -R 777 work
+
 echo "+++++++++++++++++++++++++++++"
 echo "+++ Building docker image +++"
 echo "+++++++++++++++++++++++++++++"
 docker build -f Dockerfile -t "groovy-ux-${RELEASE}" . &&
+
 echo "+++++++++++++++++++++++++++++"
 echo "+++ Running container     +++"
 echo "+++++++++++++++++++++++++++++"
