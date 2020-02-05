@@ -37,7 +37,7 @@ index 1a919300968..381b3a8fce9 100644
  
  prepare() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-${pkgname}${_mamever}
++  cd GroovyMAME-${pkgname}${_mamever}
  
  # Use system libraries
    sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
@@ -49,7 +49,7 @@ index 1a919300968..381b3a8fce9 100644
  
  build() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-${pkgname}${_mamever}
++  cd GroovyMAME-${pkgname}${_mamever}
    make \
      NOWERROR=1 \
      OPTIMIZE=2 \
@@ -60,7 +60,7 @@ index 1a919300968..381b3a8fce9 100644
  
  package() {
 -  cd mame-mame${pkgver/./}
-+  cd mame-${pkgname}${_mamever}
++  cd GroovyMAME-${pkgname}${_mamever}
  
 -  # Install the mame script
 -  install -Dm755 "$srcdir"/$pkgname.sh "$pkgdir"/usr/bin/$pkgname
