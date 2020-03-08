@@ -39,7 +39,7 @@ check_if_download_or_build() {
     echo "Package name was determined as: $pkgname"
     for repo in groovyarcade-testing groovyarcade ; do
       # Remove repo name, match exact package name, convert to filename
-      repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.xz/")
+      repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.zst/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
       if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo"/"$pkgname"; then
         echo "Found $pkgname in repo $repo may not have been downloaded from it, but it's here at last"
@@ -125,8 +125,8 @@ do_the_job() {
   fi
   # Could download the file
   [[ $rc == 1 ]] && post_build && return 0
-  # Something went wrong, abort
-  [[ $rc == 255 ]] && return 1
+  # Something went wrong, abort -> no, just build the package
+  #[[ $rc == 255 ]] && return 1
 
 
   # The CI can set MAKEPKG_OPTS to "--nobuild --nodeps" for a simple basic check for every branch not tag nor master)
@@ -201,7 +201,7 @@ done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 
 
 namcap_packages() {
-for pack in /work/output/*.pkg.tar.xz ; do
+for pack in /work/output/*.pkg.tar.zst ; do
   namcap -i "$pack"
 done
 }

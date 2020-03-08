@@ -21,6 +21,8 @@ before_script:
   script:
     - pacman -S --noconfirm --needed base-devel devtools mkinitcpio asp haveged namcap wget sed dos2unix grep pacman-contrib
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
+    - sed -i 's/PKGEXT=.*/PKGEXT=".pkg.tar.zst"/' /etc/makepkg.conf
+    - sed -i 's/COMPRESSZST=.*/COMPRESSZST=(zstd -c -z - --threads=0)/' /etc/makepkg.conf
     - mkdir -p work/output
     - ln -s "$(pwd)"/work /work
     - cp packages_*.lst buildPackages.sh include.sh /work

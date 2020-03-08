@@ -65,12 +65,12 @@ upload_repo() {
 need_assets
 
 # Just build the repo only if packages are available
-echo "Preparing the AUR repo"
+echo "Preparing the repo"
 command -v repo-add || cancel_and_exit
 # determine repo name
 repo_name=groovyarcade
 [[ $tag != "stable" ]] && repo_name="${repo_name}-${tag}"
-ls "${_OUTPUT}"/*.pkg.tar.xz >/dev/null && repo-add "${_OUTPUT}"/"$repo_name".db.tar.gz "${_OUTPUT}"/*.pkg.tar.xz
+ls "${_OUTPUT}"/*.pkg.tar.zst >/dev/null && repo-add "${_OUTPUT}"/"$repo_name".db.tar.gz "${_OUTPUT}"/*.pkg.tar.zst
 
 for file in "${_OUTPUT}"/"$repo_name".db* "${_OUTPUT}"/"$repo_name".files* ; do
   filename=$(basename "$file")
