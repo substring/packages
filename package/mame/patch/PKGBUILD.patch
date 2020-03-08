@@ -1,8 +1,8 @@
 diff --git a/mame/repos/community-x86_64/PKGBUILD b/mame/repos/community-x86_64/PKGBUILD
-index 3832088758c..477b35e321d 100644
+index 3832088758c..a616e3d38d9 100644
 --- a/mame/repos/community-x86_64/PKGBUILD
 +++ b/mame/repos/community-x86_64/PKGBUILD
-@@ -3,51 +3,47 @@
+@@ -3,51 +3,48 @@
  # Contributor: robb_force <robb_force@holybuffalo.net>
  # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
  
@@ -65,10 +65,11 @@ index 3832088758c..477b35e321d 100644
    # Install the binaries
 -  install -Dm755 mame64 "$pkgdir"/usr/lib/mame/mame
 +  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
++  ln -s ./groovymame "$pkgdir"/usr/lib/mame/mame
    for _i in castool chdman imgtool jedutil nltool nlwav pngcmp regrep romcmp src2html \
              split srcclean ldverify ldresample; do
      install -m755 $_i -t "$pkgdir"/usr/lib/mame
-@@ -55,8 +51,8 @@ package() {
+@@ -55,8 +52,10 @@ package() {
    done
  
    # Install the extra bits
@@ -76,6 +77,8 @@ index 3832088758c..477b35e321d 100644
 -  cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/$pkgname/
 +  install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
 +  cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/mame/
++  mkdir -p "$pkgdir"/usr/share/mame
++  "$pkgdir"/usr/lib/mame/groovymame -listxml > "$pkgdir"/usr/share/mame/mame.dat
  
    # Include the license
    install -Dm644 docs/LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
