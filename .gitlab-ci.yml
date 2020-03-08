@@ -116,8 +116,6 @@ build:groovymame:dev:
   variables:
     MAKEPKG_ARGS: "mame"
   <<: *buildpackages
-  tags:
-    - longOps
 
 
 build:aur:dev:
@@ -171,8 +169,6 @@ build:groovymame:
   variables:
     MAKEPKG_ARGS: "mame"
   <<: *buildpackages
-  tags:
-    - longOps
 
 
 build:aur:

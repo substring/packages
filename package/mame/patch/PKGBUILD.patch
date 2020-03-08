@@ -1,19 +1,18 @@
 diff --git a/mame/repos/community-x86_64/PKGBUILD b/mame/repos/community-x86_64/PKGBUILD
-index 1a919300968..381b3a8fce9 100644
+index 3832088758c..477b35e321d 100644
 --- a/mame/repos/community-x86_64/PKGBUILD
 +++ b/mame/repos/community-x86_64/PKGBUILD
-@@ -3,49 +3,59 @@
+@@ -3,51 +3,47 @@
  # Contributor: robb_force <robb_force@holybuffalo.net>
  # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
  
 -pkgname=mame
 +pkgname=groovymame
- pkgver=0.218
+ pkgver=0.219
  pkgrel=1
--pkgdesc="A port of the popular Multiple Arcade Machine Emulator using SDL with OpenGL support."
+ pkgdesc="A port of the popular Multiple Arcade Machine Emulator using SDL with OpenGL support."
 +_mamever=${pkgver/./}
-+_target=arcade
-+pkgdesc="A CRT oriented brew of the popular MAME emulator"
++_switchresver=017p
  url="https://mamedev.org/"
  license=(GPL2)
  arch=(x86_64)
@@ -23,38 +22,35 @@ index 1a919300968..381b3a8fce9 100644
  conflicts=(sdlmame)
  replaces=(sdlmame)
 -source=("https://github.com/mamedev/mame/archive/mame${pkgver/./}.tar.gz"
--         mame.sh mame.desktop mame.svg)
-+source=("https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
-+         mame.sh mame.desktop mame.svg
-+         http://mamestuff.lowtrucks.net/MKChamp/suppression_${_mamever}u2.txt)
- sha256sums=('c855d2a53956d7ecc6b2d029747495278cd701dc785c50548f0f20ffa673b91f'
++source=( "https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
++         "https://github.com/antonioginer/GroovyMAME/releases/download/gm0219/groovymame64_${_mamever}.${_switchresver}_linux.tar.bz2"
+          mame.sh mame.desktop mame.svg)
+-sha256sums=('9513c046033e451d86adfdd297da8a2ad9b6642a2f3ef669e1443d0acc2c2e0b'
++sha256sums=(SKIP
++            SKIP
              'ee1c59bafc5e5441e99fa4c58108a3e18048e60672f34de865c8a5a976094dba'
              '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
--            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
-+            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
-+            SKIP)
+             '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
  
  
- prepare() {
+-prepare() {
 -  cd mame-mame${pkgver/./}
-+  cd GroovyMAME-${pkgname}${_mamever}
- 
- # Use system libraries
-   sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
-+
-+  msg2 "Apply suppression patch..."
-+  dos2unix -F "${srcdir}/suppression_${_mamever}u2.txt"
-+  patch -p0 --binary -i "${srcdir}/suppression_${_mamever}u2.txt"
- }
- 
+-
+-# Use system libraries
+-  sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
+-# except for asio
+-  sed -e 's|USE_SYSTEM_LIB_ASIO|\# USE_SYSTEM_LIB_ASIO|g' -i makefile
+-}
+-
  build() {
 -  cd mame-mame${pkgver/./}
+-  make -j1 \
 +  cd GroovyMAME-${pkgname}${_mamever}
-   make \
++  make \
      NOWERROR=1 \
      OPTIMIZE=2 \
      TOOLS=1 \
-+    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=${_target} \
++    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=tiny \
      ARCHOPTS=-flifetime-dse=1
  }
  
@@ -62,19 +58,17 @@ index 1a919300968..381b3a8fce9 100644
 -  cd mame-mame${pkgver/./}
 +  cd GroovyMAME-${pkgname}${_mamever}
  
--  # Install the mame script
+   # Install the mame script
 -  install -Dm755 "$srcdir"/$pkgname.sh "$pkgdir"/usr/bin/$pkgname
-+  # Install the mame script. Don't use $pkgname, groovymame.sh doesn't exist
 +  install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
  
    # Install the binaries
 -  install -Dm755 mame64 "$pkgdir"/usr/lib/mame/mame
-+  install -Dm755 mame${_target}64 "$pkgdir"/usr/lib/mame/groovymame
-+  ln -s ./groovymame "$pkgdir"/usr/lib/mame/mame
++  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
    for _i in castool chdman imgtool jedutil nltool nlwav pngcmp regrep romcmp src2html \
              split srcclean ldverify ldresample; do
      install -m755 $_i -t "$pkgdir"/usr/lib/mame
-@@ -53,8 +63,10 @@ package() {
+@@ -55,8 +51,8 @@ package() {
    done
  
    # Install the extra bits
@@ -82,8 +76,6 @@ index 1a919300968..381b3a8fce9 100644
 -  cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/$pkgname/
 +  install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
 +  cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/mame/
-+  mkdir -p "$pkgdir"/usr/share/mame
-+  "$pkgdir"/usr/lib/mame/groovymame -listxml > "$pkgdir"/usr/share/mame/mame.dat
  
    # Include the license
    install -Dm644 docs/LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
