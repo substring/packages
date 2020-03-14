@@ -1,0 +1,35 @@
+## arg 1:  the new package version
+#pre_install() {
+	# do something here
+#}
+
+## arg 1:  the new package version
+post_install() {
+  systemctl enable rgbcommander.service > /dev/null 2>&1
+  systemctl start rgbcommander > /dev/null 2>&1
+  sleep 3
+  systemctl -l status rgbcommander.service
+}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+pre_upgrade() {
+  systemctl stop rgbcommander > /dev/null 2>&1
+}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+post_upgrade() {
+  systemctl start rgbcommander > /dev/null 2>&1
+}
+
+## arg 1:  the old package version
+pre_remove() {
+  systemctl stop rgbcommander > /dev/null 2>&1
+  systemctl disable rgbcommander.service > /dev/null 2>&1
+}
+
+## arg 1:  the old package version
+#post_remove() {
+	# do something here
+#}

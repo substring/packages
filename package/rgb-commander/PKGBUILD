@@ -1,0 +1,30 @@
+pkgname=rgb-commander
+_pkgname=RGBcommander
+pkgver=0.4.0.5
+_pkgver=${pkgver//./}
+_pkgdir=${_pkgname}_${_pkgver}_Setup
+pkgrel=1
+arch=('x86_64')
+conflicts=('ledspicer')
+desc="A *nix arcade cabinet led and joystick driver"
+url="http://users.telenet.be/rgbcommander/"
+license=('unknown')
+install="${pkgname}.install"
+source=("http://users.telenet.be/rgbcommander/downloads/${_pkgname}_${_pkgver}.tar.gz")
+sha256sums=('dccbf93ab18fe6365a48b9a8db04ff12df180c9737016ac092023d9c31d970ca')
+
+package() {
+  cd "$_pkgdir"
+  for f in minimame.bin rgbcmdd rgbcmdcon rgbparse "libstdc++.so.6" ; do
+    install -Dm755 "$srcdir/$_pkgdir"/files/x64/"$f" "$pkgdir"/usr/bin/rgbcommander/"$f"
+  done
+
+  for f in rgbcmdd rgbcmdcon rgbparse ; do
+    ln -s /usr/bin/rgbcommander/"$f" "$pkgdir"/usr/bin/"$f"
+  done
+
+  (cd files && find  rgbcommander -type f -exec install -Dm 755 "{}" "$pkgdir"/usr/bin/"{}" \;)
+
+  install -Dm755 "$srcdir/$_pkgdir"/files/rgbcommander.service "$pkgdir"/etc/systemd/system/rgbcommander.service
+  install -Dm755 "$srcdir/$_pkgdir"/files/21-rgbcmdd.rules "$pkgdir"/etc/udev/rules.d/21-rgbcmdd.rules
+}

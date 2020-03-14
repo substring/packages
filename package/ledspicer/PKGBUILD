@@ -1,0 +1,49 @@
+pkgname=ledspicer
+pkgver=0.3.9
+pkgrel=1
+pkgdesc="LED Animator and Controller for Linux"
+arch=('any')
+url="https://sourceforge.net/p/ledspicer/wiki/Home/"
+source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz" \
+        "01-configure-libusb.patch")
+sha256sums=('cbe2070604d65cbb4e366fe385feee5d35bebaf7e7709e5fd1eccb1190cfabcf' \
+            '2fa9045211751b19f147b57127e716154db0f0e9cfb0566866ce59236420a68d')
+license=('GPL3')
+depends=('libusb' 'tinyxml2' 'libpthread-stubs' 'libpulse')
+conflicts=('rgb-commander')
+
+_srcdir="LEDSpicer-"${pkgver}""
+
+prepare () {
+  cd LEDSpicer-"${pkgver}"
+  local src
+  for src in "${source[@]}"; do
+    src="${src%%::*}"
+    src="${src##*/}"
+    [[ $src = *.patch ]] || continue
+    echo "Applying patch $src..."
+    patch -Np1 < "../$src"
+  done
+}
+
+build() {
+  cd "${_srcdir}"
+  ./autogen.sh
+  ./configure \
+    --prefix=/usr \
+    --sysconfdir=/etc \
+    --with-systemdsystemunitdir=/etc/systemd/system \
+    --enable-samples \
+    --enable-pulseaudio \
+    --enable-nanoled \
+    --enable-pacdrive \
+    --enable-pacled64 \
+    --enable-ultimateio \
+    --enable-ledwiz32
+  make
+}
+
+package() {
+  cd "${_srcdir}"
+  make DESTDIR="${pkgdir}" install
+}
