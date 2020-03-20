@@ -1,0 +1,23 @@
+pkgname=galauncher-git
+_pkgname=${pkgname%-git}
+pkgver=0.1
+pkgrel=1
+pkgdesc="GroovyArcade emulator launcher"
+arch=(any)
+license=(GPL-2)
+depends=(bash)
+makedepends=(git)
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+source=("git+https://gitlab.com/groovyarcade/tools/${_pkgname}.git")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd "$_pkgname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+  cd "$srcdir/$_pkgname"
+  make DESTDIR="$pkgdir/opt/${_pkgname}" install
+}
