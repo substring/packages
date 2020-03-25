@@ -1,16 +1,51 @@
 pkgname=ledspicer
-pkgver=0.3.9
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="LED Animator and Controller for Linux"
 arch=('any')
 url="https://sourceforge.net/p/ledspicer/wiki/Home/"
-source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz" \
-        "01-configure-libusb.patch")
-sha256sums=('cbe2070604d65cbb4e366fe385feee5d35bebaf7e7709e5fd1eccb1190cfabcf' \
-            '2fa9045211751b19f147b57127e716154db0f0e9cfb0566866ce59236420a68d')
+source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz"
+        "ledspicer.conf"
+        "P2_B1.xml"
+        "P2_B2.xml"
+        "P2_B3.xml"
+        "P2_B4.xml"
+        "P2_B5.xml"
+        "P2_B6.xml"
+        "P2_B.xml"
+        "P3_B1.xml"
+        "P3_B2.xml"
+        "P3_B3.xml"
+        "P3_B4.xml"
+        "P3_B.xml"
+        "P4_B1.xml"
+        "P4_B2.xml"
+        "P4_B3.xml"
+        "P4_B4.xml"
+        "P4_B.xml")
+sha256sums=('018c2a104934812b6e3692498b873b1aa556b3fa6e5f0577b233990ed9eb4578'
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP)
 license=('GPL3')
 depends=('libusb' 'tinyxml2' 'libpthread-stubs' 'libpulse')
 conflicts=('rgb-commander')
+install=ledspicer.install
 
 _srcdir="LEDSpicer-"${pkgver}""
 
@@ -46,4 +81,7 @@ build() {
 package() {
   cd "${_srcdir}"
   make DESTDIR="${pkgdir}" install
+  install -m755 -D data/21-ledspicer.rules "${pkgdir}"/etc/udev/rules.d/21-ledspicer.rules
+  install -m777 -D "$srcdir"/ledspicer.conf "${pkgdir}"/etc/ledspicer.conf
+  install -m755 -D --target-directory="${pkgdir}"/usr/share/ledspicer/profiles "$srcdir"/P?_B*.xml
 }

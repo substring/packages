@@ -1,0 +1,42 @@
+# This is a default template for a post-install scriptlet.
+# Uncomment only required functions and remove any functions
+# you don't need (and this header).
+
+## arg 1:  the new package version
+#pre_install() {
+	# do something here
+#}
+
+## arg 1:  the new package version
+post_install() {
+systemctl enable ledspicerd.service
+systemctl start ledspicerd.service
+if [[ -d /home/arcade/shared/configs ]] ; then
+  install -m777 -o arcade -g arcade -d /home/arcade/shared/configs/ledspicer
+  ln -s /etc/ledspicer.conf /home/arcade/shared/configs/ledspicer/ledspicer.conf
+fi
+}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+pre_upgrade() {
+systemctl stop ledspicerd.service
+}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+post_upgrade() {
+systemctl start ledspicerd.service
+}
+
+## arg 1:  the old package version
+pre_remove() {
+systemctl stop ledspicerd.service
+systemctl disable ledspicerd.service
+
+}
+
+## arg 1:  the old package version
+post_remove() {
+  [[ -d /home/arcade/shared/configs/ledspicer ]] && rm -rf /home/arcade/shared/configs/ledspicer
+}
