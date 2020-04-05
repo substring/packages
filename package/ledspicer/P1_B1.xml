@@ -8,6 +8,5 @@
         <group name="STARTS1" color="White" />
         <group name="STARTS2" color="White" />
         <group name="P1_B1" color="White" />
-        <group name="P2_B1" color="White" />
     </alwaysOnGroups>
 </LEDSpicer>

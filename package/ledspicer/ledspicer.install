@@ -9,12 +9,22 @@
 
 ## arg 1:  the new package version
 post_install() {
+if [[ -d /home/arcade/shared/configs ]] ; then
+  echo "Adding GroovyArcade specific config"
+  install -Dm777 -o arcade -g arcade /etc/ledspicer.conf /home/arcade/shared/configs/ledspicer/ledspicer.conf
+  rm /etc/ledspicer.conf
+  ln -s /home/arcade/shared/configs/ledspicer/ledspicer.conf /etc/ledspicer.conf
+  cp -r /usr/share/ledspicer/ /home/arcade/shared/configs/ledspicer/share/
+  chown -R arcade:arcade /home/arcade/shared/configs/ledspicer/share/
+  chmod -R 777 /home/arcade/shared/configs/ledspicer/share/
+  rm -rf /usr/share/ledspicer
+  ln -s /home/arcade/shared/configs/ledspicer/share /usr/share/ledspicer
+fi
+udevadm control --reload-rules
+udevadm trigger
 systemctl enable ledspicerd.service
 systemctl start ledspicerd.service
-if [[ -d /home/arcade/shared/configs ]] ; then
-  install -m777 -o arcade -g arcade -d /home/arcade/shared/configs/ledspicer
-  ln -s /etc/ledspicer.conf /home/arcade/shared/configs/ledspicer/ledspicer.conf
-fi
+echo "Ledspicer has been autoconfigured for a pacdrive. You need to manually edit /etc/ledspicer.conf to change your device"
 }
 
 ## arg 1:  the new package version

@@ -7,18 +7,9 @@
     <alwaysOnGroups>
         <group name="STARTS1" color="White" />
         <group name="STARTS2" color="White" />
-        <group name="STARTS3" color="White" />
         <group name="P1_B1" color="White" />
         <group name="P1_B2" color="White" />
         <group name="P1_B3" color="White" />
         <group name="P1_B4" color="White" />
-        <group name="P2_B1" color="White" />
-        <group name="P2_B2" color="White" />
-        <group name="P2_B3" color="White" />
-        <group name="P2_B4" color="White" />
-        <group name="P3_B1" color="White" />
-        <group name="P3_B2" color="White" />
-        <group name="P3_B3" color="White" />
-        <group name="P3_B4" color="White" />
     </alwaysOnGroups>
 </LEDSpicer>

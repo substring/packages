@@ -1,11 +1,22 @@
 pkgname=ledspicer
-pkgver=0.4.0
+pkgver=0.4.2
 pkgrel=1
 pkgdesc="LED Animator and Controller for Linux"
 arch=('any')
 url="https://sourceforge.net/p/ledspicer/wiki/Home/"
 source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz"
         "ledspicer.conf"
+        "basicColors.xml"
+        "singleColor.xml"
+        "webColors.xml"
+        "default.xml"
+        "P1_B1.xml"
+        "P1_B2.xml"
+        "P1_B3.xml"
+        "P1_B4.xml"
+        "P1_B5.xml"
+        "P1_B6.xml"
+        "P1_B.xml"
         "P2_B1.xml"
         "P2_B2.xml"
         "P2_B3.xml"
@@ -22,8 +33,21 @@ source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz"
         "P4_B2.xml"
         "P4_B3.xml"
         "P4_B4.xml"
-        "P4_B.xml")
-sha256sums=('018c2a104934812b6e3692498b873b1aa556b3fa6e5f0577b233990ed9eb4578'
+        "P4_B.xml"
+        "groovy.xml")
+sha256sums=(SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
             SKIP
             SKIP
             SKIP
@@ -43,7 +67,7 @@ sha256sums=('018c2a104934812b6e3692498b873b1aa556b3fa6e5f0577b233990ed9eb4578'
             SKIP
             SKIP)
 license=('GPL3')
-depends=('libusb' 'tinyxml2' 'libpthread-stubs' 'libpulse')
+depends=('tinyxml2' 'libpthread-stubs' 'libusb' 'libpulse')
 conflicts=('rgb-commander')
 install=ledspicer.install
 
@@ -65,23 +89,28 @@ build() {
   cd "${_srcdir}"
   ./autogen.sh
   ./configure \
+    CXXFLAGS='-s -O3' \
     --prefix=/usr \
     --sysconfdir=/etc \
     --with-systemdsystemunitdir=/etc/systemd/system \
-    --enable-samples \
-    --enable-pulseaudio \
+    --disable-pulseaudio \
     --enable-nanoled \
-    --enable-pacdrive \
     --enable-pacled64 \
     --enable-ultimateio \
-    --enable-ledwiz32
+    --enable-ledwiz32 \
+    --enable-pacdrive
   make
+    #~ --enable-samples \
 }
 
 package() {
   cd "${_srcdir}"
   make DESTDIR="${pkgdir}" install
-  install -m755 -D data/21-ledspicer.rules "${pkgdir}"/etc/udev/rules.d/21-ledspicer.rules
-  install -m777 -D "$srcdir"/ledspicer.conf "${pkgdir}"/etc/ledspicer.conf
-  install -m755 -D --target-directory="${pkgdir}"/usr/share/ledspicer/profiles "$srcdir"/P?_B*.xml
+  install -Dm644 data/21-ledspicer.rules "${pkgdir}"/etc/udev/rules.d/21-ledspicer.rules
+  install -Dm777 "$srcdir"/ledspicer.conf "${pkgdir}"/etc/ledspicer.conf
+  install -Dm755 "$srcdir"/default.xml "${pkgdir}"/usr/share/ledspicer/profiles/default.xml
+  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/profiles "$srcdir"/P?_B*.xml
+  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/animations "$srcdir"/groovy.xml
+  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/ "$srcdir"/{basic,web}Colors.xml
+  install -Dm755 "$srcdir"/singleColor.xml "${pkgdir}"/usr/share/ledspicer/singleColor.xml
 }

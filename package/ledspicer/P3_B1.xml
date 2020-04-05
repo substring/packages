@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <LEDSpicer
-    version="1.0"
-    type="Profile"
-    backgroundColor="Black"
+	version="1.0"
+	type="Profile"
+	backgroundColor="Black"
 >
     <alwaysOnGroups>
+        <group name="STARTS1" color="White" />
+        <group name="STARTS2" color="White" />
+        <group name="STARTS3" color="White" />
+        <group name="P1_B1" color="White" />
+        <group name="P2_B1" color="White" />
         <group name="P3_B1" color="White" />
     </alwaysOnGroups>
 </LEDSpicer>
