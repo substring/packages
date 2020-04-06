@@ -116,7 +116,7 @@ build:groovymame:dev:
   stage: build
   <<: *notmaster
   variables:
-    MAKEPKG_ARGS: "mame"
+    MAKEPKG_ARGS: "-s groovy/groovymame"
   <<: *buildpackages
 
 
@@ -169,7 +169,7 @@ build:groovymame:
   stage: build
   <<: *onlymasterortags
   variables:
-    MAKEPKG_ARGS: "mame"
+    MAKEPKG_ARGS: "-s groovy/groovymame"
   <<: *buildpackages
 
 

@@ -1,0 +1,88 @@
+# Maintainer: Antonio Rojas <arojas@archlinux.org>
+# Contributor: Sergej Pupykin <pupykin.s+arch@gmail.com>
+# Contributor: robb_force <robb_force@holybuffalo.net>
+# Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
+
+pkgname=groovymame
+pkgver=0.220
+pkgrel=1
+pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
+_mamever=${pkgver/./}
+_switchresver=017p
+url="https://mamedev.org/"
+license=(GPL2)
+arch=(x86_64)
+depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac libxrandr)
+makedepends=(nasm python asio rapidjson glm libxinerama)
+conflicts=(sdlmame)
+replaces=(sdlmame)
+source=("https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
+        "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}/groovymame64_${_mamever}.${_switchresver}_linux.tar.bz2"
+         mame.sh mame.desktop mame.svg)
+sha256sums=(SKIP
+            SKIP
+            'ee1c59bafc5e5441e99fa4c58108a3e18048e60672f34de865c8a5a976094dba'
+            '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
+            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
+
+
+prepare() {
+  cd GroovyMAME-${pkgname}${_mamever}
+
+# Use system libraries
+  sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
+# except for asio
+  sed -e 's|USE_SYSTEM_LIB_ASIO|\# USE_SYSTEM_LIB_ASIO|g' -i makefile
+}
+
+build() {
+  cd GroovyMAME-${pkgname}${_mamever}
+  make \
+    NOWERROR=1 \
+    OPTIMIZE=2 \
+    TOOLS=1 \
+    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=tiny \
+    ARCHOPTS=-flifetime-dse=1
+}
+
+package() {
+  cd GroovyMAME-${pkgname}${_mamever}
+
+  # Install the mame script
+  install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
+
+  # Install the binaries
+  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
+  for _i in castool chdman floptool imgtool jedutil ldresample ldverify nltool nlwav pngcmp regrep romcmp \
+            split srcclean testkeys unidasm; do
+    install -m755 $_i -t "$pkgdir"/usr/lib/mame
+    ln -s /usr/lib/mame/$_i "$pkgdir"/usr/bin/mame-$_i
+  done
+
+  # Install the extra bits
+  install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
+  cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/mame/
+  mkdir -p "$pkgdir"/usr/share/mame
+  "$pkgdir"/usr/lib/mame/groovymame -listxml > "$pkgdir"/usr/share/mame/mame.dat
+
+  # Include the license
+  install -Dm644 docs/LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+
+  # FS#28203
+  sed -i 's|KEYCODE_2_PAD|KEYCODE_2PAD|' "$pkgdir"/usr/lib/mame/ctrlr/*.cfg
+  sed -i 's|KEYCODE_4_PAD|KEYCODE_4PAD|' "$pkgdir"/usr/lib/mame/ctrlr/*.cfg
+  sed -i 's|KEYCODE_6_PAD|KEYCODE_6PAD|' "$pkgdir"/usr/lib/mame/ctrlr/*.cfg
+  sed -i 's|KEYCODE_8_PAD|KEYCODE_8PAD|' "$pkgdir"/usr/lib/mame/ctrlr/*.cfg
+
+  # documentation
+  install -dm0755 "$pkgdir"/usr/share/doc
+  cp -a docs "$pkgdir"/usr/share/doc/$pkgname
+  rm -r "$pkgdir"/usr/share/doc/$pkgname/man
+  install -d "$pkgdir"/usr/share/man/man{1,6}
+  install -m644 docs/man/*.1* "$pkgdir"/usr/share/man/man1/
+  install -m644 docs/man/*.6* "$pkgdir"/usr/share/man/man6/
+
+  # install desktop file and icon
+  install -Dm644 "$srcdir"/mame.desktop -t "$pkgdir"/usr/share/applications
+  install -Dm644 "$srcdir"/mame.svg -t "$pkgdir"/usr/share/icons/hicolor/scalable/apps
+}
