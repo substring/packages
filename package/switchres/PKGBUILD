@@ -1,13 +1,13 @@
 pkgname=switchres
-pkgver=1.53.1
-pkgrel=3
+pkgver=1.53.2
+pkgrel=1
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
 arch=(x86_64)
 depends=(libxml2)
 source=("https://gitlab.com/groovyarcade/tools/${pkgname}/-/archive/${pkgver}/${pkgname}-${pkgver}.tar.gz")
-sha256sums=('722aef5cde1e8d7d0f5a2bf36df126eb1e74170780ebac87aaf88bda2ee0890d')
+sha256sums=('af74379475e5d63a35a849568d57f9fcc12ee9d34be7e989e70cfe3b4469dd28')
 
 prepare() {
   cd ${pkgname}-${pkgver}
