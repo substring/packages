@@ -2,7 +2,7 @@ patch -Np2 -d /work/build/linux < /work/package/linux/patch/PKGBUILD.patch
 [[ $? -gt 0 ]] && exit 1
 sed -i \
 -e '/pkgver=.*/a _kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"' \
--re 's/pkgbase=linux.*/pkgbase=linux-15khz/'
+-re 's/pkgbase=linux.*/pkgbase=linux-15khz/' \
 /work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
 ( cd /work/build/linux/repos/core-x86_64 && makepkg -g >> PKGBUILD )
 
