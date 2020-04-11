@@ -1,0 +1,27 @@
+From b44e7bf68301153eb010a0df66f3d002bc107529 Mon Sep 17 00:00:00 2001
+From: Radek Dutkiewicz <radicdotkey@gmail.com>
+Date: Tue, 21 Jan 2020 02:35:39 +0000
+Subject: [PATCH 1/4] Fixed frame delay on nested surfaces
+
+Also possible fix for degraded performance on some layouts on MacOS
+---
+ src/fe_present.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/fe_present.cpp b/src/fe_present.cpp
+index 096fc94..4bccae1 100644
+--- a/src/fe_present.cpp
++++ b/src/fe_present.cpp
+@@ -990,7 +990,8 @@ void FePresent::redraw_surfaces()
+ {
+ 	std::vector<FeBaseTextureContainer *>::iterator itc;
+ 
+-	for ( itc=m_texturePool.begin(); itc != m_texturePool.end(); ++itc )
++	// To avoid frame delay on nested surfaces we redraw the surfaces in reverse order
++	for ( itc=m_texturePool.end(); itc-- != m_texturePool.begin(); )
+ 		(*itc)->on_redraw_surfaces();
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,135 @@
+From 76446b9b75799e668d4278d4aca046d9a447613b Mon Sep 17 00:00:00 2001
+From: Radek Dutkiewicz <radicdotkey@gmail.com>
+Date: Wed, 22 Jan 2020 23:57:27 +0000
+Subject: [PATCH 2/4] Fixed frame delay on nested surfaces - updated
+
+Added a proper sorting instead of just reversing the drawing order of surfaces. This works also for clones.
+---
+ src/fe_present.cpp     |  4 ++--
+ src/fe_presentable.cpp | 19 +++++++++++++++++++
+ src/fe_presentable.hpp |  7 +++++++
+ src/fe_vm.cpp          | 22 ++++++++++++++++++++++
+ 4 files changed, 50 insertions(+), 2 deletions(-)
+
+diff --git a/src/fe_present.cpp b/src/fe_present.cpp
+index 4bccae1..427ceb7 100644
+--- a/src/fe_present.cpp
++++ b/src/fe_present.cpp
+@@ -435,6 +435,7 @@ FeImage *FePresent::add_surface( int w, int h, FePresentableParent &p )
+ {
+ 	FeSurfaceTextureContainer *new_surface = new FeSurfaceTextureContainer( w, h );
+ 	new_surface->set_smooth( m_feSettings->get_info_bool( FeSettings::SmoothImages ) );
++	new_surface->set_nesting_level( p.get_nesting_level() + 1 );
+ 
+ 	//
+ 	// Set the default sprite size to the same as the texture itself
+@@ -990,8 +991,7 @@ void FePresent::redraw_surfaces()
+ {
+ 	std::vector<FeBaseTextureContainer *>::iterator itc;
+ 
+-	// To avoid frame delay on nested surfaces we redraw the surfaces in reverse order
+-	for ( itc=m_texturePool.end(); itc-- != m_texturePool.begin(); )
++	for ( itc=m_texturePool.begin(); itc != m_texturePool.end(); ++itc )
+ 		(*itc)->on_redraw_surfaces();
+ }
+ 
+diff --git a/src/fe_presentable.cpp b/src/fe_presentable.cpp
+index d82de7e..338bf2e 100644
+--- a/src/fe_presentable.cpp
++++ b/src/fe_presentable.cpp
+@@ -35,6 +35,15 @@ FeBasePresentable::~FeBasePresentable()
+ {
+ }
+ 
++FePresentableParent::FePresentableParent( )
++	: m_nesting_level ( 0 )
++{
++}
++
++FePresentableParent::~FePresentableParent()
++{
++}
++
+ void FeBasePresentable::on_new_selection( FeSettings * )
+ {
+ }
+@@ -215,6 +224,16 @@ void FeBasePresentable::set_zorder( int pos )
+ 	FePresent::script_flag_redraw();
+ }
+ 
++int FePresentableParent::get_nesting_level()
++{
++	return m_nesting_level;
++}
++
++void FePresentableParent::set_nesting_level( int p )
++{
++	m_nesting_level = p;
++}
++
+ FeImage *FePresentableParent::add_image(const char *n, int x, int y, int w, int h)
+ {
+ 	FePresent *fep = FePresent::script_get_fep();
+diff --git a/src/fe_presentable.hpp b/src/fe_presentable.hpp
+index 571f0cc..b96b838 100644
+--- a/src/fe_presentable.hpp
++++ b/src/fe_presentable.hpp
+@@ -110,8 +110,15 @@ class FeListBox;
+ class FePresentableParent
+ {
+ public:
++	FePresentableParent();
++	virtual ~FePresentableParent();
++
+ 	std::vector< FeBasePresentable * > elements;
+ 
++	int m_nesting_level;
++	int get_nesting_level();
++	void set_nesting_level( int );
++
+ 	FeImage *add_image(const char *,int, int, int, int);
+ 	FeImage *add_image(const char *, int, int);
+ 	FeImage *add_image(const char *);
+diff --git a/src/fe_vm.cpp b/src/fe_vm.cpp
+index ed54acf..b3975de 100644
+--- a/src/fe_vm.cpp
++++ b/src/fe_vm.cpp
+@@ -508,6 +508,23 @@ void FeVM::update_to_new_list( int var, bool reset_display )
+ 	FePresent::update_to_new_list( var, reset_display );
+ }
+ 
++namespace
++{
++	bool nesting_compare( FeBaseTextureContainer *one, FeBaseTextureContainer *two )
++	{
++		if ( one->get_presentable_parent() != NULL && two->get_presentable_parent() == NULL )
++			return true;
++
++		if ( one->get_presentable_parent() == NULL && two->get_presentable_parent() == NULL )
++			return false;
++
++		if ( one->get_presentable_parent() != NULL && two->get_presentable_parent() != NULL )
++			return ( one->get_presentable_parent()->get_nesting_level() > two->get_presentable_parent()->get_nesting_level() );
++
++		return false;
++	}
++};
++
+ bool FeVM::on_new_layout()
+ {
+ 	using namespace Sqrat;
+@@ -1097,6 +1114,11 @@ bool FeVM::on_new_layout()
+ 			<< " (" << filename << ")" << std::endl;
+ 	}
+ 
++	// To avoid frame delay of nested surfaces we have to sort them here
++	// so the most nested ones are redrawn first
++	FePresent *fep = FePresent::script_get_fep();
++	std::stable_sort( fep->m_texturePool.begin(), fep->m_texturePool.end(), nesting_compare );
++
+ 	return true;
+ }
+ 
+-- 
+2.17.1
+

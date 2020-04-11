@@ -1,0 +1,185 @@
+From 552091b3ce85e97195ff83f6de614840b1328009 Mon Sep 17 00:00:00 2001
+From: Radek Dutkiewicz <radicdotkey@gmail.com>
+Date: Sat, 11 Apr 2020 04:52:31 +0100
+Subject: [PATCH 4/4] Added Power Saving option to general settings
+
+---
+ config/language/en.msg           |  1 +
+ config/language/msg_template.txt |  1 +
+ src/fe_config.cpp                | 11 ++++++++++-
+ src/fe_overlay.cpp               |  6 +++---
+ src/fe_settings.cpp              |  9 +++++++++
+ src/fe_settings.hpp              |  2 ++
+ src/main.cpp                     |  2 +-
+ 7 files changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/config/language/en.msg b/config/language/en.msg
+index 222329b..527647a 100644
+--- a/config/language/en.msg
++++ b/config/language/en.msg
+@@ -114,6 +114,7 @@ _help_generator_build;Generate romlist with the selected emulator(s)
+ _help_generator_opt;Set whether this emulator is to be included in the generated romlist
+ _help_hide_brackets;Hide text in brackets when showing game titles
+ _help_hide_console;Hide console on startup. Note that this only works if starting Attract-Mode from a Windows GUI. If started from an existing console window (e.g. a batch file) then the process will always "attach" to the existing console and output to it.
++_help_power_saving;Helps to save power by only redrawing the screen when it's neccessary. May cause animation stuttering on some layouts, or freezing on Linux.
+ _help_input_action;
+ _help_input_add;Add a new input mapping for this control
+ _help_input_default_action;Set the default behaviour for this control
+diff --git a/config/language/msg_template.txt b/config/language/msg_template.txt
+index 60d9f4f..391be5b 100644
+--- a/config/language/msg_template.txt
++++ b/config/language/msg_template.txt
+@@ -397,6 +397,7 @@ _help_video_decoder;Configure the decoder to use for video playback (if multiple
+ _help_volume;Valid volume settings are from 0 (mute) to 100
+ _help_window_mode;Set whether Attract-Mode fills the screen or runs in a window
+ _help_hide_console;Hide console on startup. Note that this only works if starting Attract-Mode from a Windows GUI. If started from an existing console window (e.g. a batch file) then the process will always "attach" to the existing console and output to it.
++_help_power_saving;Helps to save power by only redrawing the screen when it's neccessary. May cause animation stuttering on some layouts, or freezing on Linux.
+ _sort_regexp;^(Vs\. The |The |Vs\. )
+ 
+ # The next line is needed at the end of the template file
+diff --git a/src/fe_config.cpp b/src/fe_config.cpp
+index 32e634e..5b26824 100644
+--- a/src/fe_config.cpp
++++ b/src/fe_config.cpp
+@@ -2011,6 +2011,12 @@ void FeMiscMenu::get_options( FeConfigContext &ctx )
+ 	ctx.add_optl( Opt::LIST, "Video Decoder", vid_dec, "_help_video_decoder" );
+ 	ctx.back_opt().append_vlist( decoders );
+ 
++	ctx.add_optl( Opt::LIST,
++			"Power Saving",
++			ctx.fe_settings.get_info_bool( FeSettings::PowerSaving ) ? bool_opts[0] : bool_opts[1],
++			"_help_power_saving" );
++	ctx.back_opt().append_vlist( bool_opts );
++
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	ctx.add_optl( Opt::LIST, "Hide Console",
+ 		ctx.fe_settings.get_hide_console() ? bool_opts[0] : bool_opts[1],
+@@ -2064,9 +2070,12 @@ bool FeMiscMenu::save( FeConfigContext &ctx )
+ 	ctx.fe_settings.set_info( FeSettings::VideoDecoder,
+ 			ctx.opt_list[13].get_value() );
+ 
++	ctx.fe_settings.set_info( FeSettings::PowerSaving,
++			ctx.opt_list[14].get_vindex() == 0 ? FE_CFG_YES_STR : FE_CFG_NO_STR );
++
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	ctx.fe_settings.set_info( FeSettings::HideConsole,
+-			ctx.opt_list[14].get_vindex() == 0 ? FE_CFG_YES_STR : FE_CFG_NO_STR );
++			ctx.opt_list[15].get_vindex() == 0 ? FE_CFG_YES_STR : FE_CFG_NO_STR );
+ #endif
+ 
+ 	return true;
+diff --git a/src/fe_overlay.cpp b/src/fe_overlay.cpp
+index aea4d33..c6f1a28 100644
+--- a/src/fe_overlay.cpp
++++ b/src/fe_overlay.cpp
+@@ -900,7 +900,7 @@ void FeOverlay::input_map_dialog(
+ 		if ( m_fePresent.tick() )
+ 			redraw = true;
+ 
+-		if ( redraw )
++		if ( redraw || !m_feSettings.get_info_bool( FeSettings::PowerSaving ) )
+ 		{
+ 			m_fePresent.redraw_surfaces();
+ 			m_wnd.clear();
+@@ -1422,7 +1422,7 @@ bool FeOverlay::event_loop( FeEventLoopCtx &ctx )
+ 		if ( m_fePresent.tick() )
+ 			redraw = true;
+ 
+-		if ( redraw )
++		if ( redraw || !m_feSettings.get_info_bool( FeSettings::PowerSaving ) )
+ 		{
+ 			m_fePresent.redraw_surfaces();
+ 			m_wnd.clear();
+@@ -1918,7 +1918,7 @@ bool FeOverlay::edit_loop( std::vector<sf::Drawable *> d,
+ 		m_wnd.draw( cursor, t );
+ 		m_wnd.display();
+ 
+-		if ( !redraw )
++		if ( !redraw && m_feSettings.get_info_bool( FeSettings::PowerSaving ) )
+ 			sf::sleep( sf::milliseconds( 30 ) );
+ 
+ 		redraw = false;
+diff --git a/src/fe_settings.cpp b/src/fe_settings.cpp
+index e27393b..270f9e7 100644
+--- a/src/fe_settings.cpp
++++ b/src/fe_settings.cpp
+@@ -295,6 +295,7 @@ FeSettings::FeSettings( const std::string &config_path,
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	m_hide_console( false ),
+ #endif
++	m_power_saving( false ),
+ 	m_loaded_game_extras( false ),
+ 	m_present_state( Layout_Showing )
+ {
+@@ -423,6 +424,7 @@ const char *FeSettings::configSettingStrings[] =
+ 	"scrape_videos",
+ 	"scrape_overview",
+ 	"thegamesdb_key",
++	"power_saving",
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	"hide_console",
+ #endif
+@@ -2745,6 +2747,7 @@ const std::string FeSettings::get_info( int index ) const
+ 	case ScrapeFanArt:
+ 	case ScrapeVids:
+ 	case ScrapeOverview:
++	case PowerSaving:
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	case HideConsole:
+ #endif
+@@ -2802,6 +2805,8 @@ bool FeSettings::get_info_bool( int index ) const
+ 		return m_scrape_vids;
+ 	case ScrapeOverview:
+ 		return m_scrape_overview;
++	case PowerSaving:
++		return m_power_saving;
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	case HideConsole:
+ 		return m_hide_console;
+@@ -3000,6 +3005,10 @@ bool FeSettings::set_info( int index, const std::string &value )
+ 		m_scrape_overview = config_str_to_bool( value );
+ 		break;
+ 
++	case PowerSaving:
++		m_power_saving = config_str_to_bool( value );
++		break;
++
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	case HideConsole:
+ 		m_hide_console = config_str_to_bool( value );
+diff --git a/src/fe_settings.hpp b/src/fe_settings.hpp
+index e328854..a6a73aa 100644
+--- a/src/fe_settings.hpp
++++ b/src/fe_settings.hpp
+@@ -131,6 +131,7 @@ public:
+ 		ScrapeVids,
+ 		ScrapeOverview,
+ 		ThegamesdbKey,
++		PowerSaving,
+ #ifdef SFML_SYSTEM_WINDOWS
+ 		HideConsole,
+ #endif
+@@ -222,6 +223,7 @@ private:
+ #ifdef SFML_SYSTEM_WINDOWS
+ 	bool m_hide_console;
+ #endif
++	bool m_power_saving;
+ 	bool m_loaded_game_extras;
+ 	enum FePresentState m_present_state;
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+index 335b3ad..4f84384 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1058,7 +1058,7 @@ int main(int argc, char *argv[])
+ 		if ( feVM.saver_activation_check() )
+ 			soundsys.sound_event( FeInputMap::ScreenSaver );
+ 
+-		if ( redraw )
++		if ( redraw || !feSettings.get_info_bool( FeSettings::PowerSaving ) )
+ 		{
+ 			feVM.redraw_surfaces();
+ 
+-- 
+2.17.1
+
