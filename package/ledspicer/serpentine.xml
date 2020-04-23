@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LEDSpicer
+        version="1.0"
+        type="Animation"
+>
+    <actor
+        type="Serpentine"
+        group="All"
+        color="White"
+        speed="Normal"
+        filter="Normal"
+        direction="Forward"
+        tailLength="1"
+        tailColor="White"
+        tailIntensity="75"
+    />
+</LEDSpicer>

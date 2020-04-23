@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LEDSpicer
+	version="1.0"
+	type="Animation"
+>
+    <actor
+        type="Random"
+        group="All"
+        colors="White, Black"
+        seed="43243"
+        speed="Normal"
+        filter="Normal"
+    />
+</LEDSpicer>

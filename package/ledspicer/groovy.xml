@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <LEDSpicer
-        version="1.0"
-        type="Animation"
+	version="1.0"
+	type="Profile"
+	backgroundColor="Black"
 >
-        <actor
-                type="Filler"
-                group="All"
-                speed="Normal"
-                filter="Normal"
-                direction="Forward"
-                color="White"
-                mode="Random"
-        />
+	<animations>
+		<animation name="filler" />
+	</animations>
 </LEDSpicer>

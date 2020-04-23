@@ -1,15 +1,12 @@
 pkgname=ledspicer
-pkgver=0.4.2
+pkgver=0.4.3
 pkgrel=1
 pkgdesc="LED Animator and Controller for Linux"
 arch=('any')
 url="https://sourceforge.net/p/ledspicer/wiki/Home/"
 source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz"
-        "ledspicer.conf"
-        "basicColors.xml"
+        "ledspicer.conf.sample"
         "singleColor.xml"
-        "webColors.xml"
-        "default.xml"
         "P1_B1.xml"
         "P1_B2.xml"
         "P1_B3.xml"
@@ -34,8 +31,21 @@ source=("https://github.com/meduzapat/LEDSpicer/archive/${pkgver}.tar.gz"
         "P4_B3.xml"
         "P4_B4.xml"
         "P4_B.xml"
-        "groovy.xml")
+        "example.rgba"
+        "filereader.xml"
+        "filler.xml"
+        "grandient.xml"
+        "groovy.xml"
+        "pulse.xml"
+        "pulseaudio.xml"
+        "random.xml"
+        "serpentine.xml")
 sha256sums=(SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
             SKIP
             SKIP
             SKIP
@@ -68,9 +78,11 @@ sha256sums=(SKIP
             SKIP)
 license=('GPL3')
 depends=('tinyxml2' 'libpthread-stubs' 'libusb' 'libpulse')
-conflicts=('rgb-commander')
 install=ledspicer.install
 
+
+_ledspicerparentpath=/home/arcade/shared/configs
+_ledspicerpath="$_ledspicerparentpath"/ledspicer
 _srcdir="LEDSpicer-"${pkgver}""
 
 prepare () {
@@ -83,34 +95,43 @@ prepare () {
     echo "Applying patch $src..."
     patch -Np1 < "../$src"
   done
+  sed -i "s/\@USERNAME\@/arcade/" data/ledspicerd.service.in
 }
 
 build() {
   cd "${_srcdir}"
   ./autogen.sh
-  ./configure \
+  USER=arcade ./configure \
     CXXFLAGS='-s -O3' \
     --prefix=/usr \
-    --sysconfdir=/etc \
+    --sysconfdir=/home/arcade/shared/configs/ledspicer \
+    --datarootdir=/home/arcade/shared/configs \
     --with-systemdsystemunitdir=/etc/systemd/system \
-    --disable-pulseaudio \
+	--docdir=/usr/share/doc/ledspicer \
+    --enable-samples \
     --enable-nanoled \
     --enable-pacled64 \
     --enable-ultimateio \
     --enable-ledwiz32 \
-    --enable-pacdrive
+    --enable-pacdrive \
+    --enable-howler
   make
-    #~ --enable-samples \
 }
 
 package() {
   cd "${_srcdir}"
   make DESTDIR="${pkgdir}" install
   install -Dm644 data/21-ledspicer.rules "${pkgdir}"/etc/udev/rules.d/21-ledspicer.rules
-  install -Dm777 "$srcdir"/ledspicer.conf "${pkgdir}"/etc/ledspicer.conf
-  install -Dm755 "$srcdir"/default.xml "${pkgdir}"/usr/share/ledspicer/profiles/default.xml
-  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/profiles "$srcdir"/P?_B*.xml
-  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/animations "$srcdir"/groovy.xml
-  install -Dm755 --target-directory="${pkgdir}"/usr/share/ledspicer/ "$srcdir"/{basic,web}Colors.xml
-  install -Dm755 "$srcdir"/singleColor.xml "${pkgdir}"/usr/share/ledspicer/singleColor.xml
+  install -Dm777 "$srcdir"/ledspicer.conf.sample "${pkgdir}"/"$_ledspicerpath"/ledspicer.conf.sample
+  install -Dm755 "$srcdir"/singleColor.xml "${pkgdir}"/"$_ledspicerpath"/singleColor.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/example.rgba
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/filereader.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/filler.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/grandient.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/pulse.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/pulseaudio.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/random.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/animations "$srcdir"/serpentine.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/profiles "$srcdir"/P?_B*.xml
+  install -Dm755 --target-directory="${pkgdir}"/"$_ledspicerpath"/profiles "$srcdir"/groovy.xml
 }
