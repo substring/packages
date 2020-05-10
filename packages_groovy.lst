@@ -1,3 +1,4 @@
+attract-config
 gasetup
 gasetup-git
 gatools
@@ -8,8 +9,8 @@ groovyarcade-config
 switchres
 mehstation
 mehstation-config
-advancemenuplus-git
-kronos-git
+#advancemenuplus-git
+#kronos-git
 easybashgui
 rgb-commander
 ledspicer
