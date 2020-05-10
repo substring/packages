@@ -3,7 +3,7 @@ image: archlinux/base:latest
 stages:
   - prechecks
   - prepare
-  - pretests
+#  - pretests
   - build
   - dkms
   - release
@@ -68,18 +68,18 @@ bash_lint:
     - shellcheck -x *.sh
 
 
-build_single_aur:
-  stage: pretests
-  variables:
-    MAKEPKG_ARGS: "-s 'aur/gamemode'"
-  <<: *buildpkgnoartifact
+#build_single_aur:
+#  stage: pretests
+#  variables:
+#    MAKEPKG_ARGS: "-s 'aur/gamemode'"
+#  <<: *buildpkgnoartifact
 
 
-build_single_native:
-  stage: pretests
-  variables:
-    MAKEPKG_ARGS: "-s kitty"
-  <<: *buildpkgnoartifact
+#build_single_native:
+#  stage: pretests
+#  variables:
+#    MAKEPKG_ARGS: "-s kitty"
+#  <<: *buildpkgnoartifact
 
 
 #basic_checks:
