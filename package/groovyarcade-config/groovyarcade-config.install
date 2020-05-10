@@ -16,13 +16,26 @@ post_install() {
     --create-home \
     --home-dir /home/arcade \
     --shell /bin/bash \
-    --groups adm,audio,disk,games,log,network,nobody,optical,power,storage,tty,users,video,wheel arcade
+    --groups adm,audio,disk,games,log,network,nobody,optical,power,storage,tty,users,video,wheel \
+    arcade
   echo -e "arcade\narcade" | passwd arcade
 
-  mkdir -p /home/roms
-  chown -R arcade:nobody /home/roms
-  chmod -R 777 /home/roms
+  su arcade <<EOF
+mkdir -p '~/shared/{configs,frontends,logs,roms}' ~/.config
+for f in /home/arcade/switchres.conf /home/arcade/.conf/ga.conf ; do
+  if [[ -e "$f" ]] ; then
+    mv "$f" ~/shared/configs/
+  else
+    touch ~/shared/configs/$(basename "$f")
+  fi
+done
 
+ln -s ~/shared/configs/ga.conf ~/.config/
+ln -s ~/shared/configs/switchres.conf ~/
+mkdir -p ~/.config/openbox/
+cp -a /etc/xdg/openbox/. ~/.config/openbox/
+EOF
+  ln -s /home/arcade/shared/configs/switchres.conf /etc
 }
 
 ## arg 1:  the new package version

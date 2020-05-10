@@ -1,5 +1,5 @@
 pkgname=groovyarcade-config
-pkgver=0.1
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Basic GroovyArcade setup"
 arch=('any')
