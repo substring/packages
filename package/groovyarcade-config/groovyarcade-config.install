@@ -20,13 +20,13 @@ post_install() {
     arcade
   echo -e "arcade\narcade" | passwd arcade
 
-  su arcade <<EOF
-mkdir -p '~/shared/{configs,frontends,logs,roms}' ~/.config
-for f in /home/arcade/switchres.conf /home/arcade/.conf/ga.conf ; do
-  if [[ -e "$f" ]] ; then
-    mv "$f" ~/shared/configs/
+  su - arcade <<EOF
+mkdir -p ~/shared/{configs,frontends,logs,roms} ~/.config
+for f in /home/arcade/switchres.conf /home/arcade/.config/ga.conf ; do
+  if [[ -e "\$f" ]] ; then
+    mv "\$f" ~/shared/configs/
   else
-    touch ~/shared/configs/$(basename "$f")
+    touch ~/shared/configs/$(basename "\$f")
   fi
 done
 
@@ -35,7 +35,6 @@ ln -s ~/shared/configs/switchres.conf ~/
 mkdir -p ~/.config/openbox/
 cp -a /etc/xdg/openbox/. ~/.config/openbox/
 EOF
-  ln -s /home/arcade/shared/configs/switchres.conf /etc
 }
 
 ## arg 1:  the new package version
