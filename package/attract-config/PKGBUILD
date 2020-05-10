@@ -1,0 +1,26 @@
+pkgname=attract-config
+pkgver=2.6.1
+pkgrel=1
+pkgdesc="GroovyArcade Attract Mode specific configuration"
+arch=('any')
+url="http://www.attractmode.org/"
+license=('GPL3')
+depends=('attract' 'gatools' 'groovyarcade-config')
+makedepends=('git')
+# We don't add a attract.cfg here, because the user file would get erased on each update
+source=("https://github.com/mickelson/attract/archive/v${pkgver}.tar.gz"
+        "sloop.mp3"
+        "sstart.mp3")
+sha256sums=('4c17641ce0a0b9ff77da5e75f0cb26cc48e4c6295ef57d86a37db18b2bd9fbe9'
+            '66d99c73642ca1f998badc960a91e13d0e71fc4d94209ece2789f12bc95bf2cf'
+            '34d936ac7d6d60c8b17e72746f2bca0b4795e4594f05938b4d8f314aedb76c1a')
+
+
+package() {
+  cd "attract-${pkgver}"
+  install -dm755 "${pkgdir}"/home/arcade/shared/frontends/attract
+  cp -R config/* "${pkgdir}"/home/arcade/shared/frontends/attract
+  install -Dm755 "${srcdir}"/sloop.mp3 "${pkgdir}"/home/arcade/shared/frontends/attract/sounds/sloop.mp3
+  install -Dm755 "${srcdir}"/sstart.mp3 "${pkgdir}"/home/arcade/shared/frontends/attract/sounds/sstart.mp3
+  chown -R 1000:1000 "${pkgdir}"/home/arcade/shared/frontends/attract
+}
