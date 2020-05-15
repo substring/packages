@@ -26,12 +26,12 @@ for f in /home/arcade/switchres.conf /home/arcade/.config/ga.conf ; do
   if [[ -e "\$f" ]] ; then
     mv "\$f" ~/shared/configs/
   else
-    touch ~/shared/configs/$(basename "\$f")
+    touch ~/shared/configs/\$(basename "\$f")
   fi
 done
 
-ln -s ~/shared/configs/ga.conf ~/.config/
-ln -s ~/shared/configs/switchres.conf ~/
+ln -s ~/shared/configs/ga.conf ~/.config/ga.conf
+ln -s ~/shared/configs/switchres.conf ~/switchres.conf
 mkdir -p ~/.config/openbox/
 cp -a /etc/xdg/openbox/. ~/.config/openbox/
 EOF
