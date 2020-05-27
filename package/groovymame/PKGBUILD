@@ -4,7 +4,7 @@
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
 pkgname=groovymame
-pkgver=0.220
+pkgver=0.221
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
@@ -16,7 +16,7 @@ depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac libxr
 makedepends=(nasm python asio rapidjson glm libxinerama)
 conflicts=(sdlmame)
 replaces=(sdlmame)
-source=("https://github.com/antonioginer/mame/archive/groovymame${_mamever}.tar.gz"
+source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
         "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}/groovymame64_${_mamever}.${_switchresver}_linux.tar.bz2"
          mame.sh mame.desktop mame.svg)
 sha256sums=(SKIP
