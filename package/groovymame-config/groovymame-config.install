@@ -32,6 +32,7 @@ cd ~/shared/configs/mame/
     -skip_gameinfo '1' \
     -uifont 'Hack-Regular.ttf' \
     -video opengl \
+    -sound portaudio \
     -createconfig
 source /opt/gatools/include/includes.sh
 set_mame_config_value ~/shared/configs/mame/ui.ini infos_text_size "1.00"
