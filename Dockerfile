@@ -21,7 +21,7 @@ RUN useradd -ms /bin/bash -d /work build
 # Don't build on a single thread
 RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
 # Change the user agent, some sites prevent curl from downloadin (mameinfo.dat ...)
-RUN sed -i 's+curl +curl -A "Mozilla/4.0" +' /etc/makepkg.conf
+RUN sed -i 's+curl +curl -A Mozilla +' /etc/makepkg.conf
 
 WORKDIR /work
 
