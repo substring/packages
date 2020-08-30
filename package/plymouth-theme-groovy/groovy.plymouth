@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Groovy
+Description=Script example plugin.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/groovy
+ScriptFile=/usr/share/plymouth/themes/groovy/groovy.script

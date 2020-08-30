@@ -1,0 +1,41 @@
+pkgname=plymouth-theme-groovy
+pkgver=0.1
+pkgrel=1
+pkgdesc="GroovyArcade plymouth theme for Arch Linux"
+arch=('any')
+license=('GPL3')
+depend=('plymouth')
+source=("box.png"
+        "bullet.png"
+        "entry.png"
+        "groovy.plymouth"
+        "groovy.script"
+        "lh.png"
+        "lock.png"
+        "Logo.png"
+        "lvl.png"
+        "lvr.png"
+        "progress_bar.png"
+        "progress_box.png"
+        "splash.png"
+       )
+sha256sums=(SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+           )
+
+package() {
+  cd "$srcdir"
+  install -d "$pkgdir"/usr/share/plymouth/themes/groovy
+  install -m 644 *.png groovy.script groovy.plymouth "$pkgdir"/usr/share/plymouth/themes/groovy
+}
