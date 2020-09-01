@@ -5,7 +5,7 @@
 
 pkgname=groovymame
 pkgver=0.223
-pkgrel=1
+pkgrel=2
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
 _switchresver=017q
