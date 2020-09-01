@@ -34,6 +34,8 @@ ln -s ~/shared/configs/ga.conf ~/.config/ga.conf
 ln -s ~/shared/configs/switchres.conf ~/switchres.conf
 mkdir -p ~/.config/openbox/
 cp -a /etc/xdg/openbox/. ~/.config/openbox/
+xmlstarlet ed -L -N s=http://openbox.org/3.4/rc -d "/s:openbox_config/s:keyboard/s:keybind[contains(@key, 'C-A') or contains(@key, 'S-A')]" ~/.config/openbox/lxde-rc.xml
+plymouth-set-default-theme -R groovy
 EOF
 }
 

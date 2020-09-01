@@ -1,8 +1,9 @@
 pkgname=groovyarcade-config
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=3
 pkgdesc="Basic GroovyArcade setup"
 arch=('any')
 url=https://gitlab.com/groovyarcade
 license=('GPL3')
+depends=(plymouth-theme-groovy)
 install=groovyarcade-config.install
