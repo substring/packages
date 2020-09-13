@@ -3,11 +3,6 @@
 # you don't need (and this header).
 
 ## arg 1:  the new package version
-#pre_install() {
-	# do something here
-#}
-
-## arg 1:  the new package version
 pre_install() {
   groupadd --gid 1000 arcade
   useradd \
@@ -39,6 +34,9 @@ plymouth-set-default-theme -R groovy
 EOF
 }
 
+post_install() {
+  post_upgrade
+}
 ## arg 1:  the new package version
 ## arg 2:  the old package version
 #pre_upgrade() {
@@ -47,9 +45,9 @@ EOF
 
 ## arg 1:  the new package version
 ## arg 2:  the old package version
-#post_upgrade() {
-	# do something here
-#}
+post_upgrade() {
+  chown arcade:arcade /home/arcade/.xinitrc
+}
 
 ## arg 1:  the old package version
 #pre_remove() {
