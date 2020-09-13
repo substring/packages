@@ -1,9 +1,16 @@
 pkgname=groovyarcade-config
-pkgver=0.1.2
-pkgrel=3
+pkgver=0.1.3
+pkgrel=1
 pkgdesc="Basic GroovyArcade setup"
 arch=('any')
 url=https://gitlab.com/groovyarcade
+source=('.xinitrc')
 license=('GPL3')
-depends=(plymouth-theme-groovy)
+depends=(plymouth-theme-groovy xmlstarlet)
 install=groovyarcade-config.install
+sha256sums=(SKIP)
+
+package() {
+  cd "${srcdir}"
+  install -m 644 -D .xinitrc "${pkgdir}"/home/arcade/.xinitrc
+}
