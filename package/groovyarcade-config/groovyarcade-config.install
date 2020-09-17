@@ -11,7 +11,7 @@ pre_install() {
     --create-home \
     --home-dir /home/arcade \
     --shell /bin/bash \
-    --groups adm,audio,disk,games,log,network,nobody,optical,power,storage,tty,users,video,wheel \
+    --groups adm,audio,disk,games,log,network,nobody,optical,power,storage,tty,users,video,wheel,input \
     arcade
   echo -e "arcade\narcade" | passwd arcade
 

@@ -1,6 +1,6 @@
 pkgname=groovyarcade-config
 pkgver=0.1.3
-pkgrel=2
+pkgrel=3
 pkgdesc="Basic GroovyArcade setup"
 arch=('any')
 url=https://gitlab.com/groovyarcade
