@@ -1,5 +1,5 @@
 pkgname=groovymame-config
-pkgver=0.224
+pkgver=0.225
 pkgrel=1
 pkgdesc="Basic GroovyMame configuration for GroovyArcade"
 arch=('any')
