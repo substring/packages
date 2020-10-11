@@ -15,7 +15,7 @@ pre_install() {
     arcade
   echo -e "arcade\narcade" | passwd arcade
 
-  su - arcade <<EOF
+#  su - arcade <<EOF
 mkdir -p ~/shared/{configs,frontends,logs,roms} ~/.config
 for f in /home/arcade/switchres.conf /home/arcade/.config/ga.conf ; do
   if [[ -e "\$f" ]] ; then
@@ -29,9 +29,10 @@ ln -s ~/shared/configs/ga.conf ~/.config/ga.conf
 ln -s ~/shared/configs/switchres.conf ~/switchres.conf
 mkdir -p ~/.config/openbox/
 cp -a /etc/xdg/openbox/. ~/.config/openbox/
+#EOF
+chmod -R arcade:arcade /home/arcade
 xmlstarlet ed -L -N s=http://openbox.org/3.4/rc -d "/s:openbox_config/s:keyboard/s:keybind[contains(@key, 'C-A') or contains(@key, 'S-A')]" ~/.config/openbox/rc.xml
 plymouth-set-default-theme -R groovy
-EOF
 }
 
 post_install() {
