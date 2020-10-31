@@ -5,7 +5,7 @@ edid-decode-git
 joy2key
 nestopia
 qjoypad
-retrofe
+#retrofe
 svgalib
 plymouth
 libpthread-stubs
