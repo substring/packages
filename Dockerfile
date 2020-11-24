@@ -1,4 +1,4 @@
-FROM archlinux/base:latest
+FROM archlinux:latest
 
 RUN pacman-key --init && \
     pacman-key --populate archlinux
