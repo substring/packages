@@ -1,0 +1,26 @@
+pkgname=groovymame-extra
+pkgver=0.226
+pkgrel=1
+pkgdesc="GroovyMame extra files"
+arch=('any')
+url=https://gitlab.com/groovyarcade
+_mamever=${pkgver#*.}
+license=('GPL3')
+makedepends=('p7zip')
+source=("https://www.mameworld.info/mameinfo/download/Mameinfo0${_mamever}.zip"
+        "https://www.arcade-history.com/dats/history${_mamever}c.zip"
+        "https://github.com/mamedev/mame/releases/download/mame0${_mamever}/mame0${_mamever}lx.zip")
+sha256sums=(SKIP
+            SKIP
+            SKIP)
+conflicts=('groovymame-config')
+replaces=('groovymame-config')
+prepare () {
+  7z x "Mameinfo0${_mamever}.7z"
+}
+
+package() {
+  install -Dm755 history.dat "${pkgdir}"/usr/share/mame/dat/history.dat
+  install -Dm755 mameinfo.dat "${pkgdir}"/usr/share/mame/dat/mameinfo.dat
+  install -Dm755 mame0${_mamever}.xml "${pkgdir}"/usr/share/mame/dat/mame.dat
+}
