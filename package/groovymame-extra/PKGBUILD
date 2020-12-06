@@ -8,7 +8,7 @@ _mamever=${pkgver#*.}
 license=('GPL3')
 makedepends=('p7zip')
 source=("https://www.mameworld.info/mameinfo/download/Mameinfo0${_mamever}.zip"
-        "https://www.arcade-history.com/dats/history${_mamever}c.zip"
+        "https://www.arcade-history.com/dats/history${_mamever}d.zip"
         "https://github.com/mamedev/mame/releases/download/mame0${_mamever}/mame0${_mamever}lx.zip")
 sha256sums=(SKIP
             SKIP
