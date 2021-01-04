@@ -14,4 +14,5 @@ pegasus-frontend-git
 #supermodel-svn
 vi-vim-symlink
 attract-git
-sfml-git
+#sfml-git
+systemd-boot-pacman-hook
