@@ -1,5 +1,5 @@
 pkgname=galauncher
-pkgver=0.1.3
+pkgver=0.1.4
 pkgrel=1
 pkgdesc="GroovyArcade emulator launcher"
 arch=(any)
@@ -9,7 +9,7 @@ makedepends=(git)
 provides=("${pkgname}")
 conflicts=("${pkgname}")
 source=("https://gitlab.com/groovyarcade/tools/galauncher/-/archive/${pkgver}/${pkgname}-${pkgver}.tar.gz")
-sha256sums=(437b38ad51fde5c3a0793aa0a685c86b0a599755d959c8d4f1bcd53175dc6fdc)
+sha256sums=(123fad68c4bf4e6bea079ed2cdd823fd0861bb1dc7dc5f49a2befc29865a131a)
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
