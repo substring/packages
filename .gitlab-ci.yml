@@ -1,4 +1,6 @@
-image: archlinux/base:latest
+#image: "archlinux:latest"
+image: "archlinux/archlinux:base-devel-20210205.0.15146"
+
 
 stages:
   - prechecks
@@ -13,9 +15,12 @@ stages:
 before_script:
   - pacman-key --init && \
     pacman-key --populate archlinux || true
-  - pacman -Sy --noconfirm reflector
-  - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+  - pacman -Sy --noconfirm reflector curl libarchive
+  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
   - pacman -Su --noconfirm
+  - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+  - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+  - bsdtar -C / -xvf $patched_glibc
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
@@ -147,9 +152,12 @@ dkms:native:dev:
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
-    - pacman -Sy --noconfirm reflector
-    - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Sy --noconfirm reflector curl libarchive
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
     - pacman -Su --noconfirm
+    - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+    - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+    - bsdtar -C / -xvf $patched_glibc
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
   <<: *notmaster
@@ -194,9 +202,12 @@ dkms:native:
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
-    - pacman -Sy --noconfirm reflector
-    - reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Sy --noconfirm reflector curl libarchive
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
     - pacman -Su --noconfirm
+    - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+    - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+    - bsdtar -C / -xvf $patched_glibc
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *onlymasterortags
   variables:
