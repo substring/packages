@@ -17,7 +17,7 @@ RUN pacman -Syu --noconfirm --needed \
   dos2unix \
   pacman-contrib
 
-RUN curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+RUN curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
 
 RUN useradd -ms /bin/bash -d /work build
 

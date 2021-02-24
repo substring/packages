@@ -103,7 +103,7 @@ reset_releases:
     - echo "Resetting draft releases"
   script:
     - apk add curl
-    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - github-release edit -t testing -p || true
     - github-release edit -t stable || true
 
@@ -230,7 +230,7 @@ release:testing:
   script:
     - echo "Releasing testing packages"
     - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - ./release.sh -t
   artifacts:
     paths:
@@ -246,7 +246,7 @@ deploy:stable:
   script:
     - echo "Releasing stable packages"
     - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - BUILD_TYPE=stable ./release.sh -dcrup
 
 
@@ -255,7 +255,7 @@ release:testing:dev:
   script:
     - echo "Releasing unstable packages"
     - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - ./release.sh -n "$CI_COMMIT_REF_SLUG" -dcrup
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
@@ -273,7 +273,7 @@ release:clean:
     - echo "Deleting deployment $CI_COMMIT_REF_SLUG"
   script:
     - apk add curl
-    - curl -L https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2 | tar -jx --strip-components 3 -C /usr/local/bin bin/linux/amd64/github-release
+    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - github-release delete -t "$CI_COMMIT_REF_SLUG"
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
