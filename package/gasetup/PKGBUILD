@@ -1,12 +1,12 @@
 pkgname=gasetup
-pkgver=1.7.3
+pkgver=1.7.4
 pkgrel=1
 pkgdesc="GroovyArcade setup scripts"
 arch=(any)
 license=(GPL-2)
 depends=(bash)
 source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
-sha256sums=(571f7e90a8845de829192232e53e1a9463be03127d00563555ca806a3f72a694)
+sha256sums=(3c8756a30c38b0b00593203a50db69729fc12d103eac8dfcbac1734885628ee8)
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
