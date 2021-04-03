@@ -15,12 +15,12 @@ stages:
 before_script:
   - pacman-key --init && \
     pacman-key --populate archlinux || true
-  - pacman -Sy --noconfirm reflector curl libarchive
-  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
-  - pacman -Su --noconfirm
+  - pacman -Sy --noconfirm reflector curl libarchive glibc
   - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
   - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
   - bsdtar -C / -xvf $patched_glibc
+  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+  - pacman -Su --noconfirm
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
@@ -152,12 +152,12 @@ dkms:native:dev:
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
-    - pacman -Sy --noconfirm reflector curl libarchive
-    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
-    - pacman -Su --noconfirm
+    - pacman -Sy --noconfirm reflector curl libarchive glibc
     - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
     - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
     - bsdtar -C / -xvf $patched_glibc
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
   <<: *notmaster
@@ -202,12 +202,12 @@ dkms:native:
   before_script:
     - pacman-key --init && \
       pacman-key --populate archlinux || true
-    - pacman -Sy --noconfirm reflector curl libarchive
-    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
-    - pacman -Su --noconfirm
+    - pacman -Sy --noconfirm reflector curl libarchive glibc
     - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
     - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
     - bsdtar -C / -xvf $patched_glibc
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *onlymasterortags
   variables:
