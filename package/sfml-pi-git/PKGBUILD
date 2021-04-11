@@ -1,0 +1,40 @@
+_pkgname=sfml-pi
+pkgname=${_pkgname}-git
+pkgver=2.5.0.r125.g59df9d0d
+pkgrel=1
+pkgdesc="A simple, fast, cross-platform, and object-oriented multimedia API"
+arch=('i686' 'x86_64')
+url="http://www.sfml-dev.org/"
+license=('zlib')
+depends=('libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'openal' 'glew' 'freetype2' 'xcb-util-image')
+makedepends=('mesa' 'cmake' 'doxygen' 'git')
+provides=('sfml')
+conflicts=('sfml')
+
+source=("git+https://github.com/oomek/sfml-pi.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "${srcdir}/${_pkgname}"
+  git describe --long --tags | sed -r 's/([^-]*-g)/r\1/;s/-/./g'
+}
+
+build() {
+  cd "$srcdir/${_pkgname}"
+
+  cmake -DCMAKE_INSTALL_PREFIX=/usr . \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DSFML_BUILD_DOC=false \
+        -DSFML_BUILD_EXAMPLES=false \
+        -DSFML_DRM=1 \
+        -DSFML_INSTALL_PKGCONFIG_FILES=true # prints a warning if pkg-config not supported
+  make
+}
+
+package() {
+  cd "$srcdir/${_pkgname}"
+
+  make DESTDIR="$pkgdir/" install
+
+  install -Dm644 ./license.md ${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.md
+}
