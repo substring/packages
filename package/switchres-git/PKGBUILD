@@ -1,0 +1,60 @@
+pkgname=switchres-git
+_gitname=${pkgname%-git}
+pkgver=2.0
+pkgrel=1
+pkgdesc="Modeline generator engine and MAME resolution switcher"
+url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
+license=(GPL3)
+arch=(x86_64)
+source=("switchres::git+https://github.com/antonioginer/switchres.git")
+sha256sums=(SKIP)
+depends=('libxrandr' 'libdrm')
+provides=('switchres')
+conflicts=('switchres')
+
+pkgver() {
+  cd "${_gitname}"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "${_gitname}"
+  make
+
+  mkdir edid && cd edid
+  # Generate all EDIDs
+  # 15kHz
+  for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do 
+    ../switchres 640 480 60 --edid --monitor "$m"
+  done
+
+  # 25kHz
+  for m in arcade_25 arcade_15_25 ; do 
+    ../switchres 512 384 60 --edid --monitor "$m"
+  done
+
+  # 31kHz
+  for m in arcade_31 arcade_15_31 arcade_15_25_31 m2929 d9200 d9400 d9800 m3129 pstar ms2930 ms929 r666b pc_31_120 vesa_480 ; do 
+    ../switchres 640 480 60 --edid --monitor "$m"
+  done
+
+  # onliners, or special cases
+    ../switchres 768 576 50 --edid --monitor pal
+    ../switchres 720 480 60 --edid --monitor ntsc
+    ../switchres 800 600 60 --edid --monitor vesa_600
+    ../switchres 1024 768 60 --edid --monitor pc_70_120
+    ../switchres 1024 768 60 --edid --monitor vesa_768
+    ../switchres 1280 1024 60 --edid --monitor vesa_1024
+}
+
+package () {
+  cd "$srcdir/${_gitname}"
+  make PREFIX="$pkgdir"/usr/local install
+
+  sed -i "s+$pkgdir++g" "$pkgdir"/usr/local/lib/pkgconfig/switchres.pc
+
+  install -d "$pkgdir"/usr/lib/firmware/edid
+  install -d "$pkgdir"/etc
+  install -m 644 edid/*.bin "$pkgdir"/usr/lib/firmware/edid
+  install -m 644 switchres.ini "$pkgdir"/etc
+}
