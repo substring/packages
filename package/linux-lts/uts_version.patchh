@@ -1,0 +1,13 @@
+diff --git a/scripts/mkcompile_h b/scripts/mkcompile_h
+index 2339f86126cb..4b2b4c87706b 100755
+--- a/scripts/mkcompile_h
++++ b/scripts/mkcompile_h
+@@ -53,7 +53,7 @@ UTS_VERSION="#$VERSION"
+ CONFIG_FLAGS=""
+ if [ -n "$SMP" ] ; then CONFIG_FLAGS="SMP"; fi
+ if [ -n "$PREEMPT" ] ; then CONFIG_FLAGS="$CONFIG_FLAGS PREEMPT"; fi
+-UTS_VERSION="$UTS_VERSION $CONFIG_FLAGS $TIMESTAMP"
++UTS_VERSION="$UTS_VERSION $CONFIG_FLAGS"
+ 
+ # Truncate to maximum length
+ 
