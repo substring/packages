@@ -1,7 +1,7 @@
 pkgname=switchres-git
 _gitname=${pkgname%-git}
-pkgver=2.0
-pkgrel=1
+pkgver=r364.342c3ec
+pkgrel=2
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
@@ -19,8 +19,9 @@ pkgver() {
 
 build() {
   cd "${_gitname}"
-  make
+  make PREFIX=/usr
 
+  sed -i 's/^M$//g' switchres.ini
   mkdir edid && cd edid
   # Generate all EDIDs
   # 15kHz
@@ -49,9 +50,9 @@ build() {
 
 package () {
   cd "$srcdir/${_gitname}"
-  make PREFIX="$pkgdir"/usr/local install
+  make PREFIX="$pkgdir"/usr install
 
-  sed -i "s+$pkgdir++g" "$pkgdir"/usr/local/lib/pkgconfig/switchres.pc
+  sed -i "s+$pkgdir++g" "$pkgdir"/usr/lib/pkgconfig/switchres.pc
 
   install -d "$pkgdir"/usr/lib/firmware/edid
   install -d "$pkgdir"/etc
