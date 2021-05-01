@@ -1,6 +1,6 @@
 pkgname=switchres-git
 _gitname=${pkgname%-git}
-pkgver=r364.342c3ec
+pkgver=r365.7f55e63
 pkgrel=2
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
@@ -58,4 +58,5 @@ package () {
   install -d "$pkgdir"/etc
   install -m 644 edid/*.bin "$pkgdir"/usr/lib/firmware/edid
   install -m 644 switchres.ini "$pkgdir"/etc
+  install -Dm 755 switchres "$pkgdir"/usr/bin/switchres
 }
