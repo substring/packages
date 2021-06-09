@@ -1,6 +1,6 @@
 pkgname=switchres-git
 _gitname=${pkgname%-git}
-pkgver=r365.7f55e63
+pkgver=r391.d7064ec
 pkgrel=2
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
@@ -8,7 +8,7 @@ license=(GPL3)
 arch=(x86_64)
 source=("switchres::git+https://github.com/antonioginer/switchres.git")
 sha256sums=(SKIP)
-depends=('libxrandr' 'libdrm')
+depends=('libxrandr' 'libdrm' 'sdl2')
 provides=('switchres')
 conflicts=('switchres')
 
@@ -19,23 +19,23 @@ pkgver() {
 
 build() {
   cd "${_gitname}"
-  make PREFIX=/usr
+  make PREFIX=/usr all grid
 
   sed -i 's/^M$//g' switchres.ini
   mkdir edid && cd edid
   # Generate all EDIDs
   # 15kHz
-  for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do 
+  for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do
     ../switchres 640 480 60 --edid --monitor "$m"
   done
 
   # 25kHz
-  for m in arcade_25 arcade_15_25 ; do 
+  for m in arcade_25 arcade_15_25 ; do
     ../switchres 512 384 60 --edid --monitor "$m"
   done
 
   # 31kHz
-  for m in arcade_31 arcade_15_31 arcade_15_25_31 m2929 d9200 d9400 d9800 m3129 pstar ms2930 ms929 r666b pc_31_120 vesa_480 ; do 
+  for m in arcade_31 arcade_15_31 arcade_15_25_31 m2929 d9200 d9400 d9800 m3129 pstar ms2930 ms929 r666b pc_31_120 vesa_480 ; do
     ../switchres 640 480 60 --edid --monitor "$m"
   done
 
@@ -59,4 +59,5 @@ package () {
   install -m 644 edid/*.bin "$pkgdir"/usr/lib/firmware/edid
   install -m 644 switchres.ini "$pkgdir"/etc
   install -Dm 755 switchres "$pkgdir"/usr/bin/switchres
+  install -Dm 755 grid "$pkgdir"/usr/bin/grid
 }
