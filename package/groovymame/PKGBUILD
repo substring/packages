@@ -3,19 +3,16 @@
 # Contributor: robb_force <robb_force@holybuffalo.net>
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
-pkgname=groovymame
-pkgver=0.229
+pkgname=(groovymame groovymame-tools)
+pkgver=0.232
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=002a
+_switchresver=002b
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
-depends=(sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac libxrandr)
-makedepends=(nasm python asio rapidjson glm libxinerama)
-conflicts=(mame)
-replaces=(mame)
+makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr)
 source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
         "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2"
          mame.sh mame.desktop mame.svg)
@@ -53,19 +50,18 @@ build() {
     ARCHOPTS=-flifetime-dse=1
 }
 
-package() {
-  cd GroovyMAME-${pkgname}${_mamever}
+package_groovymame() {
+  depends=(sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac hicolor-icon-theme)
+  conflicts=(sdlmame mame)
+  replaces=(sdlmame mame)
+
+  cd GroovyMAME-groovymame${_mamever}
 
   # Install the mame script
   install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
 
   # Install the binaries
   install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
-  for _i in castool chdman floptool imgtool jedutil ldresample ldverify nltool nlwav pngcmp regrep romcmp \
-            split srcclean testkeys unidasm; do
-    install -m755 $_i -t "$pkgdir"/usr/lib/mame
-    ln -s /usr/lib/mame/$_i "$pkgdir"/usr/bin/mame-$_i
-  done
 
   # Install the extra bits
   install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
@@ -86,11 +82,23 @@ package() {
   install -dm0755 "$pkgdir"/usr/share/doc
   cp -a docs "$pkgdir"/usr/share/doc/$pkgname
   rm -r "$pkgdir"/usr/share/doc/$pkgname/man
-  install -d "$pkgdir"/usr/share/man/man{1,6}
-  install -m644 docs/man/*.1* "$pkgdir"/usr/share/man/man1/
-  install -m644 docs/man/*.6* "$pkgdir"/usr/share/man/man6/
+  install -Dm644 docs/man/*.6* -t "$pkgdir"/usr/share/man/man6/
 
   # install desktop file and icon
   install -Dm644 "$srcdir"/mame.desktop -t "$pkgdir"/usr/share/applications
   install -Dm644 "$srcdir"/mame.svg -t "$pkgdir"/usr/share/icons/hicolor/scalable/apps
+}
+
+package_groovymame-tools() {
+  pkgdesc='GroovyMAME is a M.A.M.E. fork aimed at CRT monitor (tools)'
+  depends=(sdl2 libutf8proc flac)
+
+  cd GroovyMAME-groovymame${_mamever}
+  for _i in castool chdman floptool imgtool jedutil ldresample ldverify nltool nlwav pngcmp regrep romcmp \
+            split srcclean testkeys unidasm; do
+    install -Dm755 $_i -t "$pkgdir"/usr/bin
+  done
+  mv "$pkgdir"/usr/bin/{,mame-}split # Fix conflicts
+
+  install -Dm644 docs/man/*.1* -t "$pkgdir"/usr/share/man/man1/
 }
