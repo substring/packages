@@ -19,7 +19,7 @@ before_script:
   - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
   - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
   - bsdtar -C / -xvf $patched_glibc
-  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
   - pacman -Su --noconfirm
 
 .build_pkg_no_artifact: &buildpkgnoartifact
@@ -104,8 +104,8 @@ reset_releases:
   script:
     - apk add curl
     - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
-    - github-release edit -t testing -p || true
-    - github-release edit -t stable || true
+    - /usr/local/bin/github-release edit -t testing -p || true
+    - /usr/local/bin/github-release edit -t stable || true
 
 
 build:linux:dev:
@@ -156,7 +156,7 @@ dkms:native:dev:
     - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
     - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
     - bsdtar -C / -xvf $patched_glibc
-    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
@@ -206,7 +206,7 @@ dkms:native:
     - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
     - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
     - bsdtar -C / -xvf $patched_glibc
-    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist 
+    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *onlymasterortags
