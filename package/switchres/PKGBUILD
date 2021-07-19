@@ -1,47 +1,37 @@
 pkgname=switchres
-pkgver=1.53.2
+pkgver=2.0
 pkgrel=1
+_commit=a8af8e8f7f54d24414b4a8595a84c0f0f23e14a1
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
 arch=(x86_64)
-depends=(libxml2)
-source=("https://gitlab.com/groovyarcade/tools/${pkgname}/-/archive/${pkgver}/${pkgname}-${pkgver}.tar.gz")
-sha256sums=('af74379475e5d63a35a849568d57f9fcc12ee9d34be7e989e70cfe3b4469dd28')
-
-prepare() {
-  cd ${pkgname}-${pkgver}
-  local src
-  for src in "${source[@]}"; do
-    src="${src%%::*}"
-    src="${src##*/}"
-    [[ $src = *.patch ]] || continue
-    msg2 "Applying patch $src..."
-    patch -Np1 < "../$src"
-  done
-}
+source=("git+https://github.com/antonioginer/switchres.git#commit=${_commit}")
+sha256sums=(SKIP)
+depends=('libxrandr' 'libdrm' 'sdl2')
+provides=('switchres')
+conflicts=('switchres')
+install=switchres.install
 
 build() {
-  cd ${pkgname}-${pkgver}
-  make
+  cd "${pkgname}"
+  make PREFIX=/usr all grid
 
-  cd "$srcdir/$pkgname-$pkgver"
-  make
-
+  sed -i 's/\r$//g' switchres.ini
   mkdir edid && cd edid
   # Generate all EDIDs
   # 15kHz
-  for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do 
+  for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do
     ../switchres 640 480 60 --edid --monitor "$m"
   done
 
   # 25kHz
-  for m in arcade_25 arcade_15_25 ; do 
+  for m in arcade_25 arcade_15_25 ; do
     ../switchres 512 384 60 --edid --monitor "$m"
   done
 
   # 31kHz
-  for m in arcade_31 arcade_15_31 arcade_15_25_31 m2929 d9200 d9400 d9800 m3129 pstar ms2930 ms929 r666b pc_31_120 vesa_480 ; do 
+  for m in arcade_31 arcade_15_31 arcade_15_25_31 m2929 d9200 d9400 d9800 m3129 pstar ms2930 ms929 r666b pc_31_120 vesa_480 ; do
     ../switchres 640 480 60 --edid --monitor "$m"
   done
 
@@ -54,11 +44,16 @@ build() {
     ../switchres 1280 1024 60 --edid --monitor vesa_1024
 }
 
-package ()
-{
-  cd "$srcdir/$pkgname-$pkgver"
-  make PREFIX="$pkgdir/usr/local" install
+package () {
+  cd "$srcdir/${pkgname}"
+  make PREFIX="$pkgdir"/usr install
+
+  sed -i "s+$pkgdir++g" "$pkgdir"/usr/lib/pkgconfig/switchres.pc
 
   install -d "$pkgdir"/usr/lib/firmware/edid
+  install -d "$pkgdir"/etc
   install -m 644 edid/*.bin "$pkgdir"/usr/lib/firmware/edid
+  install -m 644 switchres.ini "$pkgdir"/etc
+  install -Dm 755 switchres "$pkgdir"/usr/bin/switchres
+  install -Dm 755 grid "$pkgdir"/usr/bin/grid
 }
