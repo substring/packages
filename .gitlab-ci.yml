@@ -102,7 +102,7 @@ reset_releases:
   before_script:
     - echo "Resetting draft releases"
   script:
-    - apk add curl
+    - apk add --no-cache curl libc6-compat
     - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
     - /usr/local/bin/github-release edit -t testing -p || true
     - /usr/local/bin/github-release edit -t stable || true
