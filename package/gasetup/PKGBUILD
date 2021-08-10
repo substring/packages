@@ -4,7 +4,7 @@ pkgrel=1
 pkgdesc="GroovyArcade setup scripts"
 arch=(any)
 license=(GPL-2)
-depends=(bash unzip curl wget)
+depends=(bash unzip curl wget p7zip)
 source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
 sha256sums=(3c8756a30c38b0b00593203a50db69729fc12d103eac8dfcbac1734885628ee8)
 
