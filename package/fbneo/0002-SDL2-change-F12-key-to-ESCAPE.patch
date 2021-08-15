@@ -1,0 +1,39 @@
+From c2f39ccece7f3f67a5329972c91f9746e878de4f Mon Sep 17 00:00:00 2001
+From: Subs <frog2wah@gmail.com>
+Date: Mon, 28 Sep 2020 21:40:26 +0200
+Subject: [PATCH] SDL2: change F12 key to ESCAPE
+
+---
+ src/burner/sdl/run.cpp      | 2 +-
+ src/burner/sdl/sdl2_gui.cpp | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/burner/sdl/run.cpp b/src/burner/sdl/run.cpp
+index 6e07d7770..5f02eac22 100644
+--- a/src/burner/sdl/run.cpp
++++ b/src/burner/sdl/run.cpp
+@@ -380,7 +380,7 @@ int RunMessageLoop()
+ 				case SDLK_F6: 
+ 					bscreenshot = 0;
+ 					break;
+-				case SDLK_F12:
++				case SDLK_ESCAPE:
+ 					quit = 1;
+ 					break;
+ 
+diff --git a/src/burner/sdl/sdl2_gui.cpp b/src/burner/sdl/sdl2_gui.cpp
+index b00ac1579..74c37d4ee 100644
+--- a/src/burner/sdl/sdl2_gui.cpp
++++ b/src/burner/sdl/sdl2_gui.cpp
+@@ -1026,7 +1026,7 @@ int gui_process()
+ 					bShowClones = !bShowClones;
+ 					DoFilterGames();
+ 					break;
+-				case SDLK_F12:
++				case SDLK_ESCAPE:
+ 					quit = 1;
+ 					break;
+ 
+-- 
+2.25.1
+

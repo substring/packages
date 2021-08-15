@@ -1,0 +1,95 @@
+diff --git a/src/burner/burner.h b/src/burner/burner.h
+index ddb20a517..956874e18 100644
+--- a/src/burner/burner.h
++++ b/src/burner/burner.h
+@@ -254,3 +254,7 @@ extern TCHAR szAppControlsPath[MAX_PATH];
+ extern TCHAR szAppCabinetsPath[MAX_PATH];
+ extern TCHAR szAppPCBsPath[MAX_PATH];
+ extern TCHAR szAppHistoryPath[MAX_PATH];
++
++#ifdef INCLUDE_SWITCHRES
++#include <switchres_wrapper.h>
++#endif
+diff --git a/src/burner/sdl/main.cpp b/src/burner/sdl/main.cpp
+index c17cbeba3..981e307f6 100644
+--- a/src/burner/sdl/main.cpp
++++ b/src/burner/sdl/main.cpp
+@@ -330,8 +330,12 @@ int main(int argc, char* argv[])
+ 	nAudDSPModule[0] = 0;
+ 	EnableHiscores = 1;
+ 
++#ifdef INCLUDE_SWITCHRES
++	sr_init();
++#endif
++
+ #ifdef BUILD_SDL
+-	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
++	SDL_Init(SDL_INIT_TIMER);
+ 
+ 	SDL_WM_SetCaption("FinalBurn Neo", "FinalBurn Neo");
+ #endif
+@@ -361,7 +365,7 @@ int main(int argc, char* argv[])
+ 
+ 	SDL_setenv("SDL_AUDIODRIVER", "directsound", true);        // fix audio for windows
+ #endif
+-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_AUDIO) < 0)
++	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_AUDIO) < 0)
+ 	{
+ 		printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+ 		return 0;
+diff --git a/src/intf/video/sdl/vid_sdl2.cpp b/src/intf/video/sdl/vid_sdl2.cpp
+index 700dd8fb9..62f5d3e95 100644
+--- a/src/intf/video/sdl/vid_sdl2.cpp
++++ b/src/intf/video/sdl/vid_sdl2.cpp
+@@ -3,10 +3,6 @@
+ #include "vid_support.h"
+ #include "vid_softfx.h"
+ 
+-#ifdef INCLUDE_SWITCHRES
+-#include <switchres_wrapper.h>
+-#endif
+-
+ #include <SDL.h>
+ #include <SDL_image.h>
+ 
+@@ -68,12 +64,6 @@ static int Init()
+ #ifdef INCLUDE_SWITCHRES
+ 	sr_mode srm;
+ #endif
+-	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+-	{
+-		printf("vid init error\n");
+-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s", SDL_GetError());
+-		return 3;
+-	}
+ 
+ 	nRotateGame = 0;
+ 
+@@ -85,7 +75,6 @@ static int Init()
+ 
+ 		display_w = nVidImageWidth;
+ #ifdef INCLUDE_SWITCHRES
+-		sr_init();
+ 		// Don't force 4:3 aspect-ratio, until there is a command-line switch
+ 		display_h = nVidImageHeight;
+ 		if (BurnDrvGetFlags() & BDF_ORIENTATION_VERTICAL)
+@@ -142,8 +131,19 @@ static int Init()
+ 	unsigned char interlace = 0; // FBN doesn't handle interlace yet, force it to disabled
+ 	double rr = nBurnFPS / 100.0;
+ 	sr_init_disp(NULL);
++	//SDL_QuitSubSystem(SDL_INIT_VIDEO);
+ 	sr_add_mode(display_w, display_h, rr, interlace, &srm);
+ 	sr_switch_to_mode(display_w, display_h, rr, interlace, &srm);
++	if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0)
++	{
++		printf("vid init error\n");
++		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s", SDL_GetError());
++		return 3;
++	}
++	SDL_ShowCursor(SDL_DISABLE);
++	SDL_DisplayMode dm;
++	SDL_GetCurrentDisplayMode(0, &dm);
++	printf("Resolution is: %dx%d\n", dm.w, dm.h);
+ #endif
+ 
+ 	if (nRotateGame)

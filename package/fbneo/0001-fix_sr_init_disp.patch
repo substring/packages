@@ -1,0 +1,13 @@
+diff --git a/src/intf/video/sdl/vid_sdl2.cpp b/src/intf/video/sdl/vid_sdl2.cpp
+index 72948c2e6..9576dddf5 100644
+--- a/src/intf/video/sdl/vid_sdl2.cpp
++++ b/src/intf/video/sdl/vid_sdl2.cpp
+@@ -157,7 +157,7 @@ static int Init()
+ #ifdef INCLUDE_SWITCHRES
+ 	unsigned char interlace = 0; // FBN doesn't handle interlace yet, force it to disabled
+ 	double rr = nBurnFPS / 100.0;
+-	sr_init_disp();
++	sr_init_disp(NULL);
+ 	sr_add_mode(display_w, display_h, rr, interlace, &srm);
+ 	sr_switch_to_mode(display_w, display_h, rr, interlace, &srm);
+ #endif

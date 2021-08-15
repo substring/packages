@@ -1,0 +1,45 @@
+pkgname=fbneo
+pkgver=1.0.0.2
+pkgrel=1
+pkgdesc="Final Burn Neo is a arcade and console emulator with switchres support"
+arch=('x86_64')
+license=('custom')
+depends=('sdl2' 'sdl2_image' 'switchres')
+source=("git+https://github.com/finalburnneo/FBNeo.git#tag=v${pkgver}"
+        '0001-fix_sr_init_disp.patch'
+        '0002-SDL2-change-F12-key-to-ESCAPE.patch')
+        #'0001-SDL_add_modes_and_switch.patch'
+sha256sums=('SKIP'
+            'f81ee9eaaa986498992be9eaf907599960d5c3fd6812769683a295ebffe8852d'
+            'd11552392eea76315bb0dcf471327691aec878687e3535d10091d038583fb858')
+            #'c8f51b4431906fe5b85537257a5d0729971fcc7c03d1af9078970c9f70c56a53'
+_srcname=FBNeo
+
+
+prepare() {
+  cd "${srcdir}"/$_srcname
+
+  local src
+  for src in "${source[@]}"; do
+    src="${src%%::*}"
+    src="${src##*/}"
+    [[ $src = *.patch ]] || continue
+    echo "Applying patch $src..."
+    patch -Np1 < "../$src"
+  done
+}
+
+
+build() {
+  cd "${srcdir}"/$_srcname
+
+  make sdl2 INCLUDE_SWITCHRES=1 RELEASEBUILD=1
+}
+
+
+package() {
+  cd "${srcdir}"/$_srcname
+
+  install -Dm755 fbneo "$pkgdir"/usr/local/bin/fbneo
+  install -Dm644 src/license.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
