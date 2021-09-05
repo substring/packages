@@ -3,10 +3,11 @@ antimicro
 attract
 edid-decode-git
 joy2key
+inxi
 #nestopia
 qjoypad
 #retrofe
-svgalib
+#svgalib
 plymouth
 libpthread-stubs
 con2fbmap
