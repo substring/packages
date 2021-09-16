@@ -1,5 +1,5 @@
 #!/bin/sh
-mame=/usr/lib/mame/mame
+mame=/usr/lib/mame/groovymame
 
 mame_first_run() {
   echo "Creating an ini file for MAME at $HOME/.mame/mame.ini"
