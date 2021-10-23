@@ -2,13 +2,14 @@ diff --git a/linux/repos/core-x86_64/PKGBUILD b/linux/repos/core-x86_64/PKGBUILD
 index 33acb5e9eb3..447fbef9caa 100644
 --- a/linux/repos/core-x86_64/PKGBUILD
 +++ b/linux/repos/core-x86_64/PKGBUILD
-@@ -17,6 +17,9 @ _srcname=archlinux-linux
+@@ -17,6 +17,10 @ _srcname=archlinux-linux
    source=(
    "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
    config         # the main kernel config file
 +  dcn1_interlace.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_linux_15khz.diff
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_linux_15khz_interlaced_mode_fix.diff
++  kms-user-modes.patch
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
