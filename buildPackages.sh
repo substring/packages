@@ -28,14 +28,14 @@ check_if_download_or_build() {
   log "Processing $pkgfile..."
     filename=$(basename "$pkgfile")
     pkgname=$(extract_package_name "$filename")
-    
+
     # Exceptions ... This is dirty sadly
     case $pkgname in
       advancemenuplus-git-*)
         pkgname=advancemenuplus-git
         ;;
     esac
-    
+
     echo "Package name was determined as: $pkgname"
     for repo in groovyarcade-testing groovyarcade ; do
       # Remove repo name, match exact package name, convert to filename
@@ -94,7 +94,7 @@ do_the_job() {
 
   cwd="$(pwd)"
   # Handle community/AUR package
-  for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR"/"$package" ; do
+  for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/extra-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR"/"$package" ; do
     if [[ -d "$pkgdir" ]] ; then
       cd "$pkgdir" || return 1
       break
@@ -127,7 +127,6 @@ do_the_job() {
   [[ $rc == 1 ]] && post_build && return 0
   # Something went wrong, abort -> no, just build the package
   #[[ $rc == 255 ]] && return 1
-
 
   # The CI can set MAKEPKG_OPTS to "--nobuild --nodeps" for a simple basic check for every branch not tag nor master)
   # So if empty, set some default value
