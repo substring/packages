@@ -2,13 +2,14 @@ diff --git a/repos/extra-x86_64/PKGBUILD b/repos/extra-x86_64/PKGBUILD
 index c56beb590af..78d28dd2a0e 100644
 --- a/repos/extra-x86_64/PKGBUILD
 +++ b/repos/extra-x86_64/PKGBUILD
-@@ -17,16 +17,19 @@ optdepends=('alsa-lib: ALSA audio driver'
+@@ -17,16 +17,21 @@ optdepends=('alsa-lib: ALSA audio driver'
              'pipewire: PipeWire audio driver'
              'libdecor: Wayland client decorations')
  source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
 -        https://github.com/libsdl-org/SDL/commit/25cd749adba77e1a6f3f31f80f8768c0aaaad5b0.patch)
 +        https://github.com/libsdl-org/SDL/commit/25cd749adba77e1a6f3f31f80f8768c0aaaad5b0.patch
-+        force_modes_refresh.patch)
++        force_modes_refresh.patch
++        SDL_x11modes.c_2.0.16_to_2.0.14.patch)
  sha512sums=('ec75ef8526792650c2647b78bb0244f973774418aeae33a2182d90ce696b30acb652f8be9c2012a16c1c5d5622f7630ff2e1eadae27ea3dc78ab47730cf5e62f'
              'SKIP'
 -            '5e66ffb510bc08c8dd5280d3e7888fa67424ddea3ecc2cee36097a177f3a5bd844d7998ee12b6244eacd16cfde7926eb4bd9c06073907d5f65ed33dc6a1dcf3b')
@@ -21,6 +22,7 @@ index c56beb590af..78d28dd2a0e 100644
    # Fix FS#72299
    patch -Np1 -i "$srcdir"/25cd749adba77e1a6f3f31f80f8768c0aaaad5b0.patch
 +  patch -Np1 -i "$srcdir"/force_modes_refresh.patch
++  patch -Np1 -i "$srcdir"/SDL_x11modes.c_2.0.16_to_2.0.14.patch
  }
  
  build() {
