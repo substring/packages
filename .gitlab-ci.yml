@@ -156,7 +156,7 @@ dkms:native:dev:
   dependencies:
     - build:linux:dev
   variables:
-    MAKEPKG_ARGS: "-n"
+    MAKEPKG_ARGS: "-d"
     DONT_DOWNLOAD_JUST_BUILD: "1"
   before_script:
     - pacman-key --init && \
@@ -231,7 +231,7 @@ dkms:native:
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *onlymasterortags
   variables:
-    MAKEPKG_ARGS: "-n"
+    MAKEPKG_ARGS: "-d"
     DONT_DOWNLOAD_JUST_BUILD: 1
   <<: *buildpackages
   tags:

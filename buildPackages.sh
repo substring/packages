@@ -199,6 +199,14 @@ done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 }
 
 
+build_dkms() {
+while read -r package ; do
+  echo "$package" | grep -q "^#" && continue
+  build_groovy_single "$package" || exit 1
+done < <(grep "^${package_to_build}$" /work/packages_dkms.lst)
+}
+
+
 namcap_packages() {
 for pack in /work/output/*.pkg.tar.zst ; do
   namcap -i "$pack"
@@ -232,7 +240,7 @@ mkdir -p "$BUILD_DIR"
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagcs:" option; do
+while getopts "nagcs:d" option; do
   case "${option}" in
     n)
       # WARNING: very dirty trick to exclude building mame and linux
@@ -255,6 +263,10 @@ while getopts "nagcs:" option; do
       ;;
     s)
       build_single_package "$OPTARG"
+      exit $?
+      ;;
+    d)
+      build_dkms
       exit $?
       ;;
   esac
