@@ -118,6 +118,15 @@ build:linux:dev:
     - longOps
 
 
+build:arch:dev:
+  stage: build
+  <<: *notmaster
+  variables:
+    MAKEPKG_ARGS: "-n"
+  <<: *buildpackages
+
+
+
 build:groovymame:dev:
   stage: build
   <<: *notmaster
@@ -161,6 +170,8 @@ dkms:native:dev:
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
   <<: *notmaster
+  tags:
+     - longOps
 
 
 
@@ -172,6 +183,15 @@ build:linux:
   <<: *buildpackages
   tags:
      - longOps
+
+
+build:arch:
+  stage: build
+  <<: *notmaster
+  variables:
+    MAKEPKG_ARGS: "-n"
+  <<: *buildpackages
+
 
 
 build:groovymame:
@@ -214,6 +234,8 @@ dkms:native:
     MAKEPKG_ARGS: "-n"
     DONT_DOWNLOAD_JUST_BUILD: 1
   <<: *buildpackages
+  tags:
+     - longOps
 
 
 build:groovy:
