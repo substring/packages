@@ -1,7 +1,7 @@
 pkgname=switchres
 pkgver=2.0
-pkgrel=2
-_commit=a8af8e8f7f54d24414b4a8595a84c0f0f23e14a1
+pkgrel=3
+_commit=5066e920c8a9927ab7489a218344964bac6a2ae2
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
@@ -42,6 +42,14 @@ build() {
     ../switchres 1024 768 60 --edid --monitor pc_70_120
     ../switchres 1024 768 60 --edid --monitor vesa_768
     ../switchres 1280 1024 60 --edid --monitor vesa_1024
+
+  # Now generate a super res 15kHz edid wihth crt_range from generic_15
+  echo "monitor custom" > ./switchres.ini
+  echo "dotclock_min 25.0" > ./switchres.ini
+  echo "crt_range0  15625-15750, 49.50-65.00, 2.000, 4.700, 8.000, 0.064, 0.192, 1.024, 0, 0, 192, 288, 448, 576" > ./switchres.ini
+  cat switchres.ini
+  ../switchres 640 480 60 --edid --monitor custom
+  mv custom.bin generic_15_super_res.bin
 }
 
 package () {
