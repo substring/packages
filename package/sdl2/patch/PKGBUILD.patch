@@ -1,27 +1,28 @@
 diff --git a/repos/extra-x86_64/PKGBUILD b/repos/extra-x86_64/PKGBUILD
-index cf1cd64e018..686b5792c8f 100644
+index 3dd29252895..a07ec9e1c6b 100644
 --- a/repos/extra-x86_64/PKGBUILD
 +++ b/repos/extra-x86_64/PKGBUILD
-@@ -16,11 +16,21 @@ optdepends=('alsa-lib: ALSA audio driver'
-             'jack: JACK audio driver'
+@@ -17,15 +17,21 @@ optdepends=('alsa-lib: ALSA audio driver'
              'pipewire: PipeWire audio driver'
              'libdecor: Wayland client decorations')
--source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig})
-+source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
+ source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
+-        sdl2-wayland1.20.patch::https://github.com/libsdl-org/SDL/pull/5092.patch)
++        sdl2-wayland1.20.patch::https://github.com/libsdl-org/SDL/pull/5092.patch
 +        'force_modes_refresh.patch'
 +        'SDL_x11modes.c_2.0.18_to_2.0.14.patch')
  sha512sums=('8688b855ce15d574fb0726dd2a44109bb7b34d81c652c51025a32bf7eb7015ceb685834cf9fc3f97a2f5f5a3203f548ce6845420fafae7e5dc6bb9d11ce1740d'
+             'SKIP'
+-            'efa2d01a5861f99597eac0cff7e67efc03bd3877d8ad53d711b1ab54a59f93ef5bc6ffe776b9ac7e3103688a56f79e7d0e4155852dedd0d1982a1e334a2f8d37')
++            'efa2d01a5861f99597eac0cff7e67efc03bd3877d8ad53d711b1ab54a59f93ef5bc6ffe776b9ac7e3103688a56f79e7d0e4155852dedd0d1982a1e334a2f8d37'
 +            'SKIP'
-+            'SKIP'
-             'SKIP')
++            'SKIP')
  validpgpkeys=('1528635D8053A57F77D1E08630A59377A7763BE6') # Sam Lantinga
  
-+prepare() {
-+  cd SDL2-${pkgver}
+ prepare() {
+   cd SDL2-${pkgver}
+   patch -Np1 -i "$srcdir"/sdl2-wayland1.20.patch
 +  patch -Np1 -i "$srcdir"/force_modes_refresh.patch
 +  patch -Np1 -i "$srcdir"/SDL_x11modes.c_2.0.18_to_2.0.14.patch
-+}
-+
+ }
+ 
  build() {
-   cd SDL2-${pkgver}
-   cmake \
