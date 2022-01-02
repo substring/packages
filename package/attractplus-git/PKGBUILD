@@ -1,8 +1,8 @@
 _gitname=attractplus
 _gitbranch=master
 pkgname=${_gitname}-git
-pkgver=2.6.1
-pkgrel=1
+pkgver=r1065.568cdf8
+pkgrel=2
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
@@ -38,5 +38,6 @@ package() {
 	install -Dm644 ../ATTRACT.MODE.intro.4-3.v6.1080p.mp4 ${pkgdir}/usr/share/attract/intro/intro_4x3.mp4
 	install -Dm644 util/icon.png ${pkgdir}/usr/share/pixmaps/attract.png
 	install -Dm644 ${srcdir}/${_gitname}.desktop ${pkgdir}/usr/share/applications/attract.desktop
+	ln -s ./attractplus ${pkgdir}/usr/local/bin/attract
 }
 
