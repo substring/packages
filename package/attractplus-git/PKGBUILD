@@ -2,23 +2,16 @@ _gitname=attractplus
 _gitbranch=master
 pkgname=${_gitname}-git
 pkgver=r1065.568cdf8
-pkgrel=2
+pkgrel=3
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('sfml-pi-git' 'openal' 'ffmpeg' 'fontconfig' 'libxinerama' 'libarchive')
-makedepends=('git')
-conflicts=('attract' 'attract-plus')
-provides=('attract')
-source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}"
-	"https://github.com/mickelson/attract/releases/download/v1.6.2/ATTRACT.MODE.intro.16-9.v6.1080p.mp4"
-	"https://github.com/mickelson/attract/releases/download/v1.6.2/ATTRACT.MODE.intro.4-3.v6.1080p.mp4"
-	"${_gitname}.desktop")
-sha1sums=('SKIP'
-	'37885c5f2e6194e689c36eb88c43bd5bb23363d0'
-	'445bb161b9c06749347974b6c19c846d86b00ceb'
-	'3876a7f9afe53e3583c232bcda1167aa69ed54a3')
+depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive')
+makedepends=('git' 'sfml-pi-static-git')
+conflicts=('attract-plus')
+source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}")
+sha1sums=('SKIP')
 
 pkgver() {
 	cd "${_gitname}"
@@ -27,17 +20,12 @@ pkgver() {
 
 build() {
 	cd "${_gitname}"
-	make prefix=/usr/local USE_DRM=1
+	make prefix=/usr/local USE_DRM=1 STATIC=1
 }
 
 package() {
 	cd "${_gitname}"
 	make prefix="${pkgdir}/usr/local" install
 	install -Dm644 License.txt ${pkgdir}/usr/share/licenses/${_gitname}/License.txt
-	install -Dm644 ../ATTRACT.MODE.intro.16-9.v6.1080p.mp4 ${pkgdir}/usr/share/attract/intro/intro.mp4
-	install -Dm644 ../ATTRACT.MODE.intro.4-3.v6.1080p.mp4 ${pkgdir}/usr/share/attract/intro/intro_4x3.mp4
-	install -Dm644 util/icon.png ${pkgdir}/usr/share/pixmaps/attract.png
-	install -Dm644 ${srcdir}/${_gitname}.desktop ${pkgdir}/usr/share/applications/attract.desktop
-	ln -s ./attractplus ${pkgdir}/usr/local/bin/attract
 }
 
