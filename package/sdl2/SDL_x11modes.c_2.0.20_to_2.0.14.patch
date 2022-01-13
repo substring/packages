@@ -1,11 +1,11 @@
 diff --git a/src/video/x11/SDL_x11modes.c b/src/video/x11/SDL_x11modes.c
-index a6bbfde57..79ad2472c 100644
+index c1efe243c..79ad2472c 100644
 --- a/src/video/x11/SDL_x11modes.c
 +++ b/src/video/x11/SDL_x11modes.c
 @@ -1,6 +1,6 @@
  /*
    Simple DirectMedia Layer
--  Copyright (C) 1997-2021 Sam Lantinga <slouken@libsdl.org>
+-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
 +  Copyright (C) 1997-2020 Sam Lantinga <slouken@libsdl.org>
  
    This software is provided 'as-is', without any express or implied
