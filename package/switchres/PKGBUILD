@@ -1,7 +1,7 @@
 pkgname=switchres
 pkgver=2.0
-pkgrel=4
-_commit=eaaa0f499ac54683a38c4048ef37ba7a84f09faa
+pkgrel=5
+_commit=f3144602949ccb93ac2705aa9a89c18bd26fe8cc
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
@@ -12,6 +12,7 @@ depends=('libxrandr' 'libdrm' 'sdl2')
 provides=('switchres')
 conflicts=('switchres')
 install=switchres.install
+backup=('etc/switchres.ini')
 
 build() {
   cd "${pkgname}"

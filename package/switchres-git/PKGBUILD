@@ -11,6 +11,7 @@ sha256sums=(SKIP)
 depends=('libxrandr' 'libdrm' 'sdl2')
 provides=('switchres')
 conflicts=('switchres')
+backup=('etc/switchres.ini')
 
 pkgver() {
   cd "${_gitname}"
