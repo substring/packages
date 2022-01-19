@@ -2,24 +2,24 @@ diff --git a/repos/community-x86_64/PKGBUILD b/repos/community-x86_64/PKGBUILD
 index ba436ca1b8e2..9557bfc99a2b 100644
 --- a/repos/community-x86_64/PKGBUILD
 +++ b/repos/community-x86_64/PKGBUILD
-@@ -63,10 +63,12 @@ _tag=06a23670081d46466198704ea5a3a8809a05291f
+@@ -65,10 +65,12 @@ _tag=06a23670081d46466198704ea5a3a8809a05291f
  source=(
    git+https://github.com/libretro/RetroArch.git#tag=${_tag}
    retroarch-config.patch
 +  KMS_modeswitching.patch
  )
- sha256sums=(
+ b2sums=(
    SKIP
-   7857cff30c45721b66666828ca9edbb2923817c6c64591be3f58fe019277103e
+   5ecbe57126c7f9b66bdf189f0af2f1cec031cb68ea85bb9609847ba9beb0e720c902cd3330d7c286901a73e6c2e272c3f04166cf9a47bb6f80097f19dde8ce3a
 +  SKIP
  )
  
  pkgver() {
 @@ -79,6 +81,7 @@ prepare() {
+ prepare() {
    cd RetroArch
- 
    patch -Np1 -i ../retroarch-config.patch
 +  patch -Np1 -i ../KMS_modeswitching.patch
- 
    git cherry-pick -n 685948368e6b28b97e1b91bdfe5921519359a033 # FS#66843
  }
+ 
