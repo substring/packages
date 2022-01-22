@@ -3,8 +3,14 @@
 Window.SetBackgroundTopColor(0.234, 0.43, 0.705);
 Window.SetBackgroundBottomColor(0.16, 0.25, 0.44);
 
+
 #logo.image = Image("special://logo");
-logo.image = Image("splash.png");
+Splash = Image("splash.png");
+screen_width = Window.GetWidth() / 1.5;
+screen_height = screen_width /3; ### the height of the GroovyArcade splash screen is 1/3 of width
+resized_image = Splash.Scale(screen_width,screen_height);
+logo.image =  resized_image;
+
 logo.sprite = Sprite(logo.image);
 logo.opacity_angle = 0;
 
