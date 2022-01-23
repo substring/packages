@@ -8,7 +8,7 @@ index 33acb5e9eb3..447fbef9caa 100644
    config         # the main kernel config file
 +  dcn1_interlace.diff
 +  01_linux_15khz.diff
-+  02_linux_15khz_interlaced_mode_fix.diff
++  02_linux_15khz_interlaced_mode_fix_new.diff
 +  kms-user-modes.patch
  )
  validpgpkeys=(
