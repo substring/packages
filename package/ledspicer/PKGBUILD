@@ -1,5 +1,5 @@
 pkgname=ledspicer
-pkgver=0.5.3
+pkgver=0.5.5
 pkgrel=1
 pkgdesc="LED Animator and Controller for Linux"
 arch=('any')
@@ -77,7 +77,7 @@ sha256sums=(SKIP
             SKIP
             SKIP)
 license=('GPL3')
-depends=('tinyxml2' 'libpthread-stubs' 'libusb' 'libpulse')
+depends=('tinyxml2' 'libpthread-stubs' 'libusb' 'libpulse' 'alsa-lib')
 install=ledspicer.install
 
 
