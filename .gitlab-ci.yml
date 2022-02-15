@@ -1,5 +1,6 @@
 #image: "archlinux:latest"
-image: "archlinux/archlinux:base-devel-20210205.0.15146"
+#image: "archlinux/archlinux:base-devel-20210205.0.15146"
+image: "archlinux/archlinux:base-devel"
 
 
 stages:
@@ -17,9 +18,9 @@ before_script:
     pacman-key --populate archlinux || true
   - pacman -Sy --noconfirm archlinux-keyring
   - pacman -Sy --noconfirm reflector curl libarchive glibc
-  - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
-  - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
-  - bsdtar -C / -xvf $patched_glibc
+  #- export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+  #- curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+  #- bsdtar -C / -xvf $patched_glibc
   #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
   - pacman -Su --noconfirm
 
@@ -164,9 +165,9 @@ dkms:native:dev:
       pacman-key --populate archlinux || true
     - pacman -Sy --noconfirm archlinux-keyring
     - pacman -Sy --noconfirm reflector curl libarchive glibc
-    - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
-    - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
-    - bsdtar -C / -xvf $patched_glibc
+    #- export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+    #- curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+    #- bsdtar -C / -xvf $patched_glibc
     #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
@@ -226,9 +227,9 @@ dkms:native:
       pacman-key --populate archlinux || true
     - pacman -Sy --noconfirm archlinux-keyring
     - pacman -Sy --noconfirm reflector curl libarchive glibc
-    - export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
-    - curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
-    - bsdtar -C / -xvf $patched_glibc
+    #- export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
+    #- curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
+    #- bsdtar -C / -xvf $patched_glibc
     #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
