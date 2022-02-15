@@ -13,7 +13,7 @@ libpthread-stubs
 con2fbmap
 #supermodel-svn
 vi-vim-symlink
-attract-git
+#attract-git
 #sfml-git
 systemd-boot-pacman-hook
 upd72020x-fw
