@@ -1,6 +1,6 @@
 _pkgname=sfml-pi
 pkgname=${_pkgname}-static-git
-pkgver=R2.r94.gaf0ca6fb
+pkgver=R2.r96.g36ea62f6
 pkgrel=1
 pkgdesc="A simple, fast, cross-platform, and object-oriented multimedia API"
 arch=('i686' 'x86_64')
