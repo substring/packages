@@ -7,7 +7,7 @@ pkgdesc="A graphical front-end for command line emulators that hides the underly
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive')
+depends=('openal' 'ffmpeg4.4' 'fontconfig' 'libarchive')
 makedepends=('git' 'sfml-pi-static-git')
 conflicts=('attract-plus')
 source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}")
@@ -20,6 +20,7 @@ pkgver() {
 
 build() {
 	cd "${_gitname}"
+	export PKG_CONFIG_PATH=/usr/lib/ffmpeg4.4/pkgconfig/
 	make prefix=/usr/local USE_DRM=1 STATIC=1
 }
 
