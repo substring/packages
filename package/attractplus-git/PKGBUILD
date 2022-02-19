@@ -1,8 +1,8 @@
 _gitname=attractplus
 _gitbranch=master
 pkgname=${_gitname}-git
-pkgver=r1065.568cdf8
-pkgrel=3
+pkgver=r1076.0ed0f6d
+pkgrel=1
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"

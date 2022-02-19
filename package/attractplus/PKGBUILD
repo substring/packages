@@ -7,7 +7,7 @@ url="http://www.attractmode.org/"
 license=('GPL3')
 depends=('openal' 'ffmpeg4.4' 'fontconfig' 'libarchive')
 makedepends=('git' 'sfml-pi-static-git')
-conflicts=('attract-plus')
+conflicts=('attractplus-git')
 source=("https://github.com/oomek/${pkgname}/archive/${pkgver}.tar.gz")
 sha1sums=('SKIP')
 
