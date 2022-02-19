@@ -9,8 +9,7 @@ built_packages="$_output/built_packages_$(date +%s%3N)"
 
 
 extract_package_name() {
-  # sadly this method doesn't work fine for a git package in the form of advancemenuplus-git-ff27752-1-x86_64.pkg.tar.xz
-  echo "$1" | sed -E "s+([[:alnum:]-]*)-[0-9].*+\1+"
+  echo "$1" | sed -E "s+([[:alnum:]-]*)(-git)?-.*-[0-9]*.*+\1\2+"
 }
 
 
