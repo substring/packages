@@ -26,18 +26,15 @@ need_assets() {
 create_release() {
   echo "Creating release $tag"
   if [[ $1 != "stable" ]] ; then
-$ghr release \
-    --tag "$tag" \
-    --name "$tag" \
-    --description "Automatic build for $(date +"%Y-%m-%d %T") update" \
-    --draft \
-    --pre-release
+$ghr release create "$tag" \
+    -R "$GITHUB_USER"/"$GITHUB_REPO" \
+    --notes "Automatic build for $(date +"%Y-%m-%d %T") update" \
+    --prerelease
   else
-$ghr release \
-    --tag "$tag" \
-    --name "$release_name" \
-    --description "automatic build" \
-    --draft
+$ghr release create "$tag" \
+    -R "$GITHUB_USER"/"$GITHUB_REPO" \
+    --title "$release_name" \
+    --notes "automatic build"
   fi
 }
 
@@ -51,10 +48,10 @@ while read -r file ; do
   filename=$(basename "$file")
   echo "Uploading $filename ($file)..."
   # Upload files
-  $ghr upload \
-    --tag "$tag" \
-    --name "$filename" \
-    --file "${_OUTPUT}/$filename" || cancel_and_exit
+  $ghr release upload "$tag" \
+    "${_OUTPUT}/$filename"  \
+    -R "$GITHUB_USER"/"$GITHUB_REPO" \
+    --clobber || cancel_and_exit
 done < "$packages_list"
 }
 
@@ -72,20 +69,23 @@ repo_name=groovyarcade
 [[ $tag != "stable" ]] && repo_name="${repo_name}-${tag}"
 ls "${_OUTPUT}"/*.pkg.tar.zst >/dev/null && repo-add "${_OUTPUT}"/"$repo_name".db.tar.gz "${_OUTPUT}"/*.pkg.tar.zst
 
-for file in "${_OUTPUT}"/"$repo_name".db* "${_OUTPUT}"/"$repo_name".files* ; do
+for file in "${_OUTPUT}"/"$repo_name".files* "${_OUTPUT}"/"$repo_name".db* ; do
   filename=$(basename "$file")
   echo "Uploading repo data $filename ..."
   # Upload files
-  $ghr upload \
-    --tag "$tag" \
-    --name "$filename" \
-    --file "$file" || cancel_and_exit
+  $ghr release upload "$tag" \
+    "${_OUTPUT}/$filename"  \
+    -R "$GITHUB_USER"/"$GITHUB_REPO" \
+    --clobber || cancel_and_exit
 done
 }
 
 
 #
 # Make the release definitive
+# This is deprecated since the move to github cli as it can't edit a release.
+# Now we upload all assets, and repo data in last. That way, the repo is only
+# working once last files have been uploaded
 #
 publish_release() {
 echo "Publihing release $tag"
@@ -110,22 +110,23 @@ delete_release() {
 # Shouldn't crash if the release doesn't exist
 set +e
 echo "Deleting release $tag..."
-$ghr delete \
-    --tag "$tag"
+$ghr release delete "$tag" \
+    -R "$GITHUB_USER"/"$GITHUB_REPO" \
+    --yes
 }
 
 release_name="GroovyArcade "
 tag=stable
 # $BUILD_TYPE should be set by the CI for daily automatic builds for testing repo
 [[ -n $BUILD_TYPE ]] && tag="$BUILD_TYPE"
-ghr=$([[ -f ~/go/bin/github-release ]] && echo "$HOME/go/bin/github-release" || echo "/usr/local/bin/github-release")
+ghr=gh
 
 # Make sure all env vars exist
-export GITHUB_TOKEN=${GITHUB_TOKEN:-$(cat ./GITHUB_TOKEN)}
+export GITHUB_TOKEN=${GH_TOKEN:-$(cat ./GITHUB_TOKEN)}
 [[ -z $GITHUB_USER ]] && (echo "GITHUB_USER is undefined, cancelling." ; exit 1 ;)
 [[ -z $GITHUB_REPO ]] && (echo "GITHUB_REPO is undefined, cancelling." ; exit 1 ;)
 # Allow a local build to release, the CI sets the GITHUB_TOKEN env var
-if [[ -z $GITHUB_TOKEN ]] ; then
+if [[ -z $GH_TOKEN ]] ; then
   echo "GITHUB_TOKEN is undefined, cancelling."
   exit 1
 fi
@@ -142,9 +143,6 @@ while getopts "curtpdn:" option; do
     u)
       upload_assets
       ;;
-    p)
-      publish_release
-      ;;
     d)
       delete_release
       ;;
@@ -158,7 +156,6 @@ while getopts "curtpdn:" option; do
       create_release $tag
       upload_assets
       upload_repo
-      publish_release
       ;;
     *)
       echo "ERROR: options can be -c -r -u -p -d or -t only" >&2

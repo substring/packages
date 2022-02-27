@@ -1,8 +1,5 @@
-FROM archlinux:latest
+FROM archlinux:base-devel
 
-RUN export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst && \
-  curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc && \
-  bsdtar -C / -xvf $patched_glibc
 RUN pacman-key --init && \
     pacman-key --populate archlinux
 
@@ -15,9 +12,8 @@ RUN pacman -Syu --noconfirm --needed \
   namcap \
   wget \
   dos2unix \
-  pacman-contrib
-
-RUN curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
+  pacman-contrib \
+  github-cli
 
 RUN useradd -ms /bin/bash -d /work build
 

@@ -18,15 +18,11 @@ before_script:
     pacman-key --populate archlinux || true
   - pacman -Sy --noconfirm archlinux-keyring
   - pacman -S --noconfirm --needed reflector curl libarchive glibc
-  #- export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
-  #- curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
-  #- bsdtar -C / -xvf $patched_glibc
-  #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
   - pacman -Su --noconfirm
 
 .build_pkg_no_artifact: &buildpkgnoartifact
   script:
-    - pacman -S --noconfirm --needed base-devel devtools mkinitcpio asp haveged namcap wget sed dos2unix grep pacman-contrib
+    - pacman -S --noconfirm --needed base-devel devtools mkinitcpio asp haveged namcap wget sed dos2unix grep pacman-contrib github-cli
     - sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
     - sed -i 's/PKGEXT=.*/PKGEXT=".pkg.tar.zst"/' /etc/makepkg.conf
     - sed -i 's/COMPRESSZST=.*/COMPRESSZST=(zstd -c -z - --threads=0)/' /etc/makepkg.conf
@@ -98,16 +94,15 @@ bash_lint:
 #  when: always
 
 
-reset_releases:
-  stage: prepare
-  image: alpine
-  before_script:
-    - echo "Resetting draft releases"
-  script:
-    - apk add --no-cache curl libc6-compat
-    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
-    - /usr/local/bin/github-release edit -t testing -p || true
-    - /usr/local/bin/github-release edit -t stable || true
+#reset_releases:
+  #stage: prepare
+  #image: alpine
+  #before_script:
+    #- echo "Resetting draft releases"
+  #script:
+    #- apk add --no-cache curl libc6-compat github-cli
+    #- /usr/local/bin/github-release edit -t testing -p || true
+    #- /usr/local/bin/github-release edit -t stable || true
 
 
 build:linux:dev:
@@ -165,10 +160,6 @@ dkms:native:dev:
       pacman-key --populate archlinux || true
     - pacman -Sy --noconfirm archlinux-keyring
     - pacman -S --noconfirm --needed reflector curl libarchive glibc
-    #- export patched_glibc=glibc-linux4-2.33-4-x86_64.pkg.tar.zst
-    #- curl -LO https://repo.archlinuxcn.org/x86_64/$patched_glibc
-    #- bsdtar -C / -xvf $patched_glibc
-    #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
     - pacman -U --noconfirm work/output/linux-15khz-*
   <<: *buildpackages
@@ -255,8 +246,7 @@ release:testing:
   <<: *onlymasterortags
   script:
     - echo "Releasing testing packages"
-    - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
+    - pacman -Sy --noconfirm --needed tar xz grep github-cli
     - ./release.sh -t
   artifacts:
     paths:
@@ -271,18 +261,16 @@ deploy:stable:
   <<: *onlymasterortags
   script:
     - echo "Releasing stable packages"
-    - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
-    - BUILD_TYPE=stable ./release.sh -dcrup
+    - pacman -Sy --noconfirm --needed tar xz grep github-cli
+    - BUILD_TYPE=stable ./release.sh -dcru
 
 
 release:testing:dev:
   stage: release
   script:
     - echo "Releasing unstable packages"
-    - pacman -Sy --noconfirm --needed tar xz grep
-    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
-    - ./release.sh -n "$CI_COMMIT_REF_SLUG" -dcrup
+    - pacman -Sy --noconfirm --needed tar xz grep github-cli
+    - ./release.sh -n "$CI_COMMIT_REF_SLUG" -dcru
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
     url: https://github.com/substring/packages/releases/tag/$CI_COMMIT_REF_SLUG
@@ -298,9 +286,8 @@ release:clean:
   before_script:
     - echo "Deleting deployment $CI_COMMIT_REF_SLUG"
   script:
-    - apk add curl
-    - curl -L https://github.com/github-release/github-release/releases/download/v0.10.0/linux-amd64-github-release.bz2 | bzip2 -d > /usr/local/bin/github-release && chmod +x /usr/local/bin/github-release
-    - github-release delete -t "$CI_COMMIT_REF_SLUG"
+    - apk add github-cli
+    - gh release delete "$CI_COMMIT_REF_SLUG" -R $GITHUB_USER/$GITHUB_REPO
   environment:
     name: testing/$CI_COMMIT_REF_SLUG
     action: stop
