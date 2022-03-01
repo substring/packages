@@ -263,7 +263,7 @@ deploy:stable:
   script:
     - echo "Releasing stable packages"
     - pacman -Sy --noconfirm --needed tar xz grep github-cli
-    - BUILD_TYPE=stable ./release.sh -dcru
+    - BUILD_TYPE=stable ./release.sh -dcur
 
 
 release:testing:dev:
