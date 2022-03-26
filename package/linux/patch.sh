@@ -6,6 +6,14 @@ sed -i \
 /work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
 ( cd /work/build/linux/repos/core-x86_64 && makepkg -g >> PKGBUILD )
 
+# Find the current pkgrel
+pkgrel="$(egrep "^pkgrel=" /work/build/linux/repos/core-x86_64/PKGBUILD | cut -d '=' -f 2)"
+# Increase it by one so we don't overlap with the real Arch pkg
+pkgrel=$((pkgrel+1))
+sed -i \
+  -e "s/pkgrel=.*/pkgrel=${pkgrel}/" \
+  /work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
+
 # Simply build DRM
 #sed -i 's+make bzImage modules htmldocs+make -C . M=drivers/gpu/drm+g' /work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
 # We need to patch the config. So, find its hash first, patch, recompute hash, then patch PKGBUILD
