@@ -2,15 +2,17 @@ diff --git a/repos/extra-x86_64/PKGBUILD b/repos/extra-x86_64/PKGBUILD
 index 99bd4ccced8..21b4fb3a716 100644
 --- a/repos/extra-x86_64/PKGBUILD
 +++ b/repos/extra-x86_64/PKGBUILD
-@@ -15,11 +15,21 @@ optdepends=('alsa-lib: ALSA audio driver'
+@@ -15,11 +15,24 @@ optdepends=('alsa-lib: ALSA audio driver'
              'jack: JACK audio driver'
              'pipewire: PipeWire audio driver'
              'libdecor: Wayland client decorations')
 -source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig})
 +source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
 +        "force_modes_refresh.patch"
++        "sdl_fix_udev_bug.patch"
 +        "SDL_x11modes.c_2.0.20_to_2.0.14.patch")
  sha512sums=('4889949eaa674948bdb0a01bb2a842a0943b15b08ff27ec0079b0fd4f79d071ffb32488a5a51c12ad7c74ed5fe73b608cdf6336a44c95dae8a0fb3f47d0f01de'
++            'SKIP'
 +            'SKIP'
 +            'SKIP'
              'SKIP')
@@ -19,6 +21,7 @@ index 99bd4ccced8..21b4fb3a716 100644
 +prepare() {
 +  cd SDL2-${pkgver}
 +  patch -Np1 -i "$srcdir"/force_modes_refresh.patch
++  patch -Np1 -i "$srcdir"/sdl_fix_udev_bug.patch
 +  patch -Np1 -i "$srcdir"/SDL_x11modes.c_2.0.20_to_2.0.14.patch
 +}
 +
