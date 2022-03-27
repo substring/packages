@@ -1,0 +1,16 @@
+diff --git a/src/video/kmsdrm/SDL_kmsdrmvideo.c b/src/video/kmsdrm/SDL_kmsdrmvideo.c
+index fd3a3cd63..3edd33855 100644
+--- a/src/video/kmsdrm/SDL_kmsdrmvideo.c
++++ b/src/video/kmsdrm/SDL_kmsdrmvideo.c
+@@ -643,8 +643,9 @@ KMSDRM_AddDisplay (_THIS, drmModeConnector *connector, drmModeRes *resources) {
+     }
+ 
+     if (mode_index == -1) {
+-      ret = SDL_SetError("Failed to find index of mode attached to the CRTC.");
+-      goto cleanup;
++//      ret = SDL_SetError("Failed to find index of mode attached to the CRTC.");
++//      goto cleanup;
++      mode_index = 0;
+     }
+ 
+     /*********************************************/
