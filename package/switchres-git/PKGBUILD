@@ -24,6 +24,7 @@ build() {
 
   sed -i 's/^M$//g' switchres.ini
   mkdir edid && cd edid
+  echo "interlace_force_even 1" > ./switchres.ini
   # Generate all EDIDs
   # 15kHz
   for m in generic_15 arcade_15 arcade_15ex k7000 k7131 h9110 polo ; do
@@ -51,6 +52,7 @@ build() {
   # Now generate a super res 15kHz edid wihth crt_range from generic_15
   echo "monitor custom" > ./switchres.ini
   echo "dotclock_min 25.0" >> ./switchres.ini
+  echo "interlace_force_even 1" >> ./switchres.ini
   echo "crt_range0  15625-15750, 49.50-65.00, 2.000, 4.700, 8.000, 0.064, 0.192, 1.024, 0, 0, 192, 288, 448, 576" >> ./switchres.ini
   ../switchres 640 480 60 --edid --monitor custom
   mv custom.bin generic_15_super_resi.bin
