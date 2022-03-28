@@ -1,0 +1,13 @@
+diff --git a/src/SFML/Window/Vulkan.cpp b/src/SFML/Window/Vulkan.cpp
+index 6bf05b12..a045a4f0 100644
+--- a/src/SFML/Window/Vulkan.cpp
++++ b/src/SFML/Window/Vulkan.cpp
+@@ -76,7 +76,7 @@ VulkanFunctionPointer Vulkan::getFunction(const char* name)
+ #if defined(SFML_VULKAN_IMPLEMENTATION_NOT_AVAILABLE)
+ 
+     (void) name;
+-    return NULL;
++    return nullptr;
+ 
+ #else
+ 
