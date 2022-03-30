@@ -2,12 +2,12 @@ _gitname=attractplus
 _gitbranch=master
 pkgname=${_gitname}-git
 pkgver=r1076.0ed0f6d
-pkgrel=1
+pkgrel=2
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg4.4' 'fontconfig' 'libarchive')
+depends=('openal' 'ffmpeg4.4' 'fontconfig' 'libarchive' 'libva-mesa-driver')
 makedepends=('git' 'sfml-pi-static-git')
 conflicts=('attract-plus')
 source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}")
@@ -21,7 +21,7 @@ pkgver() {
 build() {
 	cd "${_gitname}"
 	export PKG_CONFIG_PATH=/usr/lib/ffmpeg4.4/pkgconfig/
-	make prefix=/usr/local USE_DRM=1 STATIC=1
+	make prefix=/usr/local USE_DRM=1 STATIC=1 FE_HWACCEL_VAAPI=1
 }
 
 package() {
