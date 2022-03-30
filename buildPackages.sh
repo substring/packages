@@ -143,6 +143,9 @@ do_the_job() {
     echo "Output package already exists, can recover and keep going..."
   fi
 
+  # Uninstall sfml related packages to allow building both AM and AM+ in the same run
+  pacman -Q sfml &>/dev/null && sudo pacman -Rdd --noconfirm $(pacman -Q sfml | cut -d ' ' -f 1)
+
   post_build
 }
 
