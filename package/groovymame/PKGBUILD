@@ -4,11 +4,11 @@
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
 pkgname=(groovymame groovymame-tools)
-pkgver=0.241
+pkgver=0.242
 pkgrel=2
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=002g
+_switchresver=002h
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
