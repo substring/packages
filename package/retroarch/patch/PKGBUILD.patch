@@ -1,8 +1,8 @@
 diff --git a/repos/community-x86_64/PKGBUILD b/repos/community-x86_64/PKGBUILD
-index 7e6abd84d94f..248986ce6351 100644
+index 27e94b21590f..7314ef94cd2a 100644
 --- a/repos/community-x86_64/PKGBUILD
 +++ b/repos/community-x86_64/PKGBUILD
-@@ -61,9 +61,11 @@ _tag=b71be7efd2126ad94759726d8e54724482cffde2
+@@ -61,9 +61,11 @@ _tag=9b282aa742b6c3d2f2925ae5a12e2cd7c6b6ad38
  source=(
    git+https://github.com/libretro/RetroArch.git#tag=${_tag}
    retroarch-config.patch
@@ -15,14 +15,11 @@ index 7e6abd84d94f..248986ce6351 100644
  
  pkgver() {
    cd RetroArch
-@@ -73,8 +75,10 @@ pkgver() {
+@@ -73,6 +75,7 @@ pkgver() {
  prepare() {
    cd RetroArch
    patch -Np1 -i ../retroarch-config.patch
 +  patch -Np1 -i ../KMS_modeswitching.patch
    git cherry-pick -n 685948368e6b28b97e1b91bdfe5921519359a033 # FS#66843
-   git cherry-pick -n 18ee6fdff1a6da2ce6be9b557818e7b4e5d5e837 # ffmpeg 5.0
-+  git cherry-pick -n bbfcecfab056880ee322a373e545671a556ed271 # ffmpeg 5.0 bis
  }
  
- build() {
