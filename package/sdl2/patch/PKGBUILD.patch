@@ -1,5 +1,5 @@
 diff --git a/repos/extra-x86_64/PKGBUILD b/repos/extra-x86_64/PKGBUILD
-index 99bd4ccced8..21b4fb3a716 100644
+index 4f799db39f4..1065c74796f 100644
 --- a/repos/extra-x86_64/PKGBUILD
 +++ b/repos/extra-x86_64/PKGBUILD
 @@ -15,11 +15,24 @@ optdepends=('alsa-lib: ALSA audio driver'
@@ -10,8 +10,8 @@ index 99bd4ccced8..21b4fb3a716 100644
 +source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
 +        "force_modes_refresh.patch"
 +        "sdl_fix_udev_bug.patch"
-+        "SDL_x11modes.c_2.0.20_to_2.0.14.patch")
- sha512sums=('4889949eaa674948bdb0a01bb2a842a0943b15b08ff27ec0079b0fd4f79d071ffb32488a5a51c12ad7c74ed5fe73b608cdf6336a44c95dae8a0fb3f47d0f01de'
++        "sdl_restore_crtc_at_DestroyWindow.patch")
+ sha512sums=('ca4b690433cd4d9d73b797da98666317128e7e817ab60e874a49d94791ea41e8a6b4fc43649593120daa0702190c0f8a6ed326c908d87375c8da9f369d994f6a'
 +            'SKIP'
 +            'SKIP'
 +            'SKIP'
@@ -22,7 +22,7 @@ index 99bd4ccced8..21b4fb3a716 100644
 +  cd SDL2-${pkgver}
 +  patch -Np1 -i "$srcdir"/force_modes_refresh.patch
 +  patch -Np1 -i "$srcdir"/sdl_fix_udev_bug.patch
-+  patch -Np1 -i "$srcdir"/SDL_x11modes.c_2.0.20_to_2.0.14.patch
++  patch -Np1 -i "$srcdir"/sdl_restore_crtc_at_DestroyWindow.patch
 +}
 +
  build() {
