@@ -1,0 +1,29 @@
+pkgname=drminfo-git
+_gitname=${pkgname%-git}
+pkgver=r113.5af85df
+pkgrel=1
+pkgdesc="Small utility to dump info about DRM devices"
+url="https://github.com/ascent12/drm_info"
+license=(custom)
+arch=(x86_64)
+source=("${_gitname}::git+https://github.com/ascent12/drm_info.git")
+sha256sums=(SKIP)
+depends=('libdrm' 'json-c' 'pciutils')
+makedepends=('meson' 'ninja')
+
+pkgver() {
+  cd "${_gitname}"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "${_gitname}"
+  meson -Dprefix="$pkgdir"/usr/local build
+  cd build
+  ninja
+}
+
+package() {
+  cd "${_gitname}"/build
+  ninja install
+}
