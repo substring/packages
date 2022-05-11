@@ -1,0 +1,8 @@
+This is a collection of package that have X dependency I'm trying to get rid of. Here is a status of those various packages
+
+  * cairo: DRM support has been removed since commit 1409079eefc04dcb0cab49e02f3cf3cf5e622974, can't expect much
+  * ffmpeg(4.4): TODO, I expect most X dependencines being dued to linked libs, to be done
+  * libglvnd: OK, seems ready, and should be a huge step forward X-less OpenGL
+  * libva: TODO, one of ffmpeg HW decoding libs
+  * qt5-base: WIP, forums are not encouraging on X-less building, but I hope that building with my libglvnd will help
+  * sdl2: hast most chances to be OK, except that cairo thing (through the fcitx5 dependency)

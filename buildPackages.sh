@@ -6,7 +6,7 @@ source include.sh
 _output="$_OUTPUT"
 BUILD_DIR=/work/build
 built_packages="$_output/built_packages_$(date +%s%3N)"
-
+packages_subfolder=package
 
 extract_package_name() {
   echo "$1" | sed -E "s+([[:alnum:]-]*)(-git)?-.*-[0-9]*.*+\1\2+"
@@ -22,9 +22,18 @@ check_if_download_or_build() {
   local rc
   local repo_package_name
   local pkg_version
+  local repos="groovyarcade-testing groovyarcade"
   [[ ! -f PKGBUILD ]] && return 255
+
+  # Take care of a non standard package folder, adapt the repo
+  case "$packages_subfolder" in
+      package-nox11)
+        repos="groovymame-nox11"
+        ;;
+  esac
+
   for pkgfile in $(makepkg --packagelist) ; do
-  log "Processing $pkgfile..."
+    log "Processing $pkgfile..."
     filename=$(basename "$pkgfile")
     pkgname=$(extract_package_name "$filename")
 
@@ -36,7 +45,7 @@ check_if_download_or_build() {
     esac
 
     echo "Package name was determined as: $pkgname"
-    for repo in groovyarcade-testing groovyarcade ; do
+    for repo in $repos ; do
       # Remove repo name, match exact package name, convert to filename
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.zst/")
       pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
@@ -86,7 +95,7 @@ post_build() {
 
 do_the_job() {
   echo "+-------------------------"
-  echo "| Building $package"
+  echo "| Building ${packages_subfolder}/$package"
   echo "+-------------------------"
 
   package="$1"
@@ -106,12 +115,12 @@ do_the_job() {
 
   # Copy required patch files that would be used in PKGBUILD
   # shellcheck disable=SC2046,SC2014
-  find /work/package/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
+  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   # Use the prepatch shell if it exists
-  if [[ -x /work/package/$package/patch.sh ]] ; then
-    echo "Applying patch /work/package/$package/patch.sh"
-    /work/package/"$package"/patch.sh || return 1
+  if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
+    echo "Applying patch /work/${packages_subfolder}/$package/patch.sh"
+    /work/"${packages_subfolder}"/"$package"/patch.sh || return 1
     # patch.sh may have added new files, let's update checksums
     updpkgsums
   fi
@@ -188,7 +197,7 @@ done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 build_groovy_single() {
   package="$1"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
-  cp -R /work/package/"$package" . || return 1
+  cp -R /work/"$packages_subfolder"/"$package" . || return 1
   do_the_job "$package" || exit 1
 }
 
@@ -242,7 +251,7 @@ mkdir -p "$BUILD_DIR"
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagcs:d" option; do
+while getopts "nagcs:dp:" option; do
   case "${option}" in
     n)
       # WARNING: very dirty trick to exclude building mame and linux
@@ -270,6 +279,9 @@ while getopts "nagcs:d" option; do
     d)
       build_dkms
       exit $?
+      ;;
+    p)
+      packages_subfolder="$OPTARG"
       ;;
   esac
 done

@@ -29,6 +29,7 @@ RUN echo 'build ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/user && \
     chmod 0440 /etc/sudoers.d/user
 
 COPY package /work/package
+COPY package-nox11 /work/package-nox11
 COPY buildPackages.sh /work
 COPY include.sh /work
 COPY packages_arch.lst /work
