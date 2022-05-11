@@ -34,6 +34,7 @@ build() {
         -DSFML_BUILD_EXAMPLES=false \
         -DSFML_USE_DRM=1 \
         -DBUILD_SHARED_LIBS=FALSE \
+	-DWARNINGS_AS_ERRORS=false \
         -DSFML_INSTALL_PKGCONFIG_FILES=true # prints a warning if pkg-config not supported
   make
 }
