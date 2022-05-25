@@ -4,8 +4,8 @@
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
 pkgname=(groovymame groovymame-tools)
-pkgver=0.243
-pkgrel=2
+pkgver=0.244
+pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
 _switchresver=002i
@@ -15,12 +15,14 @@ arch=(x86_64)
 makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr)
 source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
         "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2"
-         mame.sh mame.desktop mame.svg)
+         mame.sh mame.desktop mame.svg
+         https://github.com/mamedev/mame/commit/034e0d2c.patch)
 sha256sums=(SKIP
             SKIP
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
             '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
-            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
+            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
+            'd1595a4cf79827b2773c6b3f3ae16f3ccd6e2e6043195eaa67400cf459096d49')
 
 
 prepare() {
@@ -28,8 +30,8 @@ prepare() {
 
 # Use system libraries
   sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
-# except for asio
-  sed -e 's|USE_SYSTEM_LIB_ASIO|\# USE_SYSTEM_LIB_ASIO|g' -i makefile
+# Fix build with GCC 12
+  patch -p1 < ../034e0d2c.patch
 }
 
 build() {

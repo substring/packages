@@ -1,5 +1,5 @@
 pkgname=groovymame-extra
-pkgver=0.243
+pkgver=0.244
 pkgrel=1
 pkgdesc="GroovyMame extra files"
 arch=('any')
