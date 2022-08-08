@@ -23,6 +23,7 @@ build() {
   make PREFIX=/usr all grid
 
   sed -i 's/^M$//g' switchres.ini
+  sed -i '1s+^+#!/usr/bin/env python\n+' geometry.py
   mkdir edid && cd edid
   echo "interlace_force_even 1" > ./switchres.ini
   # Generate all EDIDs
@@ -73,4 +74,5 @@ package () {
   install -m 644 switchres.ini "$pkgdir"/etc
   install -Dm 755 switchres "$pkgdir"/usr/bin/switchres
   install -Dm 755 grid "$pkgdir"/usr/bin/grid
+  install -Dm 755 geometry.py "$pkgdir"/usr/bin/geometry
 }

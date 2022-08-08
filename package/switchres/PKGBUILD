@@ -1,14 +1,14 @@
 pkgname=switchres
 pkgver=2.0
-pkgrel=7
-_commit=408c18f40553bcfb3cc4ebb875d89041d134b0f4
+pkgrel=8
+_commit=581bc6fedab64721b79cc79082477fc590e9eb58
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
 arch=(x86_64)
 source=("git+https://github.com/antonioginer/switchres.git#commit=${_commit}")
 sha256sums=(SKIP)
-depends=('libxrandr' 'libdrm' 'sdl2')
+depends=('libxrandr' 'libdrm' 'sdl2' 'sdl2_ttf')
 provides=('switchres')
 conflicts=('switchres')
 install=switchres.install
@@ -19,6 +19,7 @@ build() {
   make PREFIX=/usr all grid
 
   sed -i 's/\r$//g' switchres.ini
+  sed -i '1s+^+#!/usr/bin/env python\n+' geometry.py
   mkdir edid && cd edid
   # Generate all EDIDs
   # 15kHz
@@ -69,4 +70,5 @@ package () {
   install -m 644 switchres.ini "$pkgdir"/etc
   install -Dm 755 switchres "$pkgdir"/usr/bin/switchres
   install -Dm 755 grid "$pkgdir"/usr/bin/grid
+  install -Dm 755 geometry.py "$pkgdir"/usr/bin/geometry
 }
