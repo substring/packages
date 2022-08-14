@@ -68,6 +68,7 @@ package_groovymame() {
   # Install the extra bits
   install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
   cp -ar {artwork,bgfx,plugins,language,ctrlr,keymaps,hash} "$pkgdir"/usr/lib/mame/
+  install -Dm 644 uismall.bdf "$pkgdir"/usr/lib/mame/fonts/uismall.bdf
   mkdir -p "$pkgdir"/usr/share/mame
   "$pkgdir"/usr/lib/mame/groovymame -listxml > "$pkgdir"/usr/share/mame/mame.dat
 
