@@ -6,20 +6,11 @@ index 33acb5e9eb3..447fbef9caa 100644
    source=(
    "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
    config         # the main kernel config file
-+  dcn1_interlace.diff
-+  01_linux_15khz.diff
-+  02_linux_15khz_interlaced_mode_fix_new.diff
++  dcn1_interlace.patch
++  01_linux_15khz.patch
++  02_linux_15khz_interlaced_mode_fix_new.patch
 +  kms-user-modes.patch
-+  amdgpu_pll_fix.diff
++  amdgpu_pll_fix.patch
  )
  validpgpkeys=(
    'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
-@@ -42,7 +52,7 @@ prepare() {
-   for src in "${source[@]}"; do
-     src="${src%%::*}"
-     src="${src##*/}"
--    [[ $src = *.patch ]] || continue
-+    [[ $src = *.patch || $src = *.diff ]] || continue
-     echo "Applying patch $src..."
-     patch -Np1 < "../$src"
-   done
