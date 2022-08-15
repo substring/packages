@@ -213,7 +213,7 @@ done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 build_dkms() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
-  build_native_single "$package" || exit 1
+  build_single_package "$package" || exit 1
 done < <(grep "^${package_to_build}$" /work/packages_dkms.lst)
 }
 
@@ -231,17 +231,17 @@ build_single_package() {
   if [[ $cmd_arg =~ ^aur/ ]] ; then
     # that's a AUR package, let's build it
     build_aur_single "$pkgname"
-    exit $?
+    [[ $? != 0 ]] && exit $?
   elif [[ $cmd_arg =~ ^groovy/ ]] ; then
     # that's a groovy package, let's build it
     build_groovy_single "$pkgname"
-    exit $?
+    [[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package
     build_native_single "$pkgname"
-    exit $?
+    [[ $? != 0 ]] && exit $?
   fi
-  return 1
+  return 0
 }
 
 
