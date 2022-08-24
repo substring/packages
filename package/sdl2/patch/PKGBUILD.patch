@@ -6,12 +6,12 @@ index 4f799db39f4..1065c74796f 100644
              'jack: JACK audio driver'
              'pipewire: PipeWire audio driver'
              'libdecor: Wayland client decorations')
--source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig})
-+source=("https://www.libsdl.org/release/SDL2-${pkgver}.tar.gz"{,.sig}
+-source=("https://github.com/libsdl-org/SDL/releases/download/release-${pkgver}/SDL2-${pkgver}.tar.gz"{,.sig})
++source=("https://github.com/libsdl-org/SDL/releases/download/release-${pkgver}/SDL2-${pkgver}.tar.gz"{,.sig}
 +        "force_modes_refresh.patch"
 +        "sdl_fix_udev_bug.patch"
 +        "sdl_restore_crtc_at_DestroyWindow.patch")
- sha512sums=('ca4b690433cd4d9d73b797da98666317128e7e817ab60e874a49d94791ea41e8a6b4fc43649593120daa0702190c0f8a6ed326c908d87375c8da9f369d994f6a'
+ sha512sums=('5735bfc7b22f1780f80cc89f62a14ca809fe1280298d172f92dde74400db1f5378f8d3eae8834e886d3ca4f5ae6f1074d66c5c956613cf9e0cce961738514212'
 +            'SKIP'
 +            'SKIP'
 +            'SKIP'
