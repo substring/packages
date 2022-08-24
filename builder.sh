@@ -23,7 +23,7 @@ echo "+++ Running container     +++"
 echo "+++++++++++++++++++++++++++++"
 docker run \
   --tty \
-  --name "groovy-ux-${RELEASE}" \
+  --name "groovy-ux-${RELEASE}-$$" \
   --rm \
   --volume "$(pwd)/work/output":/work/output \
   --volume "$(pwd)/work/cache":/work/cache \
