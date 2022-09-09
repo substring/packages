@@ -3,29 +3,36 @@
 # Contributor: robb_force <robb_force@holybuffalo.net>
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
-pkgname=(groovymame groovymame-tools)
+pkgname=(groovymame groovymame-tools groovymame-extra)
 pkgver=0.247
 pkgrel=2
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
+_smamever=${pkgver#*.}
 _switchresver=002l
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
-makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr)
+makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua53 libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr p7zip)
 source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
         "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2"
          mame.sh mame.desktop mame.svg
-	 https://github.com/mamedev/mame/commit/034e0d2c.patch)
+	      "https://www.mameworld.info/mameinfo/download/Mameinfo0${_smamever}.zip"
+        "https://www.arcade-history.com/dats/historyxml${_smamever}.zip"
+        "https://github.com/mamedev/mame/releases/download/mame0${_mamever}/mame${_mamever}lx.zip")
+)
 sha256sums=(SKIP
             SKIP
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
             '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
             '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
-	    'd1595a4cf79827b2773c6b3f3ae16f3ccd6e2e6043195eaa67400cf459096d49')
+	          SKIP
+            SKIP
+            SKIP)
 
 
 prepare() {
+  7z x "Mameinfo${_mamever}.7z"
   cd GroovyMAME-${pkgname}${_mamever}
 
 # Use system libraries
@@ -105,3 +112,11 @@ package_groovymame-tools() {
 
   install -Dm644 docs/man/*.1* -t "$pkgdir"/usr/share/man/man1/
 }
+
+package_groovymame-extra() {
+  pkgdesc="GroovyMame extra files"
+  install -Dm755 history.xml "${pkgdir}"/usr/share/mame/dat/history.dat
+  install -Dm755 mameinfo.dat "${pkgdir}"/usr/share/mame/dat/mameinfo.dat
+  install -Dm755 mame${_mamever}.xml "${pkgdir}"/usr/share/mame/dat/mame.dat
+}
+
