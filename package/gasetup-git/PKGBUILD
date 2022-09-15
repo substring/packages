@@ -5,7 +5,7 @@ pkgrel=1
 pkgdesc="GroovyArcade setup scripts"
 arch=(any)
 license=(GPL-2)
-depends=(bash unzip wget curl p7zip)
+depends=(bash unzip wget curl p7zip dialog squashfs-tools)
 makedepends=(git)
 provides=('gasetup')
 conflicts=('gasetup')
@@ -21,7 +21,7 @@ package() {
   cd "$srcdir/$_gitname"
   sed -i "/\/usr\/share/d" Makefile
   make DESTDIR="${pkgdir}"/opt/gasetup install
-  
+
   install -dm 755 "${pkgdir}"/usr/share/{applications,pixmaps}
   install -m 644 gasetup.desktop "${pkgdir}"/usr/share/applications
   install -m 644 gasetup.png "${pkgdir}"/usr/share/pixmaps

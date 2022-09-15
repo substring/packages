@@ -4,7 +4,7 @@ pkgrel=1
 pkgdesc="GroovyArcade setup scripts"
 arch=(any)
 license=(GPL-2)
-depends=(bash unzip curl wget p7zip)
+depends=(bash unzip curl wget p7zip dialog squashfs-tools)
 source=(https://gitlab.com/groovyarcade/$pkgname/-/archive/$pkgver/$pkgname-$pkgver.tar.gz)
 sha256sums=(de18b15f819707fe74290aa4366b3012644b009c8025665b5734f2f528b1d8b8)
 
@@ -12,7 +12,7 @@ package() {
   cd "$srcdir/$pkgname-$pkgver"
   sed -i "/\/usr\/share/d" Makefile
   make DESTDIR="${pkgdir}"/opt/gasetup install
-  
+
   install -dm 755 "${pkgdir}"/usr/share/{applications,pixmaps}
   install -m 644 gasetup.desktop "${pkgdir}"/usr/share/applications
   install -m 644 gasetup.png "${pkgdir}"/usr/share/pixmaps
