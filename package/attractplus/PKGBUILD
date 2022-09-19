@@ -8,7 +8,7 @@ url="http://www.attractmode.org/"
 license=('GPL3')
 depends=('attractplus-kms' 'attractplus-x11')
 conflicts=('attractplus-git')
-replaces=('attract')
+#replaces=('attract')
 #source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}")
 source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
         "attractplus.sh")
