@@ -1,5 +1,5 @@
-attract
-attract-git
+#attract
+#attract-git
 gasetup
 gasetup-git
 gatools
@@ -18,10 +18,6 @@ rgb-commander
 ledspicer
 plymouth-theme-groovy
 skyscraper
-attractplus-git
-attractplus
-sfml-drm
-sfml-drm-static
 fbneo
 pegasus-frontend
 pegasus-frontend-git

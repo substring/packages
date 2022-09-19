@@ -169,6 +169,13 @@ dkms:native:dev:
      - longOps
 
 
+build:sfml-attract:dev:
+  stage: build
+  <<: *notmaster
+  variables:
+    MAKEPKG_ARGS: "-o"
+  <<: *buildpackages
+
 
 build:linux:
   stage: build
@@ -188,7 +195,6 @@ build:arch:
   <<: *buildpackages
 
 
-
 build:groovymame:
   stage: build
   <<: *onlymasterortags
@@ -203,10 +209,14 @@ build:aur:
   variables:
     MAKEPKG_ARGS: "-a"
   <<: *buildpackages
-  cache:
-    key: cache-aur
-    paths:
-      - work/cache
+
+
+build:sfml-attract:
+  stage: build
+  <<: *onlymasterortags
+  variables:
+    MAKEPKG_ARGS: "-o"
+  <<: *buildpackages
 
 
 # allow_failure: true to allow pushing the kernel even if broadcom-wl failed
