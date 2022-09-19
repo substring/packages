@@ -6,7 +6,7 @@ index 33acb5e9eb3..447fbef9caa 100644
    source=(
    "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
    config         # the main kernel config file
-+  dcn1_interlace.patch
++  dcn1-2_interlace.patch
 +  01_linux_15khz.patch
 +  02_linux_15khz_interlaced_mode_fix_new.patch
 +  kms-user-modes.patch
