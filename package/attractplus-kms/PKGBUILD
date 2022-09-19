@@ -6,7 +6,7 @@ pkgdesc="A graphical front-end for command line emulators that hides the underly
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver')
+depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu')
 makedepends=('git' 'sfml-drm-static')
 conflicts=('attractplus-git')
 #source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}")
