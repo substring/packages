@@ -1,29 +1,32 @@
 pkgname=attractplus
 pkgver=2.6.2
-pkgrel=4
+pkgrel=5
 _commit=0feb181c33a13d55b526bff132ac69c56a1ef0b1
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver')
-makedepends=('git' 'sfml-pi-static-git')
+depends=('attractplus-kms' 'attractplus-x11')
 conflicts=('attractplus-git')
-#source=("https://github.com/oomek/${pkgname}/archive/${pkgver}.tar.gz")
-source=("https://github.com/oomek/${pkgname}/archive/${_commit}.tar.gz")
-sha1sums=('SKIP')
+replaces=('attract')
+#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}")
+source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
+        "attractplus.sh")
+sha256sums=('SKIP'
+            'SKIP')
 
-build() {
-	#cd "${pkgname}-${pkgver}"
-	cd "${pkgname}-${_commit}"
-	export PKG_CONFIG_PATH=/usr/lib/ffmpeg4.4/pkgconfig/
-	make prefix=/usr/local USE_DRM=1 STATIC=1 FE_HWACCEL_VAAPI=1
-}
 
 package() {
-	#cd "${pkgname}-${pkgver}"
-	cd "${pkgname}-${_commit}"
-	make prefix="${pkgdir}/usr/local" install
+	cd "${pkgname}"
+
+	cat <<'EOF' >> Makefile
+
+install_assets: $(DATA_PATH)
+	mkdir -p $(DESTDIR)$(DATA_PATH)
+	cp -r config/* $(DESTDIR)$(DATA_PATH)
+EOF
+	make prefix="${pkgdir}/usr/local" install_assets
 	install -Dm644 License.txt ${pkgdir}/usr/share/licenses/${_gitname}/License.txt
+	install -Dm755 ../attractplus.sh "${pkgdir}"/usr/local/bin/attractplus
 }
 
