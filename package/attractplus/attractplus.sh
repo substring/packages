@@ -2,7 +2,7 @@
 
 # Select which version to launch depending on the environment
 if [[ -z $DISPLAY ]] ; then
-    attractplus-kms $@
+    attractplus-kms "$@"
 else
-    attractplus-x11 $@
+    attractplus-x11 "$@"
 fi
