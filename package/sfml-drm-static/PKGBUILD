@@ -1,32 +1,25 @@
-_pkgname=sfml-pi
-pkgname=${_pkgname}-static-git
-pkgver=2.5.0.r231.gdbc8d390
+pkgname=sfml-drm-static
+pkgver=2.6.0
 pkgrel=1
+_commit=6f602745969fbcfecb6652b7d029f682ba86d3d2
 pkgdesc="A simple, fast, cross-platform, and object-oriented multimedia API"
 arch=('i686' 'x86_64')
 url="http://www.sfml-dev.org/"
 license=('zlib')
 depends=('libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'openal' 'glew' 'freetype2' 'xcb-util-image')
 makedepends=('mesa' 'cmake' 'doxygen' 'git')
-provides=('sfml')
-conflicts=('sfml')
 
-source=("sfml-pi::git+https://github.com/oomek/SFML#branch=2.6.0"
-	"fix-gcc11.patch")
-sha256sums=('SKIP'
-	    'SKIP')
-
-pkgver() {
-  cd "${srcdir}/${_pkgname}"
-  git describe --long --tags | sed -r 's/([^-]*-g)/r\1/;s/-/./g'
-}
+source=("${pkgname}::git+https://github.com/oomek/SFML.git#commit=${_commit}"
+        "fix-gcc11.patch")
+sha256sums=('SKIP' 'SKIP')
 
 prepare() {
-  cd "$srcdir/${_pkgname}"
+  cd "$srcdir/${pkgname}"
   patch -Np1 < ../fix-gcc11.patch
 }
+
 build() {
-  cd "$srcdir/${_pkgname}"
+  cd "$srcdir/${pkgname}"
 
   cmake -DCMAKE_INSTALL_PREFIX=/usr . \
         -DCMAKE_BUILD_TYPE=Release \
@@ -34,13 +27,13 @@ build() {
         -DSFML_BUILD_EXAMPLES=false \
         -DSFML_USE_DRM=1 \
         -DBUILD_SHARED_LIBS=FALSE \
-	-DWARNINGS_AS_ERRORS=false \
+        -DWARNINGS_AS_ERRORS=false \
         -DSFML_INSTALL_PKGCONFIG_FILES=true # prints a warning if pkg-config not supported
   make
 }
 
 package() {
-  cd "$srcdir/${_pkgname}"
+  cd "$srcdir/${pkgname}"
 
   make DESTDIR="$pkgdir/" install
 
