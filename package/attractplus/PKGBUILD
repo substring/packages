@@ -14,6 +14,7 @@ source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_comm
         "attractplus.sh")
 sha256sums=('SKIP'
             'SKIP')
+provides=('attract')
 
 
 package() {
