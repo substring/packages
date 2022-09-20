@@ -99,6 +99,7 @@ else
 $ghr edit \
     --tag "$tag" \
     --name "$tag" \
+    --pre-release=false \
     --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
 fi
 }
