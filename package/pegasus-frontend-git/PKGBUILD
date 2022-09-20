@@ -1,7 +1,7 @@
 _pkgname=pegasus-frontend
 pkgname=${_pkgname}-git
-pkgver=alpha15.r101.g8425a4f6
-pkgrel=2
+pkgver=alpha16.r42.g996720eb
+pkgrel=1
 pkgdesc="A cross platform, customizable graphical frontend for launching emulators and managing your game collection."
 arch=('i686' 'x86_64')
 url="https://pegasus-frontend.org/"

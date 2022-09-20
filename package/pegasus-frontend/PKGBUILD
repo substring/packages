@@ -1,6 +1,6 @@
 pkgname=pegasus-frontend
-pkgver=0.15
-_pkgver=alpha15
+pkgver=0.16
+_pkgver=weekly_2022w30
 pkgrel=1
 pkgdesc="A cross platform, customizable graphical frontend for launching emulators and managing your game collection."
 arch=('i686' 'x86_64')
