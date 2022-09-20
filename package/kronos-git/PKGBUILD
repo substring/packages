@@ -5,7 +5,7 @@ pkgrel=1
 pkgdesc="A SEGA Saturn emulator"
 arch=(any)
 license=(GPL-2)
-depends=(sdl2 qt5-base libxrandr glew openal)
+depends=(sdl2 qt5-base libxrandr glew openal qt5-multimedia)
 makedepends=(git cmake)
 provides=('kronos')
 source=("git+https://github.com/FCare/Kronos.git#branch=extui-align")
