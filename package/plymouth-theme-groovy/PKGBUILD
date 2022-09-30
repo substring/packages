@@ -1,5 +1,5 @@
 pkgname=plymouth-theme-groovy
-pkgver=0.2
+pkgver=1.0
 pkgrel=1
 pkgdesc="GroovyArcade plymouth theme for Arch Linux"
 arch=('any')
@@ -10,16 +10,28 @@ source=("box.png"
         "entry.png"
         "groovy.plymouth"
         "groovy.script"
-        "lh.png"
         "lock.png"
-        "Logo.png"
-        "lvl.png"
-        "lvr.png"
         "progress_bar.png"
-        "progress_box.png"
-        "splash.png"
+        "progress_box1.png"
+        "progress_box2.png"
+        "progress_box3.png"
+        "progress_box4.png"
+        "progress_box5.png"
+        "progress_box6.png"
+        "splashx1.png"
+        "splashx2.png"
+        "splashx3.png"
+        "splashx4.png"
+        "splashx5.png"
+        "splashx6.png"
        )
 sha256sums=(SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
+            SKIP
             SKIP
             SKIP
             SKIP

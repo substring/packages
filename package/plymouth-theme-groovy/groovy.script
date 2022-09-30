@@ -1,18 +1,45 @@
-# This is an example plymouth plugin script
+Window.SetBackgroundTopColor(0.12, 0.20, 0.33); #RGB: 30,50,85
+Window.SetBackgroundBottomColor(0.06, 0.13, 0.21); #RGB: 15,33,64
 
-Window.SetBackgroundTopColor(0.234, 0.43, 0.705);
-Window.SetBackgroundBottomColor(0.16, 0.25, 0.44);
+display_width = Window.GetWidth();
+display_height = Window.GetHeight();
 
+screen_aspect = display_width / display_height;
+scale_x = 1;
+scale_y = 1;
+scale_image = 1;
 
-#logo.image = Image("special://logo");
-Splash = Image("splash.png");
-screen_width = Window.GetWidth() / 1.5;
-screen_height = screen_width /3; ### the height of the GroovyArcade splash screen is 1/3 of width
-resized_image = Splash.Scale(screen_width,screen_height);
-logo.image =  resized_image;
+if (screen_aspect > 1.0) # Horizontal
+  {
+    if (screen_aspect > 2.5) # SuperRes
+      {
+        scale_image = Math.Int(display_height / 240);
+        if ( scale_image < 1 ) scale_image = 1;
+        scale_x = Math.Int(display_width / 320) / scale_image;
+      }
+    else
+      scale_image = Math.Int(display_width / 320);
+  }
+else # Vertical
+  {
+    scale_image = Math.Int(display_width / 240);
+    if (screen_aspect < 0.4) # SuperRes
+        scale_y = Math.Int(display_height / 320) / scale_image;
+  }
 
+scale_x = Math.Clamp(scale_x, 1, 6);
+scale_y = Math.Clamp(scale_y, 1, 6);
+scale_image = Math.Clamp(scale_image, 1, 6);
+
+logo.image = Image("splashx" + scale_image + ".png");
+logo.image = logo.image.Scale(logo.image.GetWidth() * scale_x, logo.image.GetHeight() * scale_y);
 logo.sprite = Sprite(logo.image);
+
 logo.opacity_angle = 0;
+
+# Debug
+# text = Image.Text(display_width + " x " + display_height + " " + screen_aspect + " " + scale_x + ":" + scale_y + "@" + scale_image, 1, 1, 1, 1, "Monospace 18");
+# text_sprite = Sprite(text);
 
 fun refresh_callback ()
   {
@@ -23,8 +50,8 @@ fun refresh_callback ()
         opacity = (Math.Cos(logo.opacity_angle) + 1) / 2;
         opacity *= 1 - min_opacity;
         opacity += min_opacity;
-        logo.sprite.SetX (Window.GetX() + Window.GetWidth()  / 2 - logo.image.GetWidth()  / 2);
-        logo.sprite.SetY (Window.GetY() + Window.GetHeight() / 2 - logo.image.GetHeight() / 2);
+        logo.sprite.SetX (Window.GetX() + display_width  / 2 - logo.image.GetWidth()  / 2);
+        logo.sprite.SetY (Window.GetY() + display_height / 2 - logo.image.GetHeight() / 2);
         logo.sprite.SetOpacity (opacity);
       }
     else
@@ -34,7 +61,7 @@ fun refresh_callback ()
         logo.sprite.SetOpacity (1);
       }
   }
-  
+
 Plymouth.SetRefreshFunction (refresh_callback);
 
 #----------------------------------------- Dialogue --------------------------------
@@ -46,36 +73,36 @@ fun dialog_setup()
     local.box;
     local.lock;
     local.entry;
-    
+
     box.image = Image("box.png");
     lock.image = Image("lock.png");
     entry.image = Image("entry.png");
-    
+
     box.sprite = Sprite(box.image);
-    box.x = Window.GetX() + Window.GetWidth()  / 2 - box.image.GetWidth ()/2;
-    box.y = Window.GetY() + Window.GetHeight() / 2 - box.image.GetHeight()/2;
+    box.x = Window.GetX() + display_width  / 2 - box.image.GetWidth ()/2;
+    box.y = Window.GetY() + display_height / 2 - box.image.GetHeight()/2;
     box.z = 10000;
     box.sprite.SetPosition(box.x, box.y, box.z);
-    
+
     lock.sprite = Sprite(lock.image);
     lock.x = box.x + box.image.GetWidth()/2 - (lock.image.GetWidth() + entry.image.GetWidth()) / 2;
     lock.y = box.y + box.image.GetHeight()/2 - lock.image.GetHeight()/2;
     lock.z = box.z + 1;
     lock.sprite.SetPosition(lock.x, lock.y, lock.z);
-    
+
     entry.sprite = Sprite(entry.image);
     entry.x = lock.x + lock.image.GetWidth();
     entry.y = box.y + box.image.GetHeight()/2 - entry.image.GetHeight()/2;
     entry.z = box.z + 1;
     entry.sprite.SetPosition(entry.x, entry.y, entry.z);
-    
+
     global.dialog.box = box;
     global.dialog.lock = lock;
     global.dialog.entry = entry;
     global.dialog.bullet_image = Image("bullet.png");
     dialog_opacity (1);
   }
-    
+
 fun dialog_opacity(opacity)
   {
     dialog.box.sprite.SetOpacity (opacity);
@@ -123,26 +150,29 @@ Plymouth.SetDisplayPasswordFunction(display_password_callback);
 
 #----------------------------------------- Progress Bar --------------------------------
 
-progress_box.image = Image("progress_box.png");
+progress_box.image = Image("progress_box" + scale_image + ".png");
+progress_box.image = progress_box.image.Scale(progress_box.image.GetWidth() * scale_x, progress_box.image.GetHeight() * scale_y);
 progress_box.sprite = Sprite(progress_box.image);
 
-progress_box.x = Window.GetX() + Window.GetWidth() / 2 - progress_box.image.GetWidth() / 2;
-progress_box.y = Window.GetY() + Window.GetHeight() * 0.75 - progress_box.image.GetHeight() / 2;
+progress_box.x = Window.GetX() + display_width / 2 - progress_box.image.GetWidth() / 2;
+progress_box.y = Window.GetY() + display_height * 0.75 - progress_box.image.GetHeight() / 2;
 progress_box.sprite.SetPosition(progress_box.x, progress_box.y, 0);
 
 progress_bar.original_image = Image("progress_bar.png");
 progress_bar.sprite = Sprite();
 
-progress_bar.x = Window.GetX() + Window.GetWidth()  / 2 -        progress_bar.original_image.GetWidth() / 2;
-progress_bar.y = Window.GetY() + Window.GetHeight() / 2 * 1.5  - progress_box.image.GetHeight() / 2 + (progress_box.image.GetHeight() - progress_bar.original_image.GetHeight()) / 2;
+progress_bar.x = progress_box.x + 2 * scale_x * scale_image;
+progress_bar.y = progress_box.y + 2 * scale_y * scale_image;
+progress_bar.width = progress_box.image.GetWidth() - 4 * scale_x * scale_image;
+progress_bar.height = progress_box.image.GetHeight() - 4 * scale_y * scale_image;
 progress_bar.sprite.SetPosition(progress_bar.x, progress_bar.y, 1);
 
 fun progress_callback (duration, progress)
   {
-    if (progress_bar.image.GetWidth () != Math.Int (progress_bar.original_image.GetWidth () * progress))
+    if (progress_bar.image.GetWidth() != Math.Int(progress_bar.original_image.GetWidth() * progress))
       {
-        progress_bar.image = progress_bar.original_image.Scale(progress_bar.original_image.GetWidth(progress_bar.original_image) * progress, progress_bar.original_image.GetHeight());
-        progress_bar.sprite.SetImage (progress_bar.image);
+        progress_bar.image = progress_bar.original_image.Scale(progress_bar.width * progress, progress_bar.height);
+        progress_bar.sprite.SetImage(progress_bar.image);
       }
   }
 
