@@ -3,6 +3,7 @@
 
 # shellcheck disable=SC1091
 source include.sh
+# shellcheck disable=SC2153
 _output="$_OUTPUT"
 BUILD_DIR=/work/build
 built_packages="$_output/built_packages_$(date +%s%3N)"
@@ -47,8 +48,9 @@ check_if_download_or_build() {
     echo "Package name was determined as: $pkgname"
     for repo in $repos ; do
       # Remove repo name, match exact package name, convert to filename
+      # shellcheck disable=SC2086
       repo_package_name=$(pacman -Sl $repo | sed "s/^$repo //g" | grep "^$pkgname " | sed -E "s/$repo ([[:alnum:][:punct:]]+) ([[:alnum:][:punct:]]+)/\1-\2-$(uname -m).pkg.tar.zst/")
-      pkg_version=$(pacman -Sl $repo | grep "^$repo $pkgname" | cut -d ' ' -f 3)
+      pkg_version=$(pacman -Sl "$repo" | grep "^$repo $pkgname" | cut -d ' ' -f 3)
       if [[ -n $repo_package_name ]] && echo "$filename" | grep -q "$pkg_version" && sudo pacman -Sddw --noconfirm "$repo"/"$pkgname"; then
         echo "Found $pkgname in repo $repo may not have been downloaded from it, but it's here at last"
         repo_found="$repo"
@@ -230,16 +232,16 @@ build_single_package() {
   pkgname=${1#*/}
   if [[ $cmd_arg =~ ^aur/ ]] ; then
     # that's a AUR package, let's build it
-    build_aur_single "$pkgname"
-    [[ $? != 0 ]] && exit $?
+    build_aur_single "$pkgname" || exit "$?"
+    #[[ $? != 0 ]] && exit $?
   elif [[ $cmd_arg =~ ^groovy/ ]] ; then
     # that's a groovy package, let's build it
-    build_groovy_single "$pkgname"
-    [[ $? != 0 ]] && exit $?
+    build_groovy_single "$pkgname" || exit $?
+    #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package
-    build_native_single "$pkgname"
-    [[ $? != 0 ]] && exit $?
+    build_native_single "$pkgname" || exit $?
+    #[[ $? != 0 ]] && exit $?
   fi
   return 0
 }
