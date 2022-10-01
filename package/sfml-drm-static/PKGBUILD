@@ -1,7 +1,7 @@
 pkgname=sfml-drm-static
 pkgver=2.6.0
-pkgrel=1
-_commit=6f602745969fbcfecb6652b7d029f682ba86d3d2
+pkgrel=2
+_commit=7a6133e0d3fe2627531c04641ac81c629e92d343
 pkgdesc="A simple, fast, cross-platform, and object-oriented multimedia API"
 arch=('i686' 'x86_64')
 url="http://www.sfml-dev.org/"
