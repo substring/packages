@@ -676,7 +676,7 @@ index da2bf60228..06eb4757f4 100644
  } videocrt_switch_t;
  
 diff --git a/gfx/video_driver.c b/gfx/video_driver.c
-index 1222dec4e3..f55d574d12 100644
+index 1222dec4e3..d827ddb544 100644
 --- a/gfx/video_driver.c
 +++ b/gfx/video_driver.c
 @@ -410,7 +410,7 @@ video_driver_state_t *video_state_get_ptr(void)
