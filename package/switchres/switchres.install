@@ -45,11 +45,11 @@ upgrade_switchres_ini() {
 	cp /etc/switchres.ini.pacnew /tmp
 	while IFS='\n' read l ; do
 		param="$(echo "$l" | grep -oE '\w+' | head -1)"
-		val="$(echo "$l" | grep -oE '\w+' | tail -1)"
+		val="$(echo "$l" | sed "s/$param//" | tr -d ' \t')"
 		sed -i -E "s|^([[:space:]]*${param}[[:space:]]+).*|\1${val}|" /tmp/switchres.ini.pacnew
 	done < <(grep -v "^#" /etc/switchres.ini | grep -E '^[[:space:]]+\w+')
 	cp /etc/switchres.ini /etc/switchres.ini.bak
-	cp /tmp/switchres.ini.pacnew /etc/switchres.ini
+	sed 's/\r$//g' /tmp/switchres.ini.pacnew > /etc/switchres.ini
 	echo "switchres.ini and switchres.ini.pacnew have been merged"
 	echo "Removing /etc/switchres.ini.pacnew"
 	rm /etc/switchres.ini.pacnew /tmp/switchres.ini.pacnew

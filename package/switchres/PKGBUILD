@@ -1,6 +1,6 @@
 pkgname=switchres
 pkgver=2.0
-pkgrel=9
+pkgrel=10
 _commit=66c09e68d0dcad5cc397f886fef3a7f3b6276cf9
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
