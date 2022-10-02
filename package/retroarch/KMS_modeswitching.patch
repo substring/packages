@@ -1,8 +1,8 @@
 diff --git a/Makefile.common b/Makefile.common
-index 0313fbeaa0..a843d77f76 100644
+index bc377dca9a..acf7e5c914 100644
 --- a/Makefile.common
 +++ b/Makefile.common
-@@ -2317,6 +2317,8 @@ ifeq ($(HAVE_CRTSWITCHRES), 1)
+@@ -2326,6 +2326,8 @@ ifeq ($(HAVE_CRTSWITCHRES), 1)
           OBJ += $(DEPS_DIR)/switchres/custom_video_xrandr.o
           DEFINES += -DSR_WITH_XRANDR
        endif
@@ -127,10 +127,10 @@ index c31da657b9..38f671f88e 100644
      unsigned char (*sr_switch_to_mode)(int, int, double, unsigned char, sr_mode*);
      void (*sr_set_monitor)(const char*);
 diff --git a/gfx/drivers_context/drm_ctx.c b/gfx/drivers_context/drm_ctx.c
-index a8268cf964..a40078767e 100644
+index eeaa4a2687..995ab9d8cd 100644
 --- a/gfx/drivers_context/drm_ctx.c
 +++ b/gfx/drivers_context/drm_ctx.c
-@@ -116,47 +116,111 @@ typedef struct hdmi_timings
+@@ -115,47 +115,111 @@ typedef struct hdmi_timings
  static enum gfx_ctx_api drm_api           = GFX_CTX_NONE;
  static drmModeModeInfo gfx_ctx_crt_switch_mode;
  
@@ -272,7 +272,7 @@ index a8268cf964..a40078767e 100644
        return true;
     }
  
-@@ -167,6 +231,7 @@ static void drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
+@@ -166,6 +230,7 @@ static void drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
  {
     struct drm_fb *fb = (struct drm_fb*)data;
  
@@ -280,7 +280,7 @@ index a8268cf964..a40078767e 100644
     if (fb && fb->fb_id)
        drmModeRmFB(g_drm_fd, fb->fb_id);
  
-@@ -280,13 +345,16 @@ static bool gfx_ctx_drm_queue_flip(gfx_ctx_drm_data_t *drm)
+@@ -279,13 +344,16 @@ static bool gfx_ctx_drm_queue_flip(gfx_ctx_drm_data_t *drm)
     fb                = (struct drm_fb*)gbm_bo_get_user_data(drm->next_bo);
  
     if (!fb)
@@ -298,7 +298,7 @@ index a8268cf964..a40078767e 100644
     return false;
  }
  
-@@ -396,6 +464,7 @@ static void *gfx_ctx_drm_init(void *video_driver)
+@@ -395,6 +463,7 @@ static void *gfx_ctx_drm_init(void *video_driver)
     gfx_ctx_drm_data_t *drm              = (gfx_ctx_drm_data_t*)
        calloc(1, sizeof(gfx_ctx_drm_data_t));
     unsigned video_monitor_index         = settings->uints.video_monitor_index;
@@ -306,7 +306,7 @@ index a8268cf964..a40078767e 100644
  
     if (!drm)
        return NULL;
-@@ -489,6 +558,7 @@ error:
+@@ -488,6 +557,7 @@ error:
  static EGLint *gfx_ctx_drm_egl_fill_attribs(
        gfx_ctx_drm_data_t *drm, EGLint *attr)
  {
@@ -314,7 +314,7 @@ index a8268cf964..a40078767e 100644
     switch (drm_api)
     {
  #ifdef EGL_KHR_create_context
-@@ -560,6 +630,7 @@ static bool gbm_choose_xrgb8888_cb(void *display_data, EGLDisplay dpy, EGLConfig
+@@ -559,6 +629,7 @@ static bool gbm_choose_xrgb8888_cb(void *display_data, EGLDisplay dpy, EGLConfig
  {
     EGLint r, g, b, id;
     (void)display_data;
@@ -322,7 +322,7 @@ index a8268cf964..a40078767e 100644
  
     /* Makes sure we have 8 bit color. */
     if (!egl_get_config_attrib(dpy, config, EGL_RED_SIZE, &r))
-@@ -588,6 +659,7 @@ static bool gbm_choose_xrgb8888_cb(void *display_data, EGLDisplay dpy, EGLConfig
+@@ -587,6 +658,7 @@ static bool gbm_choose_xrgb8888_cb(void *display_data, EGLDisplay dpy, EGLConfig
  
  static bool gfx_ctx_drm_egl_set_video_mode(gfx_ctx_drm_data_t *drm)
  {
@@ -330,7 +330,7 @@ index a8268cf964..a40078767e 100644
     const EGLint *attrib_ptr    = NULL;
     static const EGLint egl_attribs_gl[] = {
        DRM_EGL_ATTRIBS_BASE,
-@@ -702,7 +774,6 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+@@ -701,7 +773,6 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
  
     if (!drm)
        return false;
@@ -338,7 +338,7 @@ index a8268cf964..a40078767e 100644
     frontend_driver_install_signal_handler();
  
     /* If we use black frame insertion,
-@@ -718,6 +789,7 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+@@ -717,6 +788,7 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
     else
     {
        /* check if custom hdmi timings were asked */
@@ -346,7 +346,7 @@ index a8268cf964..a40078767e 100644
        if(gfx_ctx_crt_switch_mode.vdisplay > 0)
        {
           RARCH_LOG("[DRM]: custom mode requested: %s\n", gfx_ctx_crt_switch_mode.name);
-@@ -754,7 +826,6 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+@@ -753,7 +825,6 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
           }
        }
     }
@@ -354,7 +354,7 @@ index a8268cf964..a40078767e 100644
     if (!g_drm_mode)
     {
        RARCH_ERR("[KMS/EGL]: Did not find suitable video mode for %u x %u.\n",
-@@ -765,6 +836,15 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
+@@ -764,6 +835,15 @@ static bool gfx_ctx_drm_set_video_mode(void *data,
     drm->fb_width    = g_drm_mode->hdisplay;
     drm->fb_height   = g_drm_mode->vdisplay;
  
@@ -370,7 +370,7 @@ index a8268cf964..a40078767e 100644
     /* Create GBM surface. */
     drm->gbm_surface = gbm_surface_create(
           drm->gbm_dev,
-@@ -868,6 +948,7 @@ static enum gfx_ctx_api gfx_ctx_drm_get_api(void *data) { return drm_api; }
+@@ -867,6 +947,7 @@ static enum gfx_ctx_api gfx_ctx_drm_get_api(void *data) { return drm_api; }
  static bool gfx_ctx_drm_bind_api(void *video_driver,
        enum gfx_ctx_api api, unsigned major, unsigned minor)
  {
@@ -378,7 +378,7 @@ index a8268cf964..a40078767e 100644
     drm_api     = api;
  #ifdef HAVE_EGL
     g_egl_major = major;
-@@ -912,6 +993,7 @@ static bool gfx_ctx_drm_bind_api(void *video_driver,
+@@ -911,6 +992,7 @@ static bool gfx_ctx_drm_bind_api(void *video_driver,
  
  static void gfx_ctx_drm_bind_hw_render(void *data, bool enable)
  {
@@ -386,7 +386,7 @@ index a8268cf964..a40078767e 100644
     gfx_ctx_drm_data_t *drm     = (gfx_ctx_drm_data_t*)data;
  
  #ifdef HAVE_EGL
-@@ -921,6 +1003,7 @@ static void gfx_ctx_drm_bind_hw_render(void *data, bool enable)
+@@ -920,6 +1002,7 @@ static void gfx_ctx_drm_bind_hw_render(void *data, bool enable)
  
  static uint32_t gfx_ctx_drm_get_flags(void *data)
  {
@@ -394,7 +394,7 @@ index a8268cf964..a40078767e 100644
     uint32_t             flags = 0;
     gfx_ctx_drm_data_t    *drm = (gfx_ctx_drm_data_t*)data;
  
-@@ -984,4 +1067,4 @@ const gfx_ctx_driver_t gfx_ctx_drm = {
+@@ -983,4 +1066,4 @@ const gfx_ctx_driver_t gfx_ctx_drm = {
     gfx_ctx_drm_bind_hw_render,
     NULL,
     NULL
@@ -402,7 +402,7 @@ index a8268cf964..a40078767e 100644
 +};
 \ No newline at end of file
 diff --git a/gfx/video_crt_switch.c b/gfx/video_crt_switch.c
-index 30781beeba..2005346855 100644
+index 4a7a6bbdca..6ad785e8c8 100644
 --- a/gfx/video_crt_switch.c
 +++ b/gfx/video_crt_switch.c
 @@ -33,7 +33,7 @@
@@ -414,7 +414,7 @@ index 30781beeba..2005346855 100644
  #include "../deps/switchres/switchres_wrapper.h"
  static sr_mode srm;
  #endif
-@@ -57,7 +57,7 @@ static void crt_rpi_switch(videocrt_switch_t *p_switch,int width, int height, fl
+@@ -59,7 +59,7 @@ static void crt_rpi_switch(videocrt_switch_t *p_switch,int width, int height, fl
  static bool crt_check_for_changes(videocrt_switch_t *p_switch)
  {
     if ((p_switch->ra_tmp_height != p_switch->ra_core_height) ||
@@ -423,7 +423,7 @@ index 30781beeba..2005346855 100644
         (p_switch->center_adjust != p_switch->tmp_center_adjust||
          p_switch->porch_adjust  != p_switch->tmp_porch_adjust ) ||
         (p_switch->ra_core_hz    != p_switch->ra_tmp_core_hz))
-@@ -91,11 +91,11 @@ static void crt_aspect_ratio_switch(
+@@ -93,11 +93,11 @@ static void crt_aspect_ratio_switch(
           (float)p_switch->fly_aspect);
     RARCH_LOG("[CRT]: Setting Video Screen Size to: %dx%d \n",
           width, height);
@@ -437,7 +437,7 @@ index 30781beeba..2005346855 100644
  }
  
  static void set_aspect(videocrt_switch_t *p_switch,
-@@ -141,26 +141,40 @@ static void set_aspect(videocrt_switch_t *p_switch,
+@@ -143,26 +143,40 @@ static void set_aspect(videocrt_switch_t *p_switch,
     crt_aspect_ratio_switch(p_switch, scaled_width, scaled_height, srm_width, srm_height);
  }
  
@@ -483,7 +483,7 @@ index 30781beeba..2005346855 100644
  #endif
  
        switch (crt_mode)
-@@ -190,14 +204,14 @@ static bool crt_sr2_init(videocrt_switch_t *p_switch,
+@@ -192,14 +206,14 @@ static bool crt_sr2_init(videocrt_switch_t *p_switch,
        if (monitor_index+1 > 0)
        {
           RARCH_LOG("[CRT]: RA Monitor Index Manual: %s\n", &index[0]);
@@ -500,7 +500,7 @@ index 30781beeba..2005346855 100644
           RARCH_LOG("[CRT]: SR Disp Monitor Index Auto: Auto  \n");
        }
  
-@@ -209,10 +223,16 @@ static bool crt_sr2_init(videocrt_switch_t *p_switch,
+@@ -211,10 +225,16 @@ static bool crt_sr2_init(videocrt_switch_t *p_switch,
           content_dir[0] = '\0';
        }
     }
@@ -519,7 +519,7 @@ index 30781beeba..2005346855 100644
        return true;
     }
  
-@@ -236,11 +256,14 @@ static void switch_res_crt(
+@@ -238,11 +258,14 @@ static void switch_res_crt(
     int w                   = native_width;
     int h                   = height;
     double rr               = p_switch->ra_core_hz;
@@ -536,7 +536,7 @@ index 30781beeba..2005346855 100644
           to make any adjustments */
        if (crt_switch_core_name())
           strlcpy(current_core_name, crt_switch_core_name(),
-@@ -252,10 +275,10 @@ static void switch_res_crt(
+@@ -254,10 +277,10 @@ static void switch_res_crt(
              path_get(RARCH_PATH_CONTENT),
              sizeof(current_content_dir));
  
@@ -549,7 +549,7 @@ index 30781beeba..2005346855 100644
              we update the current values and make adjustments */
           strlcpy(core_name, current_core_name, sizeof(core_name));
           strlcpy(content_dir, current_content_dir, sizeof(content_dir));
-@@ -264,7 +287,34 @@ static void switch_res_crt(
+@@ -266,7 +289,34 @@ static void switch_res_crt(
           crt_check_hh_core(p_switch);
        }
  
@@ -585,7 +585,7 @@ index 30781beeba..2005346855 100644
           RARCH_LOG("[CRT]: SR failed to switch mode");
        p_switch->sr_core_hz = srm.refresh;
  
-@@ -275,7 +325,7 @@ static void switch_res_crt(
+@@ -277,7 +327,7 @@ static void switch_res_crt(
     {
        set_aspect(p_switch, width , height, width, height,
              (float)1, (float)1, false);
@@ -594,7 +594,7 @@ index 30781beeba..2005346855 100644
        video_driver_apply_state_changes();
     }
  }
-@@ -293,9 +343,9 @@ void crt_destroy_modes(videocrt_switch_t *p_switch)
+@@ -295,9 +345,9 @@ void crt_destroy_modes(videocrt_switch_t *p_switch)
  static void crt_check_hh_core(videocrt_switch_t *p_switch)
  {
     p_switch->hh_core = false;
@@ -606,7 +606,7 @@ index 30781beeba..2005346855 100644
  static void crt_fix_hh_res(videocrt_switch_t *p_switch,
        int native_width, int width,  int height,
        int crt_mode, int monitor_index, int super_width)
-@@ -378,7 +428,7 @@ void crt_switch_res_core(
+@@ -380,7 +430,7 @@ void crt_switch_res_core(
        }
  
     }
@@ -615,7 +615,7 @@ index 30781beeba..2005346855 100644
  }
  
  void crt_adjust_sr_ini(videocrt_switch_t *p_switch)
-@@ -388,8 +438,8 @@ void crt_adjust_sr_ini(videocrt_switch_t *p_switch)
+@@ -390,8 +440,8 @@ void crt_adjust_sr_ini(videocrt_switch_t *p_switch)
  
     if (p_switch->sr2_active)
     {
@@ -626,16 +626,16 @@ index 30781beeba..2005346855 100644
           loaded for another core */
        if (ini_overrides_loaded)
        {
-@@ -400,7 +450,7 @@ void crt_adjust_sr_ini(videocrt_switch_t *p_switch)
+@@ -402,7 +452,7 @@ void crt_adjust_sr_ini(videocrt_switch_t *p_switch)
  
-       if (strlen(core_name) > 0)
+       if (core_name[0] != '\0')
        {
 -         /* Then we look for config/Core Name/Core Name.switchres.ini 
 +         /* Then we look for config/Core Name/Core Name.switchres.ini
              and load it, overriding any variables it specifies */
           config_directory[0] = '\0';
           fill_pathname_application_special(config_directory,
-@@ -471,21 +521,21 @@ static void crt_rpi_switch(videocrt_switch_t *p_switch,
+@@ -473,21 +523,21 @@ static void crt_rpi_switch(videocrt_switch_t *p_switch,
     /* set core refresh from hz */
     video_monitor_set_refresh_rate(hz);
  
@@ -676,10 +676,10 @@ index da2bf60228..06eb4757f4 100644
  } videocrt_switch_t;
  
 diff --git a/gfx/video_driver.c b/gfx/video_driver.c
-index c5f974a4ce..bf9634a970 100644
+index 1222dec4e3..f55d574d12 100644
 --- a/gfx/video_driver.c
 +++ b/gfx/video_driver.c
-@@ -405,7 +405,7 @@ video_driver_state_t *video_state_get_ptr(void)
+@@ -410,7 +410,7 @@ video_driver_state_t *video_state_get_ptr(void)
  
  void crt_switch_driver_refresh(void)
  {
