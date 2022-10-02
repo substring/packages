@@ -62,7 +62,7 @@ before_script:
 
 
 bash_lint:
-  image: koalaman/shellcheck-alpine
+  image: koalaman/shellcheck:stable
   stage: prechecks
   allow_failure: true
   when: always
