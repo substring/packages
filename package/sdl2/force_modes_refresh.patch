@@ -51,7 +51,7 @@ index 95198fb49..6e8410470 100644
  }
  
  int
-@@ -1147,7 +1164,24 @@ KMSDRM_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
+@@ -1147,7 +1164,14 @@ KMSDRM_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode)
  
      /* Take note of the new mode to be set, and leave the CRTC modeset pending
         so it's done in SwapWindow. */
@@ -59,19 +59,9 @@ index 95198fb49..6e8410470 100644
 +    /* Browse all modes, since SDL_Add_Display doesn't update the driver data */
 +    //dispdata->fullscreen_mode = conn->modes[modedata->mode_index];
 +    for (i = 0; i < conn->count_modes; i++) {
-+        printf("CONN: %dx%d@%d index %d vs %dx%d@%d index %d\n",
-+            conn->modes[i].hdisplay,
-+            conn->modes[i].vdisplay,
-+            conn->modes[i].vrefresh,
-+            i,
-+            mode->w,
-+            mode->h,
-+            mode->refresh_rate,
-+            modedata->mode_index);
 +        if (mode->w != conn->modes[i].hdisplay || mode->h != conn->modes[i].vdisplay || mode->refresh_rate != conn->modes[i].vrefresh)
 +                continue;
 +        dispdata->fullscreen_mode = conn->modes[i];
-+        printf("Assigned mode\n");
 +        break;
 +    }
  
