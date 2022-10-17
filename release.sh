@@ -34,7 +34,8 @@ $ghr release create "$tag" \
 $ghr release create "$tag" \
     -R "$GITHUB_USER"/"$GITHUB_REPO" \
     --title "$release_name" \
-    --notes "automatic build"
+    --notes "Automatic build" \
+    --prerelease=false
   fi
 }
 
@@ -88,7 +89,7 @@ done
 # working once last files have been uploaded
 #
 publish_release() {
-echo "Publihing release $tag"
+echo "Publishing release $tag"
 if [[ $tag != "stable" ]] ; then
 $ghr edit \
     --tag "$tag" \
