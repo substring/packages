@@ -6,5 +6,7 @@ patch -Np1 -d /work/build/retroarch < /work/package/retroarch/patch/PKGBUILD.pat
 [[ $? -gt 0 ]] && exit 1
 sed -i \
   -e "s/pkgrel=.*/pkgrel=${pkgrel}/" \
+  -e "s/pkgver()/ppkkggvveerr()/" \
   /work/build/retroarch/repos/community-x86_64/PKGBUILD || exit 1
 ( cd /work/build/retroarch/repos/community-x86_64 && makepkg -g >> PKGBUILD )
+cat /work/build/retroarch/repos/community-x86_64/PKGBUILD
