@@ -33,7 +33,7 @@ before_script:
     - cp -R package /work
     - cp groovy-ux-repo.conf /etc/pacman.d
     - grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
-    - test $(curl -L -o /dev/null -s -w "%{http_code}" https://github.com/substring/packages/releases/download/testing/groovyarcade-testing.db) -eq "200"  || sed -Ei '5,7s/^(.*)/#\1/g' /etc/pacman.d/groovy-ux-repo.conf
+    - test $(curl -L -o /dev/null -s -w "%{http_code}" https://github.com/substring/packages/releases/download/testing/groovyarcade-testing.db) -eq "200" || sed -Ei '1,3s/^(.*)/#\1/g' /etc/pacman.d/groovy-ux-repo.conf
     - pacman -Sy || true
     - useradd -ms /bin/bash -d /work build
     - echo 'build ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user

@@ -43,7 +43,8 @@ COPY settings /work
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
 
 #Check if the testing repo exists. If not disable it
-RUN [[ $(curl -L -o /dev/null -s -w "%{http_code}\n" https://github.com/substring/packages/releases/download/testing/groovyarcade-testing.db) == 200 ]] || sed -Ei '5,7s/^(.*)/#\1/g' /etc/pacman.d/groovy-ux-repo.conf
+RUN [[ $(curl -L -o /dev/null -s -w "%{http_code}\n" https://github.com/substring/packages/releases/download/testing/groovyarcade-testing.db) == 200 ]] || sed -Ei '1,3s/^(.*)/#\1/g' /etc/pacman.d/groovy-ux-repo.conf
+RUN cat /etc/pacman.d/groovy-ux-repo.conf
 
 RUN pacman -Syu --noconfirm
 
