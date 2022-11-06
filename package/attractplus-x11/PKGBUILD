@@ -1,7 +1,7 @@
 pkgname=attractplus-x11
 pkgver=2.6.2
-pkgrel=6
-_commit=0feb181c33a13d55b526bff132ac69c56a1ef0b1
+pkgrel=7
+_commit=577fe9fb2e19040a6aee2db26b1c723aae125533
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
