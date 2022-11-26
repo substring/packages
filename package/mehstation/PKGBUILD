@@ -2,7 +2,7 @@
 # source: https://remy.io/files/PKGBUILDs/mehstation/PKGBUILD
 pkgname=mehstation
 pkgver=1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Multiplatform front-end for emulation / retro / TV box.".
 arch=('i686' 'x86_64')
 depends=(sdl2_ttf sdl2_image ffmpeg open_al sqlite)
@@ -10,7 +10,7 @@ url="https://github.com/remeh/mehstation"
 license=('MIT')
 groups=()
 depends=()
-makedepends=('cmake' 'git' 'sdl2' 'sdl2_image' 'sdl2_ttf' 'ffmpeg' 'sqlite' 'glib2' 'openal')
+makedepends=('cmake' 'git' 'sdl2' 'sdl2_image' 'sdl2_ttf' 'ffmpeg4.4' 'sqlite' 'glib2' 'openal')
 install=
 source=("git://github.com/remeh/mehstation.git")
 md5sums=('SKIP')
