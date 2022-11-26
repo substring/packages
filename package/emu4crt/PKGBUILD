@@ -19,6 +19,8 @@ depends=('libsndfile' 'sdl2' 'zlib' 'alsa-lib' 'switchres')
 makedepends=('mesa' 'glu')
 source=(https://github.com/psakhis/emu4crt/releases/download/${pkgver}-${subver}/mednafen-${pkgver}-emu4crt-${subverr}.tar.xz)
 md5sums=('SKIP')
+provides=('mednafen')
+conflicts=('mednafen')
 
 build() {
   cd ${srcname}
