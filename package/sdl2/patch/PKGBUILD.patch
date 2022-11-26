@@ -2,7 +2,7 @@ diff --git a/repos/extra-x86_64/PKGBUILD b/repos/extra-x86_64/PKGBUILD
 index 4f799db39f4..1065c74796f 100644
 --- a/repos/extra-x86_64/PKGBUILD
 +++ b/repos/extra-x86_64/PKGBUILD
-@@ -15,11 +15,24 @@ optdepends=('alsa-lib: ALSA audio driver'
+@@ -15,11 +15,23 @@ optdepends=('alsa-lib: ALSA audio driver'
              'jack: JACK audio driver'
              'pipewire: PipeWire audio driver'
              'libdecor: Wayland client decorations')
@@ -11,7 +11,7 @@ index 4f799db39f4..1065c74796f 100644
 +        "force_modes_refresh.patch"
 +        "sdl_fix_udev_bug.patch"
 +        "sdl_restore_crtc_at_DestroyWindow.patch")
- sha512sums=('6f3ce5c4121a17d4e85a087c9010fdff37eb4e381517dc0d64fff955cf7041016aa1f37ac2f14a335bfaac13cb92031431eb31bfa0f00a6827c177b5a671f841'
+ sha512sums=('b4379140399e2248b28c4fe36ba6bb142cd047014c3cfc6fd2c0fee7110ad28af6553f24ca4ccf4996165940de127aafe8d744b09bea9d5684ce8244697996bf'
 +            'SKIP'
 +            'SKIP'
 +            'SKIP'
@@ -21,7 +21,6 @@ index 4f799db39f4..1065c74796f 100644
 +prepare() {
 +  cd SDL2-${pkgver}
 +  patch -Np1 -i "$srcdir"/force_modes_refresh.patch
-+  patch -Np1 -i "$srcdir"/sdl_fix_udev_bug.patch
 +  patch -Np1 -i "$srcdir"/sdl_restore_crtc_at_DestroyWindow.patch
 +}
 +
