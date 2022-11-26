@@ -9,4 +9,3 @@ sed -i \
   -e "s/pkgver()/ppkkggvveerr()/" \
   /work/build/retroarch/repos/community-x86_64/PKGBUILD || exit 1
 ( cd /work/build/retroarch/repos/community-x86_64 && makepkg -g >> PKGBUILD )
-cat /work/build/retroarch/repos/community-x86_64/PKGBUILD
