@@ -1,7 +1,7 @@
 pkgname=sfml-static
 pkgver=2.6.0
 pkgrel=2
-_commit=7a6133e0d3fe2627531c04641ac81c629e92d343
+_commit=4b0cb47359b9961b7332da61709dd1113111f39f
 pkgdesc="A simple, fast, cross-platform, and object-oriented multimedia API"
 arch=('i686' 'x86_64')
 url="http://www.sfml-dev.org/"
