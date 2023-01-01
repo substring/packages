@@ -1,24 +1,24 @@
 pkgname=drminfo
-pkgver=2.3.0
+pkgver=2.4.0
 pkgrel=1
 pkgdesc="Small utility to dump info about DRM devices"
-url="https://github.com/ascent12/drm_info"
+url="https://gitlab.freedesktop.org/emersion/drm_info"
 license=(custom)
 arch=(x86_64)
-source=("https://github.com/ascent12/drm_info/archive/refs/tags/v${pkgver}.tar.gz")
+source=("https://gitlab.freedesktop.org/emersion/drm_info/-/archive/v${pkgver}/drm_info-v${pkgver}.tar.gz")
 sha256sums=(SKIP)
 depends=('libdrm' 'json-c' 'pciutils')
 makedepends=('meson' 'ninja')
 
 build() {
   ls -l
-  cd "drm_info-${pkgver}"
+  cd "drm_info-v${pkgver}"
   meson -Dprefix="$pkgdir"/usr/local build
   cd build
   ninja
 }
 
 package() {
-  cd "drm_info-${pkgver}"/build
+  cd "drm_info-v${pkgver}"/build
   ninja install
 }
