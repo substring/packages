@@ -17,3 +17,4 @@ vi-vim-symlink
 #sfml-git
 systemd-boot-pacman-hook
 upd72020x-fw
+game-devices-udev
