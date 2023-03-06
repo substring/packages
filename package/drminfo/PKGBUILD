@@ -1,12 +1,12 @@
 pkgname=drminfo
-pkgver=2.4.0
+pkgver=2.5.0
 pkgrel=1
 pkgdesc="Small utility to dump info about DRM devices"
 url="https://gitlab.freedesktop.org/emersion/drm_info"
 license=(custom)
 arch=(x86_64)
 source=("https://gitlab.freedesktop.org/emersion/drm_info/-/archive/v${pkgver}/drm_info-v${pkgver}.tar.gz")
-sha256sums=(SKIP)
+sha256sums=('b645eb77392f1d7f23955bea53af92808c43652b2457c50538297078059eba80')
 depends=('libdrm' 'json-c' 'pciutils')
 makedepends=('meson' 'ninja')
 
