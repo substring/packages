@@ -1,6 +1,6 @@
 pkgname=attractplus-x11
 pkgver=2.6.2
-pkgrel=8
+pkgrel=9
 _commit=5477a8e6b4d30346713aa26e15282909a056413f
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
