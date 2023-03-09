@@ -11,7 +11,7 @@ index 4f799db39f4..1065c74796f 100644
 +        "force_modes_refresh.patch"
 +        "sdl_fix_udev_bug.patch"
 +        "sdl_restore_crtc_at_DestroyWindow.patch")
- sha512sums=('26c10fe004e47a498878ff2aa80bab7f57798d6b0f950b085409818d4c758010be7b49f5e0f43dd0afe2b9d18f94ad52d1e212a1d55505ce6d7fcc371fdda7d8'
+ sha512sums=('138f52a23d796803c450722c8a4db8226214522e99f1e5ae657e2b28eb45abf0c81c9c3df9ab16f1a07d59722ed9415d64dd04332ff040cdfbbc0329f0d05ce4'
 +            'SKIP'
 +            'SKIP'
 +            'SKIP'
