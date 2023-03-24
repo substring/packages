@@ -15,11 +15,10 @@ index 27e94b21590f..7314ef94cd2a 100644
  
  pkgver() {
    cd RetroArch
-@@ -73,6 +75,8 @@ pkgver() {
+@@ -73,6 +75,7 @@ pkgver() {
  prepare() {
    cd RetroArch
    patch -Np1 -i ../retroarch-config.patch
-+  dos2unix gfx/video_driver.c
 +  patch -Np1 < ../KMS_modeswitching.patch
    git cherry-pick -n 685948368e6b28b97e1b91bdfe5921519359a033 # FS#66843
  }
