@@ -1,25 +1,13 @@
 diff --git a/repos/community-x86_64/PKGBUILD b/repos/community-x86_64/PKGBUILD
-index 27e94b21590f..7314ef94cd2a 100644
+index 537f1ff9fb8b..ad735cb9f120 100644
 --- a/repos/community-x86_64/PKGBUILD
 +++ b/repos/community-x86_64/PKGBUILD
-@@ -61,9 +61,11 @@ _tag=9b282aa742b6c3d2f2925ae5a12e2cd7c6b6ad38
+@@ -59,7 +59,7 @@ optdepends=(
+   'wayland: Wayland support'
+ )
+ backup=(etc/retroarch.cfg)
+-_tag=6616b807edea5b56683e9fbca8b003b436c22b13
++_tag=f24893bcb139e98cfbf2da768a6509d9bad5eb08
  source=(
    git+https://github.com/libretro/RetroArch.git#tag=${_tag}
    retroarch-config.patch
-+  KMS_modeswitching.patch
- )
- b2sums=('SKIP'
--        '5ecbe57126c7f9b66bdf189f0af2f1cec031cb68ea85bb9609847ba9beb0e720c902cd3330d7c286901a73e6c2e272c3f04166cf9a47bb6f80097f19dde8ce3a')
-+        '5ecbe57126c7f9b66bdf189f0af2f1cec031cb68ea85bb9609847ba9beb0e720c902cd3330d7c286901a73e6c2e272c3f04166cf9a47bb6f80097f19dde8ce3a'
-+        'SKIP')
- 
- pkgver() {
-   cd RetroArch
-@@ -73,6 +75,7 @@ pkgver() {
- prepare() {
-   cd RetroArch
-   patch -Np1 -i ../retroarch-config.patch
-+  patch -Np1 --binary < ../KMS_modeswitching.patch
-   git cherry-pick -n 685948368e6b28b97e1b91bdfe5921519359a033 # FS#66843
- }
- 
