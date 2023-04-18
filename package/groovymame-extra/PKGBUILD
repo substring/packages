@@ -1,5 +1,5 @@
 pkgname=groovymame-extra
-pkgver=0.252
+pkgver=0.253
 pkgrel=1
 pkgdesc="GroovyMame extra files"
 arch=('any')
@@ -11,13 +11,9 @@ makedepends=('p7zip')
 source=("https://www.mameworld.info/mameinfo/download/Mameinfo0${_mamever}.zip"
         "https://www.arcade-history.com/dats/historyxml${_mamever}.zip"
         "https://github.com/mamedev/mame/releases/download/mame0${_mamever}/mame0${_mamever}lx.zip"
-        "https://www.progettosnaps.net/download/?tipo=catver&file=pS_CatVer_${_mamever}.zip"
-        "https://www.progettosnaps.net/download/?tipo=series&file=pS_Series_${_mamever}.zip"
-        "https://www.progettosnaps.net/download/?tipo=languages&file=pS_Languages_${_mamever}.zip"
+        "https://www.progettosnaps.net/download/?tipo=support_pack&file=/support/packs/pS_SupportFiles_${_mamever}.zip"
         "http://nplayers.arcadebelgium.be/files/nplayers${_nplayers}.zip")
 sha256sums=(SKIP
-            SKIP
-            SKIP
             SKIP
             SKIP
             SKIP
@@ -33,8 +29,8 @@ package() {
   install -Dm755 history.xml "${pkgdir}"/usr/share/mame/dat/history.dat
   install -Dm755 mameinfo.dat "${pkgdir}"/usr/share/mame/dat/mameinfo.dat
   install -Dm755 mame0${_mamever}.xml "${pkgdir}"/usr/share/mame/dat/mame.dat
-  install -Dm755 catver.ini "${pkgdir}"/usr/share/mame/dat/catver.ini
-  install -Dm755 folders/series.ini "${pkgdir}"/usr/share/mame/dat/series.ini
+  install -Dm755 CatVer/catver.ini "${pkgdir}"/usr/share/mame/dat/catver.ini
+  install -Dm755 Series/series.ini "${pkgdir}"/usr/share/mame/dat/series.ini
+  install -Dm755 Languages/languages.ini "${pkgdir}"/usr/share/mame/dat/languages.ini
   install -Dm755 nplayers.ini "${pkgdir}"/usr/share/mame/dat/nplayers.ini
-  install -Dm755 folders/languages.ini "${pkgdir}"/usr/share/mame/dat/languages.ini
 }
