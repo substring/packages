@@ -21,7 +21,7 @@
 ## arg 1:  the new package version
 ## arg 2:  the old package version
 post_upgrade() {
-	echo "Updating attractplus-kms from $2 to $1 ..."
+	echo "Updating attractplus from $2 to $1 ..."
 	/opt/gasetup/gasetup.sh -p interactive -n attract "$2" "$1"
 }
 
