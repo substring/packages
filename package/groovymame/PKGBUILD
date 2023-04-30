@@ -4,25 +4,23 @@
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
 pkgname=(groovymame groovymame-tools)
-pkgver=0.253
+pkgver=0.254
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=002r
+_switchresver=002s
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
 makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr)
 source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
         "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2"
-         mame.sh mame.desktop mame.svg
-        "https://raw.githubusercontent.com/archlinux/svntogit-community/packages/mame/trunk/lua-no-cpp.patch")
+         mame.sh mame.desktop mame.svg)
 sha256sums=(SKIP
             SKIP
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
             '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
-            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
-            '7febeab1d8a26079ae80b53118f1ee6ceb647e8ce3e3a1e95757d0f62133c728')
+            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
 options=(!debug !lto) # debug build fails
 
 prepare() {
@@ -30,8 +28,8 @@ prepare() {
 
 # Use system libraries
   sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
-# Don't expect C++ LUA
-  patch -p1 < ../lua-no-cpp.patch
+# Use C++ LUA
+  sed -e 's|ext_lib("lua")|ext_lib("lua++")|' -i scripts/src/main.lua -i scripts/src/3rdparty.lua
 }
 
 build() {
