@@ -4,8 +4,8 @@ index 33acb5e9eb3..447fbef9caa 100644
 +++ b/linux/repos/core-x86_64/PKGBUILD
 @@ -17,6 +17,11 @ _srcname=archlinux-linux
    source=(
-   "$_srcname::git+https://git.archlinux.org/linux.git?signed#tag=v$_srcver"
-   config         # the main kernel config file
+   "$_srcname::git+https://github.com/archlinux/linux?signed#tag=$_srctag"
+   config  # the main kernel config file
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_linux_15khz.patch
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_linux_15khz_interlaced_mode_fix.patch
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/03_linux_15khz_dcn1_dcn2_interlaced_mode_fix.patch
@@ -13,4 +13,4 @@ index 33acb5e9eb3..447fbef9caa 100644
 +  https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/05_linux_switchres_kms_drm_modesetting.patch
  )
  validpgpkeys=(
-   'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
+   ABAF11C65A2970B130ABE3C479BE3E4300411886  # Linus Torvalds
