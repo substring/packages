@@ -117,6 +117,7 @@ do_the_job() {
 
   # Copy required patch files that would be used in PKGBUILD
   # shellcheck disable=SC2046,SC2014
+  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \)
   find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   # Use the prepatch shell if it exists
@@ -163,8 +164,7 @@ do_the_job() {
 build_native_single() {
   package="$1"
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
-  asp update "$package"
-  asp checkout "$package"
+  pkgctl repo clone --protocol=https "$package"
   do_the_job "$package" || exit 1
 }
 
