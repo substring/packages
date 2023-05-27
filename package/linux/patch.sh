@@ -1,11 +1,11 @@
-patch -Np2 -d /work/build/linux < /work/package/linux/patch/PKGBUILD.patch
+patch -tNp4 -d /work/build/linux < /work/package/linux/patch/PKGBUILD.patch
 [[ $? -gt 0 ]] && exit 1
-sed -i "s/# CONFIG_EFI_HANDOVER_PROTOCOL is not set/CONFIG_EFI_HANDOVER_PROTOCOL=y/" /work/build/linux/repos/core-x86_64/config || exit 1
+sed -i "s/# CONFIG_EFI_HANDOVER_PROTOCOL is not set/CONFIG_EFI_HANDOVER_PROTOCOL=y/" /work/build/linux/config || exit 1
 sed -i \
 -e '/pkgver=.*/a _kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"' \
 -re 's/pkgbase=linux.*/pkgbase=linux-15khz/' \
-/work/build/linux/repos/core-x86_64/PKGBUILD || exit 1
-( cd /work/build/linux/repos/core-x86_64 && makepkg -g >> PKGBUILD )
+/work/build/linux/PKGBUILD || exit 1
+( cd /work/build/linux/ && makepkg -g >> PKGBUILD )
 
 # Find the current pkgrel
 #pkgrel="$(egrep "^pkgrel=" /work/build/linux/repos/core-x86_64/PKGBUILD | cut -d '=' -f 2)"
