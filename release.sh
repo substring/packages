@@ -101,6 +101,8 @@ $ghr edit \
     --tag "$tag" \
     --name "$tag" \
     --pre-release=false \
+    --draft=false \
+    --latest \
     --description "Automatic build for $(date +"%Y-%m-%d %T") update" || cancel_and_exit
 fi
 }
