@@ -170,14 +170,6 @@ dkms:native:dev:
      - longOps
 
 
-build:sfml-attract:dev:
-  stage: build
-  <<: *notmaster
-  variables:
-    MAKEPKG_ARGS: "-o"
-  <<: *buildpackages
-
-
 build:linux:
   stage: build
   <<: *onlymasterortags
@@ -209,14 +201,6 @@ build:aur:
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-a"
-  <<: *buildpackages
-
-
-build:sfml-attract:
-  stage: build
-  <<: *onlymasterortags
-  variables:
-    MAKEPKG_ARGS: "-o"
   <<: *buildpackages
 
 

@@ -1,21 +1,21 @@
 pkgname=attractplus-kms
-pkgver=3.0.1
+pkgver=3.0.2
 pkgrel=1
-#_commit=18726692b1f1f7a99f5eaad8e578944f554b73d1
+_commit=3023e4b2726ac7f5c0d6eb0e1f7c497691447718
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
 depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu')
-makedepends=('git' 'sfml-drm-static')
+makedepends=('git' 'cmake')
 conflicts=('attractplus-git')
-source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}")
-#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}")
+#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}")
+source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}")
 sha256sums=('SKIP')
 
 build() {
 	cd "${pkgname}"
-	make prefix=/usr/local USE_DRM=1 STATIC=1 FE_HWACCEL_VAAPI=1
+	make prefix=/usr/local USE_DRM=1 STATIC=1 FE_HWACCEL_VAAPI=1 FE_VERSION=$pkgver
 }
 
 package() {
