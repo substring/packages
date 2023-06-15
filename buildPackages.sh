@@ -247,17 +247,6 @@ build_single_package() {
 }
 
 
-build_sfml_and_attractplus() {
-  export MAKEPKG_OPTS="--syncdeps --install $MAKEPKG_OPTS"
-  build_single_package groovy/sfml-drm-static
-  build_single_package groovy/attractplus-kms
-  sudo pacman -R --noconfirm sfml-drm-static
-  build_single_package groovy/sfml-static
-  build_single_package groovy/attractplus-x11
-  sudo pacman -R --noconfirm sfml-static
-  build_single_package groovy/attractplus
-}
-
 rm "$_output"/built_packages* 2>/dev/null
 mkdir -p "$BUILD_DIR"
 
@@ -295,9 +284,6 @@ while getopts "nagcs:dp:o" option; do
       ;;
     p)
       packages_subfolder="$OPTARG"
-      ;;
-    o)
-      build_sfml_and_attractplus
       ;;
   esac
 done
