@@ -63,11 +63,12 @@ before_script:
 
 
 bash_lint:
-  image: koalaman/shellcheck:stable
+  image: koalaman/shellcheck-alpine:stable
   stage: prechecks
   allow_failure: true
   when: always
   before_script:
+    - apk update
     - shellcheck -V
   script:
     - shellcheck -x *.sh
