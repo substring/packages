@@ -39,6 +39,7 @@ before_script:
     - echo 'build ALL=(root) NOPASSWD:ALL' > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user
     - chown -R build:build work /work
     - chmod -R 777 work /work
+    - ls -l $(which sudo)
     - su - build -c "cd /work && MAKEPKG_OPTS=\"$MAKEPKG_OPTS\" DONT_DOWNLOAD_JUST_BUILD=\"$DONT_DOWNLOAD_JUST_BUILD\" ./buildPackages.sh $MAKEPKG_ARGS" 2>&1 | tee work/output/build.log
 
 .build_packages_template: &buildpackages
