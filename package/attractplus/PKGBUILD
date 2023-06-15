@@ -1,22 +1,28 @@
 pkgname=attractplus
-pkgver=3.0.1
+pkgver=3.0.2
 pkgrel=1
-_commit=0feb181c33a13d55b526bff132ac69c56a1ef0b1
+_commit=3023e4b2726ac7f5c0d6eb0e1f7c497691447718
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('attractplus-kms' 'attractplus-x11')
-conflicts=('attractplus-git')
-#replaces=('attract')
-#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
-source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
+depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu' 'libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'glew' 'freetype2' 'xcb-util-image')
+makedepends=('git' 'cmake' 'mesa')
+conflicts=('attractplus-git' 'attractplus-x11' 'attractplus-kms')
+replaces=('attractplus-x11' 'attractplus-kms')
+#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
+source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
         "attractplus.sh")
 sha256sums=('SKIP'
             'SKIP')
 provides=('attract')
 install=attractplus.install
 
+build() {
+	cd "${pkgname}"
+	build_x11
+	build_kms
+}
 
 package() {
 	cd "${pkgname}"
@@ -30,5 +36,18 @@ EOF
 	make prefix="${pkgdir}/usr/local" install_assets
 	install -Dm644 License.txt ${pkgdir}/usr/share/licenses/${_gitname}/License.txt
 	install -Dm755 ../attractplus.sh "${pkgdir}"/usr/local/bin/attractplus
+	install -Dm755 attractplus-x11 "${pkgdir}"/usr/local/bin/attractplus-x11
+	install -Dm755 attractplus-kms "${pkgdir}"/usr/local/bin/attractplus-kms
 }
 
+build_x11() {
+	make clean
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 FE_VERSION=$pkgver
+	mv attractplus attractplus-x11
+}
+
+build_kms() {
+	make clean
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 FE_VERSION=$pkgver USE_DRM=1
+	mv attractplus attractplus-kms
+}
