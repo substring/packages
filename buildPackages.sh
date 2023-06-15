@@ -118,6 +118,7 @@ do_the_job() {
   # Copy required patch files that would be used in PKGBUILD
   # shellcheck disable=SC2046,SC2014
   find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \)
+  # shellcheck disable=SC2046,SC2014
   find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   # Use the prepatch shell if it exists
@@ -253,7 +254,7 @@ mkdir -p "$BUILD_DIR"
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagcs:dp:o" option; do
+while getopts "nagcs:dp:" option; do
   case "${option}" in
     n)
       # WARNING: very dirty trick to exclude building mame and linux
