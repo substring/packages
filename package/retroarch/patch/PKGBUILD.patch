@@ -7,7 +7,7 @@ index 537f1ff9fb8b..ad735cb9f120 100644
  )
  backup=(etc/retroarch.cfg)
 -_tag=6616b807edea5b56683e9fbca8b003b436c22b13
-+_tag=f24893bcb139e98cfbf2da768a6509d9bad5eb08
++_tag=d9439b8166fb90615ce8a97c7143a157d0333c79
  source=(
    git+https://github.com/libretro/RetroArch.git#tag=${_tag}
    retroarch-config.patch
