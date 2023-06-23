@@ -1,43 +1,14 @@
 diff --git a/src/video/kmsdrm/SDL_kmsdrmvideo.c b/src/video/kmsdrm/SDL_kmsdrmvideo.c
-index fd3a3cd63..972987a98 100644
+index ebe15fe9c..f7c21ef68 100644
 --- a/src/video/kmsdrm/SDL_kmsdrmvideo.c
 +++ b/src/video/kmsdrm/SDL_kmsdrmvideo.c
-@@ -450,7 +450,7 @@ KMSDRM_WaitPageflip(_THIS, SDL_WindowData *windata) {
-                If it's not, we keep iterating on the loop. */
-             KMSDRM_drmHandleEvent(viddata->drm_fd, &ev);
-         }
--            
-+
-         /* If we got to this point in the loop, we may iterate or exit the loop:
-            -A legit (non-error) event arrived, and it was a POLLING event, and it was consumed
-             by drmHandleEvent().
-@@ -460,7 +460,7 @@ KMSDRM_WaitPageflip(_THIS, SDL_WindowData *windata) {
-                iterare back to polling.
-            -A legit (non-error) event arrived, but it's not a POLLIN event, so it hasn't to be
-             consumed by drmHandleEvent(), so waiting_for_flip isn't set and we iterate back
--            to polling. */ 
-+            to polling. */
+@@ -1025,36 +1025,13 @@ static void KMSDRM_GBMDeinit(_THIS, SDL_DisplayData *dispdata)
  
-     }
- 
-@@ -512,8 +512,8 @@ KMSDRM_DeinitDisplays (_THIS) {
- 
-     /* Iterate on the SDL Display list. */
-     for (i = 0; i < num_displays; i++) {
--  
--        /* Get the driverdata for this display */   
-+
-+        /* Get the driverdata for this display */
-         dispdata = (SDL_DisplayData *)SDL_GetDisplayDriverData(i);
- 
-         /* Free connector */
-@@ -865,36 +865,13 @@ KMSDRM_GBMDeinit (_THIS, SDL_DisplayData *dispdata)
- static void
- KMSDRM_DestroySurfaces(_THIS, SDL_Window *window)
+ static void KMSDRM_DestroySurfaces(_THIS, SDL_Window *window)
  {
 -    SDL_VideoData *viddata = ((SDL_VideoData *)_this->driverdata);
-     SDL_WindowData *windata = (SDL_WindowData *) window->driverdata;
--    SDL_DisplayData *dispdata = (SDL_DisplayData *) SDL_GetDisplayForWindow(window)->driverdata;
+     SDL_WindowData *windata = (SDL_WindowData *)window->driverdata;
+-    SDL_DisplayData *dispdata = (SDL_DisplayData *)SDL_GetDisplayForWindow(window)->driverdata;
 -    int ret;
  
      /**********************************************/
@@ -51,29 +22,28 @@ index fd3a3cd63..972987a98 100644
 -    /***********************************************************************/
 -
 -    ret = KMSDRM_drmModeSetCrtc(viddata->drm_fd, dispdata->crtc->crtc_id,
--            dispdata->crtc->buffer_id, 0, 0, &dispdata->connector->connector_id, 1,
--            &dispdata->original_mode);
+-                                dispdata->crtc->buffer_id, 0, 0, &dispdata->connector->connector_id, 1,
+-                                &dispdata->original_mode);
 -
 -    /* If we failed to set the original mode, try to set the connector prefered mode. */
 -    if (ret && (dispdata->crtc->mode_valid == 0)) {
 -        ret = KMSDRM_drmModeSetCrtc(viddata->drm_fd, dispdata->crtc->crtc_id,
--                dispdata->crtc->buffer_id, 0, 0, &dispdata->connector->connector_id, 1,
--                &dispdata->original_mode);
+-                                    dispdata->crtc->buffer_id, 0, 0, &dispdata->connector->connector_id, 1,
+-                                    &dispdata->original_mode);
 -    }
 -
--    if(ret) {
+-    if (ret) {
 -        SDL_LogError(SDL_LOG_CATEGORY_VIDEO, "Could not restore CRTC");
 -    }
 -
      /***************************/
      /* Destroy the EGL surface */
      /***************************/
-@@ -930,6 +907,34 @@ KMSDRM_DestroySurfaces(_THIS, SDL_Window *window)
+@@ -1090,6 +1067,33 @@ static void KMSDRM_DestroySurfaces(_THIS, SDL_Window *window)
      }
  }
  
-+static void
-+KMSDRM_RestoreCrtc(_THIS, SDL_Window *window)
++static void KMSDRM_RestoreCrtc(_THIS, SDL_Window *window)
 +{
 +    SDL_VideoData *viddata = ((SDL_VideoData *)_this->driverdata);
 +    SDL_DisplayData *dispdata = (SDL_DisplayData *) SDL_GetDisplayForWindow(window)->driverdata;
@@ -100,10 +70,10 @@ index fd3a3cd63..972987a98 100644
 +    }
 +}
 +
- static void
- KMSDRM_GetModeToSet(SDL_Window *window, drmModeModeInfo *out_mode) {
+ static void KMSDRM_GetModeToSet(SDL_Window *window, drmModeModeInfo *out_mode)
+ {
      SDL_VideoDisplay *display = SDL_GetDisplayForWindow(window);
-@@ -1180,6 +1185,9 @@ KMSDRM_DestroyWindow(_THIS, SDL_Window *window)
+@@ -1337,6 +1341,9 @@ void KMSDRM_DestroyWindow(_THIS, SDL_Window *window)
          /* Destroy cursor GBM BO of the display of this window. */
          KMSDRM_DestroyCursorBO(_this, SDL_GetDisplayForWindow(window));
  
@@ -112,31 +82,4 @@ index fd3a3cd63..972987a98 100644
 +
          /* Destroy GBM surface and buffers. */
          KMSDRM_DestroySurfaces(_this, window);
- 
-@@ -1235,7 +1243,7 @@ KMSDRM_DestroyWindow(_THIS, SDL_Window *window)
- /* We simply IGNORE if it's a fullscreen window, window->flags don't  */
- /* reflect it: if it's fullscreen, KMSDRM_SetWindwoFullscreen() will  */
- /* be called by SDL later, and we can manage it there.                */
--/**********************************************************************/ 
-+/**********************************************************************/
- int
- KMSDRM_CreateWindow(_THIS, SDL_Window * window)
- {
-@@ -1270,7 +1278,7 @@ KMSDRM_CreateWindow(_THIS, SDL_Window * window)
-             /* After SDL_CreateWindow, most SDL2 programs will do SDL_CreateRenderer(),
-                which will in turn call GL_CreateRenderer() or GLES2_CreateRenderer().
-                In order for the GL_CreateRenderer() or GLES2_CreateRenderer() call to
--               succeed without an unnecessary window re-creation, we must: 
-+               succeed without an unnecessary window re-creation, we must:
-                -Mark the window as being OPENGL
-                -Load the GL library (which can't be done until the GBM device has been
-                 created, so we have to do it here instead of doing it on VideoInit())
-@@ -1361,7 +1369,7 @@ KMSDRM_CreateWindow(_THIS, SDL_Window * window)
- 
-     /* Allocated windata will be freed in KMSDRM_DestroyWindow,
-        and KMSDRM_DestroyWindow() will be called by SDL_CreateWindow()
--       if we return error on any of the previous returns of the function. */ 
-+       if we return error on any of the previous returns of the function. */
-     return ret;
- }
  
