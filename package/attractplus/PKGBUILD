@@ -1,7 +1,7 @@
 pkgname=attractplus
-pkgver=3.0.2
+pkgver=3.0.3
 pkgrel=1
-_commit=3023e4b2726ac7f5c0d6eb0e1f7c497691447718
+#_commit=3023e4b2726ac7f5c0d6eb0e1f7c497691447718
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
@@ -10,8 +10,8 @@ depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 
 makedepends=('git' 'cmake' 'mesa')
 conflicts=('attractplus-git' 'attractplus-x11' 'attractplus-kms')
 replaces=('attractplus-x11' 'attractplus-kms')
-#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
-source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
+#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
+source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
         "attractplus.sh")
 sha256sums=('SKIP'
             'SKIP')
