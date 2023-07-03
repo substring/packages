@@ -29,7 +29,7 @@ before_script:
     - sed -i 's+curl +curl -A Mozilla +' /etc/makepkg.conf
     - mkdir -p work/output
     - ln -s "$(pwd)"/work /work
-    - cp packages_*.lst buildPackages.sh include.sh /work
+    - cp packages_*.lst buildPackages.sh include.sh pkgbuild-patcher.sh /work
     - cp -R package /work
     - cp groovy-ux-repo.conf /etc/pacman.d
     - grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
