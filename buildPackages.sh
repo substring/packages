@@ -117,11 +117,16 @@ do_the_job() {
 
   # Copy required patch files that would be used in PKGBUILD
   # shellcheck disable=SC2046,SC2014
-  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \)
+  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" -o -name "*.pp" \)
   # shellcheck disable=SC2046,SC2014
-  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
+  find /work/"${packages_subfolder}"/"$package" -maxdepth 1 \( -name "*.patch" -o -name "*.diff" -o -name "*.pp" \) -exec echo Copying {} to $(pwd) \; -exec cp {} $(pwd) \;
 
   # Use the prepatch shell if it exists
+  if [[ -e /work/"${packages_subfolder}"/$package/$package.pp ]] ; then
+    echo "Applying patch /work/${packages_subfolder}/$package/$package.pp"
+    /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/$package/$package.pp PKGBUILD
+    updpkgsums
+  fi
   if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/patch.sh"
     /work/"${packages_subfolder}"/"$package"/patch.sh || return 1
@@ -155,9 +160,6 @@ do_the_job() {
   elif [[ $rc == 13 ]] ; then
     echo "Output package already exists, can recover and keep going..."
   fi
-
-  # Uninstall sfml related packages to allow building both AM and AM+ in the same run
-  pacman -Q sfml &>/dev/null && sudo pacman -Rdd --noconfirm "$(pacman -Q sfml | cut -d ' ' -f 1)"
 
   post_build
 }
