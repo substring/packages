@@ -1,11 +1,4 @@
-# Find the current pkgrel
-pkgrel="$(egrep "^pkgrel=" /work/build/retroarch/PKGBUILD | cut -d '=' -f 2)"
-# Increase it by one so we don't overlap with the real Arch pkg
-pkgrel=$((pkgrel+2))
-patch -tNp3 -d /work/build/retroarch < /work/package/retroarch/patch/PKGBUILD.patch
-[[ $? -gt 0 ]] && exit 1
+# When building a specific commit, git tags --describe doesn't return just the tag, and this breaks pkgver()
 sed -i \
-  -e "s/pkgrel=.*/pkgrel=${pkgrel}/" \
-  -e "s/pkgver()/ppkkggvveerr()/" \
+  -e "s+git describe --tags+git describe --tags --abbrev=0+" \
   /work/build/retroarch/PKGBUILD || exit 1
-( cd /work/build/retroarch/ && makepkg -g >> PKGBUILD )
