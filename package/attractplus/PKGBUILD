@@ -1,7 +1,7 @@
 pkgname=attractplus
 pkgver=3.0.5
-pkgrel=3
-_commit=8a842e7e2d222aed179c8dea349e81d2c6b565a5
+pkgrel=4
+#_commit=
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
@@ -10,8 +10,8 @@ depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 
 makedepends=('git' 'cmake' 'mesa')
 conflicts=('attractplus-git' 'attractplus-x11' 'attractplus-kms')
 replaces=('attractplus-x11' 'attractplus-kms')
-#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
-source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
+#source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
+source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
         "attractplus.sh"
         "PowerOptions.nut")
 sha256sums=('SKIP'
@@ -40,17 +40,17 @@ EOF
 	install -vDm755 ../attractplus.sh "${pkgdir}"/usr/local/bin/attractplus
 	install -vDm755 attractplus-x11 "${pkgdir}"/usr/local/bin/attractplus-x11
 	install -vDm755 attractplus-kms "${pkgdir}"/usr/local/bin/attractplus-kms
-	install -vDm755 ../PowerOptions.nut "${pkgdir}"/usr/local/share/attract/plugins/PowerOptions.nut
+	install -vDm644 ../PowerOptions.nut "${pkgdir}"/usr/local/share/attract/plugins/PowerOptions.nut
 }
 
 build_x11() {
 	make clean
-	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 FE_VERSION=$pkgver
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1
 	mv attractplus attractplus-x11
 }
 
 build_kms() {
 	make clean
-	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 FE_VERSION=$pkgver USE_DRM=1
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 USE_DRM=1
 	mv attractplus attractplus-kms
 }
