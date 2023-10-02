@@ -3,25 +3,44 @@
 # Contributor: robb_force <robb_force@holybuffalo.net>
 # Contributor: JJDaNiMoTh <jjdanimoth@gmail.com>
 
-pkgname=(groovymame groovymame-tools)
-pkgver=0.258
+pkgname=(groovymame
+         groovymame-tools)
+pkgver=0.259
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=002v
+_switchresver=002w
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
-makedepends=(nasm python asio rapidjson glm libxinerama sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac pulseaudio libxrandr)
-source=("https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz"
-        "https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2"
-         mame.sh mame.desktop mame.svg)
+makedepends=(asio
+             flac
+             glm
+             libpulse
+             libutf8proc
+             libxinerama
+             libxrandr
+             lua
+             nasm
+             portaudio
+             portmidi
+             pugixml
+             python
+             qt5-base
+             rapidjson
+             sdl2_ttf)
+source=(https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz
+        https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2
+        mame.desktop
+        mame.sh
+        mame.svg)
 sha256sums=(SKIP
             SKIP
+            '0e5e93f84673c2d17a1bf7a6b256cfa54ef89a086a828df19bc054c12776d821'
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
-            '6beb883c8efed5b7466d43d0658b47c3e4a9928b5d0245ed56446b230e28306b'
             '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
-options=(!debug !lto) # debug build fails
+options=(!debug
+         !lto) # debug build fails
 
 prepare() {
   cd GroovyMAME-${pkgname}${_mamever}
@@ -46,7 +65,27 @@ build() {
 }
 
 package_groovymame() {
-  depends=(sdl2_ttf qt5-base lua libutf8proc pugixml portmidi portaudio flac hicolor-icon-theme)
+  depends=(expat
+           flac
+           fontconfig
+           gcc-libs
+           glibc
+           libglvnd
+           libjpeg-turbo
+           libpulse
+           libutf8proc
+           libx11
+           libxi
+           libxrandr
+           lua
+           portaudio
+           portmidi
+           pugixml
+           qt5-base
+           sdl2
+           sdl2_ttf
+           sqlite
+           zlib)
   conflicts=(sdlmame mame)
   replaces=(sdlmame mame)
 
@@ -89,7 +128,13 @@ package_groovymame() {
 
 package_groovymame-tools() {
   pkgdesc='GroovyMAME is a M.A.M.E. fork aimed at CRT monitor (tools)'
-  depends=(sdl2 libutf8proc flac)
+  depends=(flac
+           gcc-libs
+           glibc
+           libutf8proc
+           sdl2
+           zlib)
+
 
   cd GroovyMAME-groovymame${_mamever}
   for _i in castool chdman floptool imgtool jedutil ldresample ldverify nltool nlwav pngcmp regrep romcmp \
