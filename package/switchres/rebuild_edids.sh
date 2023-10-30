@@ -44,9 +44,9 @@ build_and_install_edids() {
 	custom_w=$(grep "^custom.width=" /home/arcade/shared/configs/ga.conf | cut -d '=' -f 2-)
 	custom_h=$(grep "^custom.height=" /home/arcade/shared/configs/ga.conf | cut -d '=' -f 2-)
 	custom_rr=$(grep "^custom.refresh_rate=" /home/arcade/shared/configs/ga.conf | cut -d '=' -f 2-)
-	echo "Rebuilding EDID for $custom_w $custom_h $custom_rr"
 	edid_file=/usr/lib/firmware/edid/custom_resolution.bin
 	if [[ -e $edid_file ]] && [[ -n $custom_w ]] && [[ -n $custom_h ]]  && [[ -n $custom_rr ]] ; then
+		echo "Rebuilding EDID for $custom_w $custom_h $custom_rr"
 		switchres $custom_w $custom_h $custom_rr --edid --monitor custom
 		mv custom.bin $(basename "$edid_file")
 	fi
