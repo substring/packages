@@ -1,16 +1,16 @@
 pkgname=groovymame-extra
-pkgver=0.258
-pkgrel=2
+pkgver=0.260
+pkgrel=1
 pkgdesc="GroovyMame extra files"
 arch=('any')
 url=https://gitlab.com/groovyarcade
 _mamever=${pkgver#*.}
 _nplayers=0258
-_supportfiles=258
+_supportfiles=259
 license=('GPL3')
 makedepends=('p7zip')
 source=("https://www.mameworld.info/mameinfo/download/Mameinfo0${_mamever}.zip"
-        "https://www.arcade-history.com/dats/history${_mamever}a.zip"
+        "https://www.arcade-history.com/dats/history${_mamever}.zip"
         "https://github.com/mamedev/mame/releases/download/mame0${_mamever}/mame0${_mamever}lx.zip"
         "https://www.progettosnaps.net/download/?tipo=support_pack&file=/support/packs/pS_SupportFiles_${_supportfiles}.zip"
         "http://nplayers.arcadebelgium.be/files/nplayers${_nplayers}.zip")
