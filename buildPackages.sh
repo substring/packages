@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+set -x
 
 # shellcheck disable=SC1091
 source include.sh
@@ -124,7 +124,7 @@ do_the_job() {
   # Use the prepatch shell if it exists
   if [[ -e /work/"${packages_subfolder}"/$package/$package.pp ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/$package.pp"
-    /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/$package/$package.pp PKGBUILD
+    /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/"$package"/"$package".pp PKGBUILD
     updpkgsums
   fi
   if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
@@ -166,18 +166,26 @@ do_the_job() {
 
 build_native_single() {
   package="$1"
+  version="$2"
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
+  # If the version is a command like $(...)
   pkgctl repo clone --protocol=https "$package"
+  if [[ $version = \$\(* ]] ; then
+    # Evaluate the command
+    tmpcmd="$(echo $version | sed -E 's/\$\((.*)\)$/\1/')"
+    version="$(cd $package ; eval $tmpcmd)"
+  fi
+  [[ -n "$version" ]] && pkgctl repo switch "$version" "$package"
   do_the_job "$package" || exit 1
 }
 
 
 build_native() {
 # Native arch packages
-while read -r package ; do
+while read -r package version; do
   echo "$package" | grep -q "^#" && continue
-  build_native_single "$package" || exit 1
-done < <(grep -E "^${package_to_build}$" /work/packages_arch.lst)
+  build_native_single "$package" "$version" || exit 1
+done < <(grep -E "^${package_to_build}[[:space:]]*" /work/packages_arch.lst)
 }
 
 
@@ -233,6 +241,7 @@ done
 build_single_package() {
   cmd_arg="$1"
   pkgname=${1#*/}
+  pkgver="$2"
   if [[ $cmd_arg =~ ^aur/ ]] ; then
     # that's a AUR package, let's build it
     build_aur_single "$pkgname" || exit "$?"
@@ -243,7 +252,7 @@ build_single_package() {
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package
-    build_native_single "$pkgname" || exit $?
+    build_native_single "$pkgname" "$pkgver" || exit $?
     #[[ $? != 0 ]] && exit $?
   fi
   return 0
@@ -256,41 +265,44 @@ mkdir -p "$BUILD_DIR"
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagcs:dp:" option; do
+while getopts "nagcs:dp:t:" option; do
   case "${option}" in
     n)
       # WARNING: very dirty trick to exclude building mame and linux
       # Those must be specified on the script args individually
       package_to_build="($(grep -v -e "^linux$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
-      build_native
-      exit $?
+      cmd=build_native
       ;;
     a)
-      build_aur
-      exit $?
+      cmd=build_aur
       ;;
     g)
-      build_groovy
-      exit $?
+      cmd=build_groovy
       ;;
     c)
-      namcap_packages
-      exit $?
+      cmd=namcap_packages
       ;;
     s)
-      build_single_package "$OPTARG"
-      exit $?
+      cmd=build_single_package
+      opt="$OPTARG"
       ;;
     d)
-      build_dkms
-      exit $?
+      cmd=build_dkms
       ;;
     p)
       packages_subfolder="$OPTARG"
       ;;
+    t)
+      # Build a specific tag. Only for pkgtl for now
+      ver="$OPTARG"
+
   esac
 done
 
+if [[ -n $cmd ]] ; then
+  "$cmd" "$opt" "$ver"
+  exit $?
+fi
 # Tricky thing : if $1 exists, it's a package
 # as we'll grep the .lst files, we need a trick if $1 is empty
 
