@@ -7,7 +7,6 @@ RUN pacman -Syu --noconfirm --needed \
   base-devel \
   devtools \
   mkinitcpio \
-  asp \
   haveged \
   namcap \
   wget \
