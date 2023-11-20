@@ -270,7 +270,7 @@ while getopts "nagcs:dp:t:" option; do
     n)
       # WARNING: very dirty trick to exclude building mame and linux
       # Those must be specified on the script args individually
-      package_to_build="($(grep -v -e "^linux$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
+      package_to_build="($(grep -v -e "^linux$" -e "^linux-lts$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
       cmd=build_native
       ;;
     a)
