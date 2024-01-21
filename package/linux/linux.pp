@@ -6,3 +6,4 @@ source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/04_linux_15khz_dce_interlaced_mode_fix.patch
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/05_linux_15khz_amdgpu_pll_fix.patch
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/06_linux_switchres_kms_drm_modesetting.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/07_linux_15khz_fix_ddc.patch
