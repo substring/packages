@@ -7,8 +7,8 @@
 
 pkgname=emu4crt
 srcname=mednafen
-pkgver=1.31
-subver=A19
+pkgver=1.32
+subver=A22c
 subverr=${subver/\./-}
 pkgrel=1
 pkgdesc="Command-line multi-system gaming emulator"
@@ -24,7 +24,7 @@ conflicts=('mednafen')
 
 build() {
   cd ${srcname}
-  export LDFLAGS="-lswitchres -ldl"
+  export LDFLAGS="-lswitchres -ldl -lSDL2"
   ./configure --prefix=/usr
   make
 }
