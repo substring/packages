@@ -1,0 +1,13 @@
+diff --git a/gfx/drivers_context/drm_ctx.c b/gfx/drivers_context/drm_ctx.c
+index b5dc48ebb2..935e549b7e 100644
+--- a/gfx/drivers_context/drm_ctx.c
++++ b/gfx/drivers_context/drm_ctx.c
+@@ -365,7 +365,7 @@ bool gfx_ctx_drm_get_mode_from_video_state(drmModeModeInfoPtr modeInfo)
+       modeInfo->vrefresh    = video_st->crt_switch_st.vrefresh;
+       modeInfo->type        = DRM_MODE_TYPE_USERDEF;
+ 
+-      snprintf(modeInfo->name, 45, "RetroArch_CRT-%dx%d@%.02f%s"
++      snprintf(modeInfo->name, DRM_DISPLAY_MODE_LEN, "RetroArch_CRT-%dx%d@%.02f%s"
+             , video_st->crt_switch_st.hdisplay
+             , video_st->crt_switch_st.vdisplay
+             , mode_vrefresh(modeInfo)
