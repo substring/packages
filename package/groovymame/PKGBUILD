@@ -5,11 +5,11 @@
 
 pkgname=(groovymame
          groovymame-tools)
-pkgver=0.261
+pkgver=0.262
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=002x
+_switchresver=220a
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
@@ -29,6 +29,7 @@ makedepends=(asio
              qt5-base
              rapidjson
              sdl2_ttf)
+makedepends+=(clang lld)
 source=(https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz
         https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2
         mame.desktop
@@ -58,9 +59,10 @@ build() {
 
   make \
     NOWERROR=1 \
-    OPTIMIZE=2 \
+    OPTIMIZE=3 \
     TOOLS=1 \
-    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=tiny \
+    PTR64=1 NOASM=0 TARGET=mame \
+    OVERRIDE_CC=clang OVERRIDE_CXX=clang++ OVERRIDE_LD=lld
     ARCHOPTS=-flifetime-dse=1
 }
 
@@ -95,9 +97,9 @@ package_groovymame() {
   install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
 
   # Install the binaries - This one is from the GroovyMAME repo
-  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
+  #install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
   # This is the binary that was compiled
-  #install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
+  install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
 
   # Install the extra bits
   install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
