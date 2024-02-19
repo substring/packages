@@ -62,7 +62,6 @@ build() {
     OPTIMIZE=3 \
     TOOLS=1 \
     PTR64=1 NOASM=0 TARGET=mame \
-    OVERRIDE_CC=clang OVERRIDE_CXX=clang++ OVERRIDE_LD=lld
     ARCHOPTS=-flifetime-dse=1
 }
 
