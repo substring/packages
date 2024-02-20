@@ -1,7 +1,7 @@
 pkgname=switchres
-pkgver=2.0
-pkgrel=11
-_commit=8da37b4dd66b300a39ed7e7cd58779f888b82e2c
+pkgver=2.2
+pkgrel=1
+_commit=103e83c73c178d7d9b3f94dd37194692d7891ab6
 pkgdesc="Modeline generator engine and MAME resolution switcher"
 url="http://forum.arcadecontrols.com/index.php/topic,106405.0.html"
 license=(GPL3)
