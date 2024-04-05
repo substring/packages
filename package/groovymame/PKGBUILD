@@ -5,11 +5,11 @@
 
 pkgname=(groovymame
          groovymame-tools)
-pkgver=0.262
+pkgver=0.264
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=220a
+_switchresver=220b
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
@@ -18,6 +18,7 @@ makedepends=(asio
              glm
              libpulse
              libutf8proc
+	     libxi
              libxinerama
              libxrandr
              lua
@@ -29,7 +30,6 @@ makedepends=(asio
              qt5-base
              rapidjson
              sdl2_ttf)
-makedepends+=(clang lld)
 source=(https://github.com/antonioginer/GroovyMAME/archive/groovymame${_mamever}.tar.gz
         https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2
         mame.desktop
@@ -50,6 +50,8 @@ prepare() {
   sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
 # Use C++ LUA
   sed -e 's|ext_lib("lua")|ext_lib("lua++")|' -i scripts/src/main.lua -i scripts/src/3rdparty.lua
+# Drop hardcoded libexec
+  sed -e 's|libexec/||' -i scripts/src/osd/modules.lua
 }
 
 build() {
@@ -59,10 +61,11 @@ build() {
 
   make \
     NOWERROR=1 \
-    OPTIMIZE=3 \
+    OPTIMIZE=2 \
     TOOLS=1 \
-    PTR64=1 NOASM=0 TARGET=mame \
-    ARCHOPTS=-flifetime-dse=1
+    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=tiny \
+    ARCHOPTS=-flifetime-dse=1 \
+    USE_WAYLAND=1
 }
 
 package_groovymame() {
@@ -96,9 +99,9 @@ package_groovymame() {
   install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
 
   # Install the binaries - This one is from the GroovyMAME repo
-  #install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
+  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
   # This is the binary that was compiled
-  install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
+  #install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
 
   # Install the extra bits
   install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
