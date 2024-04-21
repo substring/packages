@@ -1,0 +1,51 @@
+diff --git a/src/intf/video/sdl/vid_sdl2.cpp b/src/intf/video/sdl/vid_sdl2.cpp
+index ff0a8e0cf..27740b2e6 100644
+--- a/src/intf/video/sdl/vid_sdl2.cpp
++++ b/src/intf/video/sdl/vid_sdl2.cpp
+@@ -80,6 +80,7 @@ static int Init()
+ 
+ #ifdef INCLUDE_SWITCHRES
+ 	sr_mode srm;
++	int sr_flags = 0;
+ #endif
+ 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+ 	{
+@@ -113,7 +114,7 @@ static int Init()
+ 			BurnDrvGetVisibleSize(&nVidImageHeight, &nVidImageWidth);
+ 			printf("Vertical\n");
+ 			nRotateGame = 1;
+-			sr_set_rotation(1);
++			sr_flags |= SR_MODE_ROTATED;
+ 			display_w = nVidImageWidth;
+ 			display_h = nVidImageHeight;
+ 		}
+@@ -154,14 +155,6 @@ static int Init()
+ 	//Test refresh rate availability
+ 	printf("Game resolution: %dx%d@%f\n", nVidImageWidth, nVidImageHeight, nBurnFPS/100.0);
+ 
+-#ifdef INCLUDE_SWITCHRES
+-	unsigned char interlace = 0; // FBN doesn't handle interlace yet, force it to disabled
+-	double rr = nBurnFPS / 100.0;
+-	sr_init_disp();
+-	sr_add_mode(display_w, display_h, rr, interlace, &srm);
+-	sr_switch_to_mode(display_w, display_h, rr, interlace, &srm);
+-#endif
+-
+ 	if (nRotateGame)
+ 	{
+ 		sdlWindow = SDL_CreateWindow(
+@@ -198,6 +191,14 @@ static int Init()
+ 		return 1;
+ 	}
+ 
++#ifdef INCLUDE_SWITCHRES
++	double rr = nBurnFPS / 100.0;
++	sr_init_disp("auto", sdlWindow);
++	sr_add_mode(display_w, display_h, rr, sr_flags, &srm);
++	sr_switch_to_mode(display_w, display_h, rr, sr_flags, &srm);
++#endif
++
++
+ 	Uint32 renderflags = SDL_RENDERER_ACCELERATED;
+ 
+ 	if (vsync)
