@@ -6,7 +6,7 @@
 pkgname=(groovymame
          groovymame-tools)
 pkgver=0.265
-pkgrel=1
+pkgrel=2
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
 _switchresver=220c
@@ -27,25 +27,28 @@ makedepends=(asio
              portmidi
              pugixml
              python
-             qt5-base
+             qt6-base
              rapidjson
              sdl2_ttf)
 source=(git+https://github.com/antonioginer/GroovyMAME#tag=groovymame${_mamever}
         https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2
         mame.desktop
         mame.sh
-        mame.svg)
+        mame.svg
+        fix_sr_buffer_overflow.patch)
 sha256sums=(SKIP
             SKIP
             '0e5e93f84673c2d17a1bf7a6b256cfa54ef89a086a828df19bc054c12776d821'
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
-            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')
+            '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
+            'SKIP')
 options=(!debug
          !lto) # debug build fails
 
 prepare() {
   cd GroovyMAME
 
+  patch -Np1 < ../fix_sr_buffer_overflow.patch
 # Use system libraries
   sed -e 's|\# USE_SYSTEM_LIB|USE_SYSTEM_LIB|g' -i makefile
 # Use C++ LUA
@@ -62,8 +65,8 @@ build() {
   make \
     NOWERROR=1 \
     OPTIMIZE=2 \
-    TOOLS=1 \
-    PTR64=1 NOASM=0 TARGET=mame SUBTARGET=tiny \
+    TOOLS=1 TARGET=mame \
+    QT_HOME=/usr/lib/qt6 \
     ARCHOPTS=-flifetime-dse=1 \
     USE_WAYLAND=1
 }
@@ -85,7 +88,7 @@ package_groovymame() {
            portaudio
            portmidi
            pugixml
-           qt5-base
+           qt6-base
            sdl2
            sdl2_ttf
            sqlite
@@ -99,9 +102,9 @@ package_groovymame() {
   install -Dm755 "$srcdir"/mame.sh "$pkgdir"/usr/bin/mame
 
   # Install the binaries - This one is from the GroovyMAME repo
-  install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
+  #install -Dm755 "$srcdir"/groovymame "$pkgdir"/usr/lib/mame/${pkgname}
   # This is the binary that was compiled
-  #install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
+  install -Dm755 mame "$pkgdir"/usr/lib/mame/${pkgname}
 
   # Install the extra bits
   install -Dm644 src/osd/modules/opengl/shader/glsl*.*h -t "$pkgdir"/usr/lib/mame/shader/
