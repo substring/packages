@@ -1,6 +1,5 @@
 #advancemame
 antimicro
-#attract
 edid-decode-git
 joy2key
 inxi
@@ -13,9 +12,13 @@ libpthread-stubs
 con2fbmap
 #supermodel-svn
 vi-vim-symlink
-#attract-git
-#sfml-git
 systemd-boot-pacman-hook
 # Removed since pkg maintainer uses the epoch, which corrupts the filename on github
 #upd72020x-fw
 game-devices-udev
+overlayroot
+# The day I decide to enable new features of x86_64
+#alhp-keyring
+#alhp-mirrorlist
+# For PCSX2
+shaderc-non-semantic-debug
