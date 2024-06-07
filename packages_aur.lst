@@ -22,3 +22,5 @@ overlayroot
 #alhp-mirrorlist
 # For PCSX2
 shaderc-non-semantic-debug
+# For xbox one controllers
+xone-dongle-firmware
