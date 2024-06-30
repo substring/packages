@@ -1,6 +1,6 @@
 pkgname=attractplus
 pkgver=3.0.8
-pkgrel=1
+pkgrel=2
 #_commit=
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
@@ -13,12 +13,19 @@ replaces=('attractplus-x11' 'attractplus-kms')
 #source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
 source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
         "attractplus.sh"
-        "PowerOptions.nut")
+        "PowerOptions.nut"
+        "https://github.com/oomek/attractplus/commit/1f141dbcceb242f9f4b4b7a26abdc880c75f65e2.patch")
 sha256sums=('SKIP'
+            'SKIP'
             'SKIP'
             'SKIP')
 provides=('attract')
 install=attractplus.install
+
+prepare() {
+  cd "${pkgname}"
+  patch -Np1 < ../1f141dbcceb242f9f4b4b7a26abdc880c75f65e2.patch
+}
 
 build() {
 	cd "${pkgname}"
