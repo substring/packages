@@ -1,4 +1,4 @@
-pkgrel++
+pkgrel+++
 source+="fix_buffer_overflow.patch"
 prepare() {
   cd RetroArch
