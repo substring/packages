@@ -33,9 +33,9 @@ increment_value() {
 	local value="$3"
 
 	# Get the original value and make sure it's just a number
-	current_val=$(grep "^$param=" $source_file | cut -d '=' -f 2)
+	current_val=$(grep "^$param=" "$source_file" | cut -d '=' -f 2)
 	# Calculate the new value
-	new_value=$(($current_val + $value))
+	new_value=$((current_val + value))
 	#set_value
 	set_value "$source_file" "$param" "$new_value"
 }
@@ -63,7 +63,7 @@ set_value() {
 		array_replace_value "$@"
 	# Check the parameter does exist
 	elif grep -q "^$param=" "$source_file" ; then
-		sed -i "s+^$param.*+$param=$value+" "$source_file"
+		sed -i "s+^$param=.*+$param=$value+" "$source_file"
 	# Ok so add the new parameter at some strategic place
 	else
 		# sed -i "1 i$param=$value" "$source_file"
@@ -79,7 +79,7 @@ array_replace_value() {
 	# Get the starting line
 	line_start=$(grep -nE "^$param=" "$source_file" | cut -d ':' -f1)
 	# Get the ending line of the array
-	line_end=$(tail -n +$line_start "$source_file" | grep -n ')' | head -1 | cut -d ':' -f1)
+	line_end=$(tail -n +"$line_start" "$source_file" | grep -n ')' | head -1 | cut -d ':' -f1)
 	line_end=$((line_start + line_end - 1))
 	sed -i -e "$line_end i$param=$value" -e "$line_start,$line_end d" "$source_file"
 }
@@ -92,10 +92,10 @@ array_add_value() {
 	# Get the starting line
 	line_start=$(grep -nE "^$param=" "$source_file" | cut -d ':' -f1)
 	# Get the ending line of the array
-	line_end=$(tail -n +$line_start "$source_file" | grep -n ')$' | head -1 | cut -d ':' -f1)
+	line_end=$(tail -n +"$line_start" "$source_file" | grep -n ')$' | head -1 | cut -d ':' -f1)
 	line_end=$((line_start + line_end - 1))
 		# Special case: the array is on a single line
-	if [[ $line_start == $line_end ]] ; then
+	if [[ $line_start == "$line_end" ]] ; then
 		sed -i "$line_end s/)$/ $value)/" "$source_file"
 	else
 		sed -i "$line_end i$value" "$source_file"
@@ -122,7 +122,7 @@ get_field_position() {
 
 count_increments() {
 	sep="$1"
-	nb_occurences="$(echo $sep | tr -cd '+' | wc -c)"
+	nb_occurences="$(echo "$sep" | tr -cd '+' | wc -c)"
 	echo $((nb_occurences-1))
 }
 
@@ -132,7 +132,7 @@ parse_and_do() {
 	local is_in_function=
 	local function_code=
 
-	grep -v '^#' "$pp_file" | grep -v '^$' | while IFS='\n' read line ; do
+	grep -v '^#' "$pp_file" | grep -v '^$' | while IFS=$'\n' read -r line ; do
 		if [[ -z $is_in_function ]] && echo "$line" | grep -qE "[a-zA-Z0-9_]+[[:space:]]*\(\)[[:space:]]*{" ; then
 			echo Found a function
 			is_in_function=1
