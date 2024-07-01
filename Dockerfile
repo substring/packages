@@ -17,10 +17,21 @@ RUN pacman -Syu --noconfirm --needed \
 
 RUN useradd -ms /bin/bash -d /work build
 
+# Disable the debug package
+RUN sed -i 's/ debug/ !debug/' /etc/makepkg.conf
+# Enable debug
+#RUN sed -i 's/ !debug/ debug/' /etc/makepkg.conf
+#RUN sed -i 's/strip /!strip /' /etc/makepkg.conf
 # Don't build on a single thread
 RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
 # Change the user agent, some sites prevent curl from downloadin (mameinfo.dat ...)
 RUN sed -i 's+curl +curl -A Mozilla +' /etc/makepkg.conf
+# Change the arch
+#RUN sed -i 's+march=x86-64+march=x86-64-v3+' /etc/makepkg.conf
+# Change the optimisation level
+#RUN sed -i 's+\-O2+-O3+' /etc/makepkg.conf
+# Set cland as the defafult compiler
+#RUN echo -e "export CC=clang\nexportCXX=clang++\nexportLD=lld" >>/etc/makepkg.conf
 
 WORKDIR /work
 
