@@ -7,11 +7,13 @@ pkgdesc="A graphical front-end for command line emulators that hides the underly
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg4.4' 'fontconfig' 'libarchive' 'libva-mesa-driver')
-makedepends=('git' 'sfml-pi-static-git')
+depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu' 'libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'glew' 'freetype2' 'xcb-util-image' 'rtkit')
+makedepends=('git' 'cmake' 'mesa' 'boost')
 conflicts=('attract-plus')
-source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}")
-sha1sums=('SKIP')
+source=("${_gitname}::git+https://github.com/oomek/${_gitname}.git#branch=${_gitbranch}"
+        "PowerOptions.nut::https://raw.githubusercontent.com/oomek/attract-extra/main/plugins/PowerOptions/plugin.nut")
+sha1sums=('SKIP'
+          'SKIP')
 
 pkgver() {
 	cd "${_gitname}"
@@ -20,13 +22,35 @@ pkgver() {
 
 build() {
 	cd "${_gitname}"
-	export PKG_CONFIG_PATH=/usr/lib/ffmpeg4.4/pkgconfig/
-	make prefix=/usr/local USE_DRM=1 STATIC=1 FE_HWACCEL_VAAPI=1
+	build_x11
+	build_kms
 }
 
 package() {
 	cd "${_gitname}"
-	make prefix="${pkgdir}/usr/local" install
+
+	cat <<'EOF' >> Makefile
+
+install_assets: $(DATA_PATH)
+	mkdir -p $(DESTDIR)$(DATA_PATH)
+	cp -r config/* $(DESTDIR)$(DATA_PATH)
+EOF
+	make prefix="${pkgdir}/usr/local" install_assets
 	install -Dm644 License.txt ${pkgdir}/usr/share/licenses/${_gitname}/License.txt
+	install -vDm755 ../attractplus.sh "${pkgdir}"/usr/local/bin/attractplus
+	install -vDm755 attractplus-x11 "${pkgdir}"/usr/local/bin/attractplus-x11
+	install -vDm755 attractplus-kms "${pkgdir}"/usr/local/bin/attractplus-kms
+	install -vDm644 ../PowerOptions.nut "${pkgdir}"/usr/local/share/attract/plugins/PowerOptions.nut
 }
 
+build_x11() {
+	make clean
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1
+	mv attractplus attractplus-x11
+}
+
+build_kms() {
+	make clean
+	make prefix=/usr/local STATIC=1 FE_HWACCEL_VAAPI=1 USE_DRM=1
+	mv attractplus attractplus-kms
+}
