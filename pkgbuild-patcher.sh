@@ -96,7 +96,7 @@ array_add_value() {
 	line_end=$((line_start + line_end - 1))
 		# Special case: the array is on a single line
 	if [[ $line_start == "$line_end" ]] ; then
-		sed -i "$line_end s/)$/ $value)/" "$source_file"
+		sed -i "$line_end s+)$+ $value)+" "$source_file"
 	else
 		sed -i "$line_end i$value" "$source_file"
 	fi
