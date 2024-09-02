@@ -5,7 +5,7 @@
 
 pkgname=(groovymame
          groovymame-tools)
-pkgver=0.267
+pkgver=0.269
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
@@ -30,13 +30,11 @@ makedepends=(asio
              qt6-base
              rapidjson
              sdl2_ttf)
-source=(git+https://github.com/antonioginer/GroovyMAME#tag=groovymame${_mamever}
-        https://github.com/antonioginer/GroovyMAME/releases/download/gm${_mamever}sr${_switchresver}/groovymame_${_mamever}.${_switchresver}_linux.tar.bz2
+source=(git+https://github.com/antonioginer/GroovyMAME#tag=gm${_mamever}sr${_switchresver}
         mame.desktop
         mame.sh
 	mame.svg)
 sha256sums=(SKIP
-            SKIP
             '0e5e93f84673c2d17a1bf7a6b256cfa54ef89a086a828df19bc054c12776d821'
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
 	    '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4')

@@ -1,12 +1,12 @@
 pkgname=groovymame-extra
-pkgver=0.267
+pkgver=0.269
 pkgrel=1
 pkgdesc="GroovyMame extra files"
 arch=('any')
 url=https://gitlab.com/groovyarcade
 _mamever=${pkgver#*.}
-_nplayers=0267
-_supportfiles=266
+_nplayers=0268
+_supportfiles=268
 license=('GPL3')
 makedepends=('p7zip')
 source=("https://www.mameworld.info/mameinfo/files%2b/Mameinfo0${_mamever}.zip"
@@ -29,7 +29,7 @@ prepare () {
 package() {
   install -Dm755 history.xml "${pkgdir}"/usr/share/mame/dat/history.dat
   install -Dm755 mameinfo.dat "${pkgdir}"/usr/share/mame/dat/mameinfo.dat
-  install -Dm755 mame0${_mamever}.xml "${pkgdir}"/usr/share/mame/dat/mame.dat
+  install -Dm755 mame0${_mamever}.xml "${pkgdir}"/usr/share/mame/dat/mame.xml
   install -Dm755 CatVer/catver.ini "${pkgdir}"/usr/share/mame/dat/catver.ini
   install -Dm755 Series/series.ini "${pkgdir}"/usr/share/mame/dat/series.ini
   install -Dm755 Languages/languages.ini "${pkgdir}"/usr/share/mame/dat/languages.ini
