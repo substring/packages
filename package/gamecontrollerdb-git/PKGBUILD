@@ -1,0 +1,19 @@
+pkgname=gamecontrollerdb-git
+pkgdesc="A community sourced database of game controller mappings to be used with SDL2 and SDL3 Game Controller functionality."
+pkgver=r1432.b4001f8
+pkgrel=1
+url=https://github.com/mdqinc/SDL_GameControllerDB
+arch=('any')
+license=('ZLIB')
+source=(gamecontrollerdb-git::git+https://github.com/mdqinc/SDL_GameControllerDB.git)
+sha256sums=(SKIP)
+
+pkgver() {
+	cd "$pkgname"
+	printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+package() {
+	install -Dm644 "$pkgname"/gamecontrollerdb.txt -t "$pkgdir"/etc
+}
+
