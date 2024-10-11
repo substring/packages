@@ -1,0 +1,55 @@
+# Maintainer: Michał Kopeć <michal@nozomi.space>
+# Contributor: Michał Kopeć <michal@nozomi.space>
+
+_pkgname=xone
+pkgname=xone-dkms
+pkgver=0.3
+pkgrel=5
+_commitid=
+pkgdesc='Modern Linux driver for Xbox One and Xbox Series X|S controllers'
+arch=('x86_64' 'aarch64')
+url='https://github.com/medusalix/xone'
+license=('GPL2')
+depends=(
+  'dkms'
+  'xone-dongle-firmware'
+)
+makedepends=('git')
+conflicts=(
+  'xone-dkms'
+  'xow'
+)
+provides=('xone-dkms')
+source=(
+  git+https://github.com/medusalix/xone.git#commit=29ec3577e52a50f876440c81267f609575c5161e
+  https://patch-diff.githubusercontent.com/raw/medusalix/xone/pull/53.patch
+)
+sha256sums=(
+  'SKIP'
+  'c1de0234948654a39b427dc6397225a788c56eb36cd203496a85a4dd57214602'
+)
+
+package() {
+  ls -l
+  cd "${srcdir}/${_pkgname}"
+
+  local src
+  for src in "${source[@]}"; do
+    src="${src%%::*}"
+    src="${src##*/}"
+    src="${src%.zst}"
+    [[ $src = *.patch ]] || continue
+    echo "* Applying patch $src..."
+    patch -Np1 < "../$src"
+  done
+
+  find . -type f \( -name 'dkms.conf' -o -name '*.c' \) -exec sed -i "s/#VERSION#/$pkgver/" {} +
+
+  echo "* Copying module into /usr/src..."
+  install -dm755 "${pkgdir}/usr/src/${_pkgname}-${pkgver}"
+  cp -r ${srcdir}/${_pkgname}/* "${pkgdir}/usr/src/${_pkgname}-${pkgver}"
+
+  echo "* Blacklisting xpad module..."
+  install -D -m 644 install/modprobe.conf "${pkgdir}/usr/lib/modprobe.d/xone-blacklist.conf"
+}
+
