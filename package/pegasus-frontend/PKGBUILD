@@ -1,7 +1,7 @@
 pkgname=pegasus-frontend
 pkgver=0.16
-_pkgver=weekly_2023w20
-pkgrel=2
+_pkgver=weekly_2024w38
+pkgrel=3
 pkgdesc="A cross platform, customizable graphical frontend for launching emulators and managing your game collection."
 arch=('i686' 'x86_64')
 url="https://pegasus-frontend.org/"
@@ -11,7 +11,6 @@ makedepends=(
 )
 depends=(
     'qt5-declarative'
-    'qt5-gamepad'
     'qt5-graphicaleffects'
     'qt5-imageformats'
     'qt5-multimedia'
