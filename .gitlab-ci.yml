@@ -165,7 +165,7 @@ dkms:native:dev:
     - pacman -Sy --noconfirm archlinux-keyring
     - pacman -S --noconfirm --needed reflector curl libarchive glibc
     - pacman -Su --noconfirm
-    - pacman -U --noconfirm work/output/linux-15khz-*
+    - pacman -U --noconfirm work/output/linux-15khz-headers*
   <<: *buildpackages
   <<: *notmaster
   tags:
@@ -221,7 +221,7 @@ dkms:native:
     #- bsdtar -C / -xvf $patched_glibc
     #- reflector --verbose --latest 50 --sort rate --save /etc/pacman.d/mirrorlist
     - pacman -Su --noconfirm
-    - pacman -U --noconfirm work/output/linux-15khz-*
+    - pacman -U --noconfirm work/output/linux-15khz-headers*
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-d"
