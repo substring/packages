@@ -1,5 +1,4 @@
 pkgbase=linux-15khz
-options=(debug !strip)
 _kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_linux_15khz.patch
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_linux_15khz_interlaced_mode_fix.patch
