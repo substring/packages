@@ -1,10 +1,10 @@
 # Maintainer: Young Acinonyx <young [dot] acinonyx [at ] gmail [dot] com>
 pkgname=skyscraper
-pkgver=3.7.7
+pkgver=3.14.0
 pkgrel=1
 pkgdesc="Powerful and versatile game scraper written in c++."
 arch=("any")
-url="https://github.com/muldjord/skyscraper"
+url="https://github.com/Gemba/skyscraper"
 license=('GPL')
 groups=()
 depends=()
