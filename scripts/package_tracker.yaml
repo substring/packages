@@ -1,0 +1,20 @@
+Retroarch:
+  pkg: retroarch
+  source: github://libretro/Retroarch
+  origin: arch
+SDL2:
+  pkg: sdl2
+  source: github://libsdl-org/SDL
+  origin: arch
+DRMinfo:
+  pkg: drminfo
+  source: git://gitlab.freedesktop.org/emersion/drm_info.git
+  origin: groovy
+Pegasus:
+  pkg: pegasus-frontend
+  source: github://mmatyas/pegasus-frontend
+  origin: groovy
+Skyscraper:
+  pkg: skyscraper
+  source: github://Gemba/skyscraper
+  origin: groovy
