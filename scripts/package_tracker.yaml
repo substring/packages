@@ -18,3 +18,7 @@ Skyscraper:
   pkg: skyscraper
   source: github://Gemba/skyscraper
   origin: groovy
+LEDSpicer:
+  pkg: ledspicer
+  source: github://meduzapat/LEDSpicer
+  origin: groovy

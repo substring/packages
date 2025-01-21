@@ -46,7 +46,7 @@ get_version_git() {
 	(cd /dev/shm ; \
 	git clone -q --depth 1 "$giturl" myrepo ; \
 	cd myrepo ; \
-	git describe --tags --abbrev=0 \
+	git describe --tags $(git rev-list --tags --max-count=1) \
 	) | filter_version
 	rm -rf /dev/shm/myrepo
 }
