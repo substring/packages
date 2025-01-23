@@ -170,6 +170,7 @@ build_native_single() {
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
   # If the version is a command like $(...)
   pkgctl repo clone --protocol=https "$package"
+  pkgctl repo switch "$(curl -sL https://archlinux.org/packages/search/json/?name=$package | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
   if [[ $version = \$\(* ]] ; then
     # Evaluate the command
     tmpcmd="$(echo $version | sed -E 's/\$\((.*)\)$/\1/')"

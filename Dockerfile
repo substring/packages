@@ -13,15 +13,16 @@ RUN pacman -Syu --noconfirm --needed \
   dos2unix \
   pacman-contrib \
   curl \
-  github-cli
+  github-cli \
+  yq
 
 RUN useradd -ms /bin/bash -d /work build
 
 # Disable the debug package
 RUN sed -i 's/ debug/ !debug/' /etc/makepkg.conf
 # Enable debug
-#RUN sed -i 's/ !debug/ debug/' /etc/makepkg.conf
-#RUN sed -i 's/strip /!strip /' /etc/makepkg.conf
+RUN sed -i 's/ !debug/ debug/' /etc/makepkg.conf
+RUN sed -i 's/strip /!strip /' /etc/makepkg.conf
 # Don't build on a single thread
 RUN sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j'$(nproc)'"/' /etc/makepkg.conf
 # Change the user agent, some sites prevent curl from downloadin (mameinfo.dat ...)
