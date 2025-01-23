@@ -155,7 +155,7 @@ parse_and_do() {
 
 		case $separator in
 			"=")
-				echo "Setting value"
+				echo "Setting value for param: $param"
 				set_value "$pkgbuild_file" "$param" "$value"
 				;;
 			"+=")
