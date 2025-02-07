@@ -24,7 +24,7 @@ parameter_is_array() {
 	local source_file="$1"
 	local param="$2"
 
-	grep -q "^$param=(" "$source_file"
+	grep -qE "^[[:space:]]*$param=\(" "$source_file"
 }
 
 increment_value() {
@@ -90,7 +90,7 @@ array_add_value() {
 	local value="$3"
 
 	# Get the starting line
-	line_start=$(grep -nE "^$param=" "$source_file" | cut -d ':' -f1)
+	line_start=$(grep -nE "^[[:space:]]*$param=" "$source_file" | cut -d ':' -f1)
 	# Get the ending line of the array
 	line_end=$(tail -n +"$line_start" "$source_file" | grep -n ')$' | head -1 | cut -d ':' -f1)
 	line_end=$((line_start + line_end - 1))
@@ -201,4 +201,3 @@ file_to_modify="$2"
 [[ ! -e "$file_to_modify" ]] && die "File $file_to_modify doesn't exist"
 
 parse_and_do "$input_file" "$file_to_modify"
-
