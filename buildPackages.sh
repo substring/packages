@@ -125,13 +125,11 @@ do_the_job() {
   if [[ -e /work/"${packages_subfolder}"/$package/$package.pp ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/$package.pp"
     /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/"$package"/"$package".pp PKGBUILD
-    updpkgsums
   fi
   if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/patch.sh"
     /work/"${packages_subfolder}"/"$package"/patch.sh || return 1
     # patch.sh may have added new files, let's update checksums
-    updpkgsums
   fi
 
   if [[ $DONT_DOWNLOAD_JUST_BUILD != 1 ]] ; then
@@ -149,6 +147,13 @@ do_the_job() {
   # So if empty, set some default value
   export MAKEPKG_OPTS=${MAKEPKG_OPTS:-"--syncdeps"}
   # shellcheck disable=SC2086
+  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck -o $MAKEPKG_OPTS
+  # Copy files that would have been erased when downloading source
+  for f in /work/"${packages_subfolder}"/"$package"/* ; do
+    [[ -e "$(pwd)/$(basename $f)" ]] && echo "Replacing $(basename $f)"
+    cp -v "$f" "$(pwd)"
+  done
+  updpkgsums
   PKGDEST="$_output" makepkg --noconfirm --skippgpcheck $MAKEPKG_OPTS
 
   # rc=13 if the package was already built -> skip that error
