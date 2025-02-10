@@ -5,7 +5,8 @@ Retroarch:
 SDL2:
   pkg: sdl2
   source: github://libsdl-org/SDL
-  origin: arch
+  origin: aur
+  major: 2
 DRMinfo:
   pkg: drminfo
   source: git://gitlab.freedesktop.org/emersion/drm_info.git

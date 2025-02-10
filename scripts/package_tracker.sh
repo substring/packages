@@ -20,7 +20,7 @@ query_source_version()
 	local source="$1"
 	case "$source" in
 		"github://"*)
-			get_version_github ${source:9}
+			get_version_github ${source:9} $2
 			;;
 		"git://"*)
 			get_version_git "https://${source:6}"
@@ -34,11 +34,22 @@ query_source_version()
 
 get_version_github() {
 	user_repo="$1"
-	version="$(gh api -H "Accept: application/vnd.github+json"   -H "X-GitHub-Api-Version: 2022-11-28" /repos/$user_repo/releases/latest | jq -r '.tag_name')"
-	# Need some stripping:
-	#  - libretro is like v1.20.0
-	#  - SDL2 is like release-2.30.11
-	echo $version | filter_version
+	
+	if [[ -z $2 ]] ; then
+		version="$(gh api -H "Accept: application/vnd.github+json"   -H "X-GitHub-Api-Version: 2022-11-28" /repos/$user_repo/releases/latest | jq -r '.tag_name')"
+		# Need some stripping:
+		#  - libretro is like v1.20.0
+		#  - SDL2 is like release-2.30.11
+		echo $version | filter_version
+	else
+		for v in $(gh api -H "Accept: application/vnd.github+json"   -H "X-GitHub-Api-Version: 2022-11-28" /repos/$user_repo/releases | jq -r '.[].name?') ; do
+			if [[ ${v:0:2} == "${major}." ]] ; then
+				echo $v
+				return
+			fi
+		done
+	fi
+	
 }
 
 get_version_git() {
@@ -57,6 +68,9 @@ get_origin_version()
 	case "$1" in
 		"arch")
 			get_archlinux_version "$2"
+			;;
+		"aur")
+			get_aur_version "$2"
 			;;
 		"groovy")
 			get_groovy_version "$2"
@@ -84,10 +98,22 @@ get_archlinux_version()
 	curl -sL https://archlinux.org/packages/search/json/?name=$pkg | yq '.results[0].pkgver'
 }
 
+get_aur_version()
+{
+	pkg="$1"
+	curl -sL "https://aur.archlinux.org/rpc/v5/info?arg%5B%5D=$pkg" | yq '.results[0].Version' | cut -d '-' -f1
+}
+
 get_archlinux_flag_date()
 {
 	pkg="$1"
 	curl -sL https://archlinux.org/packages/search/json/?name=$pkg | yq '.results[0].flag_date'
+}
+
+get_aur_flag_date()
+{
+	pkg="$1"
+	curl -sL "https://aur.archlinux.org/rpc/v5/info?arg%5B%5D=$pkg" | yq '.results[0].OutOfDate'
 }
 
 prepare_recommendation()
@@ -103,6 +129,14 @@ prepare_recommendation()
 		else
 			echo "Flag at Arch"
 		fi
+	elif [[ $3 == "aur" ]] ; then
+		flag_date="$(get_aur_flag_date "$1")"
+		#~ echo $flag_date >&2
+		if [[ -n $flag_date ]] ; then
+			echo "Already flagged at AUR"
+		else
+			echo "Flag at AUR"
+		fi
 	else
 		echo "Needs upgrade"
 	fi
@@ -116,12 +150,18 @@ parse_tracker()
 		pkgname="$(yq ".${p}.pkg" "$TRACKER_FILE")"
 		source="$(yq ".${p}.source" "$TRACKER_FILE")"
 		origin="$(yq ".${p}.origin" "$TRACKER_FILE")"
-		source_version="$(query_source_version $source)"
+		major="$(yq ".${p}.major // \"\"" "$TRACKER_FILE")"
+		echo -en "\033[2K\r"
+		echo -n "Gathering infos for: $pkgname $major ."
+		source_version="$(query_source_version $source $major)"
+		echo -n "."
 		version="$(get_origin_version $origin $pkgname)"
+		echo -n "."
 		recommendation=$(prepare_recommendation $pkgname $source $origin $source_version $version)
 		#~ echo "$pkgname -> $source"
 		tabbed_output+="${p}${separator}${pkgname}${separator}${source_version}${separator}${version}${separator}${recommendation}\n"
 	done
+	echo -en "\033[2K\r"
 	echo -e "$tabbed_output" | column -t -o ' | ' -N App,package,source,arch,recommendation -s "${separator}"
 }
 
@@ -133,5 +173,4 @@ tests()
 	parse_tracker
 }
 
-
-tests
+parse_tracker
