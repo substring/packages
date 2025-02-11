@@ -1,0 +1,10 @@
+NAME="GroovyArcade"
+PRETTY_NAME="GroovyArcade"
+ID=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://gitlab.com/groovyarcade"
+DOCUMENTATION_URL="https://gitlab.com/groovyarcade/support/-/wikis/home"
+SUPPORT_URL="https://discord.gg/YtQ6pJh"
+BUG_REPORT_URL="https://github.com/substring/os/issues"
+LOGO=groovyarcade-logo
