@@ -1,0 +1,14 @@
+pkgname=liminedeploy-hook
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Pacman hook to upgrade limine BIOS/UEFI after limine upgrade."
+arch=("any")
+license=("GPL")
+depends=('limine')
+source=(liminedeploy.hook)
+sha256sums=('c56b46386af731fb9a31518d7ece4ab355a84cc7a833b631d2a4d55b6dbdd192')
+
+package() {
+    install -m755 -d "${pkgdir}/usr/share/libalpm/hooks"
+    install -m644 "${srcdir}/liminedeploy.hook" "${pkgdir}/usr/share/libalpm/hooks/95-liminedeploy.hook"
+}
