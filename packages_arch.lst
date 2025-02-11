@@ -3,3 +3,4 @@ linux $(git tag --sort=-taggerdate | head -2 | grep -E "[0-9]+\.[0-9]+\.[0-9]+")
 linux-lts
 #retroarch
 sdl2
+bash
