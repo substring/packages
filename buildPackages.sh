@@ -153,7 +153,7 @@ do_the_job() {
     cp -v "$f" "$(pwd)"
   done
   updpkgsums
-  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck $MAKEPKG_OPTS
+  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck "$MAKEPKG_OPTS"
 
   # rc=13 if the package was already built -> skip that error
   # This only happens in a local build
@@ -174,11 +174,12 @@ build_native_single() {
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
   # If the version is a command like $(...)
   pkgctl repo clone --protocol=https "$package"
-  pkgctl repo switch "$(curl -sL https://archlinux.org/packages/search/json/?name=$package | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
+  pkgctl repo switch "$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
   if [[ $version = \$\(* ]] ; then
     # Evaluate the command
-    tmpcmd="$(echo $version | sed -E 's/\$\((.*)\)$/\1/')"
-    version="$(cd $package ; eval $tmpcmd)"
+    tmpcmd="$(echo "$version" | sed -E 's/\$\((.*)\)$/\1/')"
+    # shellcheck disable=SC2086,SC2164
+    version="$(cd "$package" ; eval $tmpcmd)"
   fi
   [[ -n "$version" ]] && pkgctl repo switch "$version" "$package"
   do_the_job "$package" || exit 1

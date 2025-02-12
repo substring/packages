@@ -16,7 +16,7 @@
 # and parenthesis position like here in the example
 
 die() {
-  echo "ERROR: $@"
+  echo "ERROR: $*"
   exit 1
 }
 
@@ -117,6 +117,7 @@ get_param() {
 get_field_position() {
 	field="$1"
 	string="$2"
+	# shellcheck disable=SC1003,SC2086
 	echo "$string" | sed -E 's#([a-z_]+)[[:space:]]*([+=]+)[[:space:]]*(.*)#\'$field'#'
 }
 
@@ -139,9 +140,11 @@ parse_and_do() {
 			function_code="$line"
 			continue
 		elif [[ -n $is_in_function ]] && echo "$line" | grep -vE '^[[:space:]]*}[[:space:]]*$' ; then
+			# shellcheck disable=SC2028
 			function_code="$(echo -n "$function_code\n$line")"
 			continue
 		elif [[ -n $is_in_function ]] && echo "$line" | grep -E '^[[:space:]]*}[[:space:]]*$' ; then
+			# shellcheck disable=SC2028
 			function_code="$(echo -n "$function_code\n$line")"
 			echo -e "$function_code" >> "$pkgbuild_file"
 			is_in_function=
