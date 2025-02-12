@@ -147,7 +147,6 @@ do_the_job() {
   # So if empty, set some default value
   export MAKEPKG_OPTS=${MAKEPKG_OPTS:-"--syncdeps"}
   # shellcheck disable=SC2086
-  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck -o $MAKEPKG_OPTS
   # Copy files that would have been erased when downloading source
   for f in /work/"${packages_subfolder}"/"$package"/* ; do
     [[ -e "$(pwd)/$(basename $f)" ]] && echo "Replacing $(basename $f)"
