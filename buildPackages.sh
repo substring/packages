@@ -261,6 +261,7 @@ build_single_package() {
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
+  # shellcheck disable=SC2046
     build_native_single $(grep "$cmd_arg " /work/packages_arch.lst) || exit $?
     #[[ $? != 0 ]] && exit $?
   fi
@@ -308,7 +309,6 @@ while getopts "nagcs:dp:t:" option; do
   esac
 done
 
-set -x
 if [[ -n $cmd ]] ; then
   "$cmd" "$opt" "$ver"
   exit $?
