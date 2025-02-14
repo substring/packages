@@ -178,9 +178,9 @@ build_native_single() {
     groovy_package="$1"
   fi
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
-  # If the version is a command like $(...)
+  local last_version="$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
   pkgctl repo clone --protocol=https "$package"
-  pkgctl repo switch "$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
+  pkgctl repo switch "$last_version" "$package"
   if [[ -n "$groovy_package" ]] ; then
     mv "$package" "$groovy_package"
     do_the_job "$groovy_package" || exit 1
@@ -282,7 +282,7 @@ while getopts "nagcs:dp:t:" option; do
     n)
       # WARNING: very dirty trick to exclude building mame and linux
       # Those must be specified on the script args individually
-      package_to_build="($(grep -v -e "^linux$" -e "^linux-lts$" -e "^linux-rt$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
+      package_to_build="($(grep -v -e "^linux$" -e "^linux-lts$" -e "^linux linux-rt$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
       cmd=build_native
       ;;
     a)
