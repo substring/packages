@@ -96,11 +96,11 @@ post_build() {
 
 
 do_the_job() {
+  package="$1"
   echo "+-------------------------"
   echo "| Building ${packages_subfolder}/$package"
   echo "+-------------------------"
 
-  package="$1"
 
   cwd="$(pwd)"
   # Handle community/AUR package
@@ -153,7 +153,8 @@ do_the_job() {
     cp -v "$f" "$(pwd)"
   done
   updpkgsums
-  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck "$MAKEPKG_OPTS"
+  # shellcheck disable=SC2086
+  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck $MAKEPKG_OPTS
 
   # rc=13 if the package was already built -> skip that error
   # This only happens in a local build
@@ -170,27 +171,29 @@ do_the_job() {
 
 build_native_single() {
   package="$1"
-  version="$2"
+  groovy_package="$2"
+  if [[ -n "$2" ]] ; then
+    package="$2"
+    groovy_package="$1"
+  fi
   cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
   # If the version is a command like $(...)
   pkgctl repo clone --protocol=https "$package"
   pkgctl repo switch "$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
-  if [[ $version = \$\(* ]] ; then
-    # Evaluate the command
-    tmpcmd="$(echo "$version" | sed -E 's/\$\((.*)\)$/\1/')"
-    # shellcheck disable=SC2086,SC2164
-    version="$(cd "$package" ; eval $tmpcmd)"
+  if [[ -n "$groovy_package" ]] ; then
+    mv "$package" "$groovy_package"
+    do_the_job "$groovy_package" || exit 1
+  else
+    do_the_job "$package" || exit 1
   fi
-  [[ -n "$version" ]] && pkgctl repo switch "$version" "$package"
-  do_the_job "$package" || exit 1
 }
 
 
 build_native() {
 # Native arch packages
-while read -r package version; do
+while read -r package groovy_package; do
   echo "$package" | grep -q "^#" && continue
-  build_native_single "$package" "$version" || exit 1
+  build_native_single "$package" "$groovy_package" || exit 1
 done < <(grep -E "^${package_to_build}[[:space:]]*" /work/packages_arch.lst)
 }
 
@@ -257,8 +260,8 @@ build_single_package() {
     build_groovy_single "$pkgname" || exit $?
     #[[ $? != 0 ]] && exit $?
   else
-    # Fallback to a genuine arch package
-    build_native_single "$pkgname" "$pkgver" || exit $?
+    # Fallback to a genuine arch package, but it might be a fake package like linux-rt
+    build_native_single $(grep "$cmd_arg " /work/packages_arch.lst) || exit $?
     #[[ $? != 0 ]] && exit $?
   fi
   return 0
@@ -305,15 +308,14 @@ while getopts "nagcs:dp:t:" option; do
   esac
 done
 
+set -x
 if [[ -n $cmd ]] ; then
   "$cmd" "$opt" "$ver"
   exit $?
 fi
 # Tricky thing : if $1 exists, it's a package
 # as we'll grep the .lst files, we need a trick if $1 is empty
-
 package_to_build=${1:-".*"}
-
 build_native ; build_aur ; build_groovy
 
 # run tests on output packages
