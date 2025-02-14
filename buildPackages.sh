@@ -153,8 +153,9 @@ do_the_job() {
     cp -v "$f" "$(pwd)"
   done
   updpkgsums
+  # Need -c because linux-rt is first cloned in linux, can conflic with a previous build in CI
   # shellcheck disable=SC2086
-  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck $MAKEPKG_OPTS
+  PKGDEST="$_output" makepkg --noconfirm --skippgpcheck -c $MAKEPKG_OPTS
 
   # rc=13 if the package was already built -> skip that error
   # This only happens in a local build
@@ -250,6 +251,7 @@ done
 build_single_package() {
   cmd_arg="$1"
   pkgname=${1#*/}
+  # shellcheck disable=SC2034
   pkgver="$2"
   if [[ $cmd_arg =~ ^aur/ ]] ; then
     # that's a AUR package, let's build it
@@ -261,7 +263,7 @@ build_single_package() {
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
-  # shellcheck disable=SC2046
+    # shellcheck disable=SC2046
     build_native_single $(grep "$cmd_arg " /work/packages_arch.lst) || exit $?
     #[[ $? != 0 ]] && exit $?
   fi
@@ -280,7 +282,7 @@ while getopts "nagcs:dp:t:" option; do
     n)
       # WARNING: very dirty trick to exclude building mame and linux
       # Those must be specified on the script args individually
-      package_to_build="($(grep -v -e "^linux$" -e "^linux-lts$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
+      package_to_build="($(grep -v -e "^linux$" -e "^linux-lts$" -e "^linux-rt$" -e "^mame$" /work/packages_arch.lst | paste -sd "|" - | tr -d '\n'))"
       cmd=build_native
       ;;
     a)
