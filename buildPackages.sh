@@ -94,14 +94,15 @@ post_build() {
   return 0
 }
 
-
-do_the_job() {
+header() {
   package="$1"
   echo "+-------------------------"
   echo "| Building ${packages_subfolder}/$package"
   echo "+-------------------------"
+}
 
-
+do_the_job() {
+  package="$1"
   cwd="$(pwd)"
   # Handle community/AUR package
   for pkgdir in "$BUILD_DIR"/"$package"/repos/core-x86_64 "$BUILD_DIR"/"$package"/repos/extra-x86_64 "$BUILD_DIR"/"$package"/repos/community-x86_64 "$BUILD_DIR"/"$package" ; do
@@ -125,6 +126,7 @@ do_the_job() {
   if [[ -e /work/"${packages_subfolder}"/$package/$package.pp ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/$package.pp"
     /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/"$package"/"$package".pp PKGBUILD
+    cat PKGBUILD
   fi
   if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/patch.sh"
@@ -173,12 +175,15 @@ do_the_job() {
 build_native_single() {
   package="$1"
   groovy_package="$2"
+  cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
+  [[ -d "$package" ]] && rm -rfv "$package"
+  [[ -d "$groovy_package" ]] && rm -rfv "$groovy_package"
   if [[ -n "$2" ]] ; then
     package="$2"
     groovy_package="$1"
   fi
-  cd "$BUILD_DIR" || { echo "Couldn't cd to the work dir" ; exit 1 ; }
-  local last_version="$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')" "$package"
+  header "$package"
+  local last_version="$(curl -sL "https://archlinux.org/packages/search/json/?name=$package" | yq -r '.results[0].pkgver + "-" + .results[0].pkgrel')"
   pkgctl repo clone --protocol=https "$package"
   pkgctl repo switch "$last_version" "$package"
   if [[ -n "$groovy_package" ]] ; then
@@ -201,6 +206,7 @@ done < <(grep -E "^${package_to_build}[[:space:]]*" /work/packages_arch.lst)
 
 build_aur_single() {
   package="$1"
+  header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   wget https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
   tar xvzf "${package}".tar.gz
@@ -219,6 +225,7 @@ done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 
 build_groovy_single() {
   package="$1"
+  header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   cp -R /work/"$packages_subfolder"/"$package" . || return 1
   do_the_job "$package" || exit 1
