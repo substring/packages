@@ -271,8 +271,10 @@ build_single_package() {
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
+    realpkg="$(grep "$cmd_arg " /work/packages_arch.lst)"
+    [[ -n "$realpkg" ]] && pkgname="$realpkg"
     # shellcheck disable=SC2046
-    build_native_single $(grep "$cmd_arg " /work/packages_arch.lst) || exit $?
+    build_native_single "$pkgname" "$pkgver" || exit $?
     #[[ $? != 0 ]] && exit $?
   fi
   return 0
