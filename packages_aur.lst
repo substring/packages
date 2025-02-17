@@ -7,7 +7,7 @@ inxi
 qjoypad
 #retrofe
 #svgalib
-plymouth
+#plymouth
 libpthread-stubs
 con2fbmap
 #supermodel-svn
