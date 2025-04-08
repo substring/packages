@@ -1,6 +1,6 @@
 # Maintainer: Young Acinonyx <young [dot] acinonyx [at ] gmail [dot] com>
 pkgname=skyscraper
-pkgver=3.15.3
+pkgver=3.16.1
 pkgrel=1
 pkgdesc="Powerful and versatile game scraper written in c++."
 arch=("any")
