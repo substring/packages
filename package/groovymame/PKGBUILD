@@ -5,11 +5,11 @@
 
 pkgname=(groovymame
          groovymame-tools)
-pkgver=0.275
+pkgver=0.276
 pkgrel=1
 pkgdesc="GroovyMAME is a M.A.M.E. fork aimed at CRT monitor"
 _mamever=${pkgver/./}
-_switchresver=221d
+_switchresver=221e
 url="https://mamedev.org/"
 license=(GPL2)
 arch=(x86_64)
@@ -50,6 +50,8 @@ prepare() {
   sed -e 's|ext_lib("lua")|ext_lib("lua++")|' -i scripts/src/main.lua -i scripts/src/3rdparty.lua
 # Drop hardcoded libexec
   sed -e 's|libexec/||' -i scripts/src/osd/modules.lua
+# Use bundled asio, 1.34 is too new
+  export CXXFLAGS+=" -I$PWD/3rdparty/asio/include"
 }
 
 build() {
