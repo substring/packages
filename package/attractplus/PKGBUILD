@@ -1,12 +1,12 @@
 pkgname=attractplus
-pkgver=3.0.9
+pkgver=3.1.0
 pkgrel=1
 #_commit=
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
 url="http://www.attractmode.org/"
 license=('GPL3')
-depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu' 'libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'glew' 'freetype2' 'xcb-util-image' 'rtkit')
+depends=('openal' 'ffmpeg' 'fontconfig' 'libarchive' 'curl' 'libva-mesa-driver' 'glu' 'libsndfile' 'libxrandr' 'libxcursor' 'libjpeg' 'glew' 'freetype2' 'xcb-util-image' 'rtkit' 'libxi')
 makedepends=('git' 'cmake' 'mesa' 'boost')
 conflicts=('attractplus-git' 'attractplus-x11' 'attractplus-kms')
 replaces=('attractplus-x11' 'attractplus-kms')
