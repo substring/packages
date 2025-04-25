@@ -3,5 +3,5 @@ linux
 linux-rt linux
 linux-lts
 #retroarch
-#bash
+bash
 filesystem
