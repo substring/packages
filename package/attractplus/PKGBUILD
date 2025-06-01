@@ -1,5 +1,5 @@
 pkgname=attractplus
-pkgver=3.1.0
+pkgver=3.1.2
 pkgrel=1
 #_commit=
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
@@ -13,12 +13,24 @@ replaces=('attractplus-x11' 'attractplus-kms')
 #source=("${pkgname}::git+https://github.com/oomek/attractplus.git#commit=${_commit}"
 source=("${pkgname}::git+https://github.com/oomek/attractplus.git#tag=${pkgver}"
         "attractplus.sh"
-	"PowerOptions.nut::https://raw.githubusercontent.com/oomek/attract-extra/main/plugins/PowerOptions/plugin.nut")
+        "PowerOptions.nut::https://raw.githubusercontent.com/oomek/attract-extra/main/plugins/PowerOptions/plugin.nut")
 sha256sums=('SKIP'
             'SKIP'
             'SKIP')
 provides=('attract')
 install=attractplus.install
+
+prepare() {
+	cd "${pkgname}"
+	local src
+	for src in "${source[@]}"; do
+		src="${src%%::*}"
+		src="${src##*/}"
+		[[ $src = *.patch ]] || continue
+		echo "Applying patch $src..."
+		patch -Np1 < "../$src"
+	done
+}
 
 build() {
 	cd "${pkgname}"
@@ -40,7 +52,7 @@ EOF
 	install -vDm755 ../attractplus.sh "${pkgdir}"/usr/local/bin/attractplus
 	install -vDm755 attractplus-x11 "${pkgdir}"/usr/local/bin/attractplus-x11
 	install -vDm755 attractplus-kms "${pkgdir}"/usr/local/bin/attractplus-kms
-	install -vDm644 ../PowerOptions.nut "${pkgdir}"/usr/local/share/attract/plugins/PowerOptions.nut
+	install -vDm644 ../PowerOptions.nut "${pkgdir}"/usr/local/share/attractplus/plugins/PowerOptions.nut
 }
 
 build_x11() {
