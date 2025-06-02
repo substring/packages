@@ -126,7 +126,7 @@ do_the_job() {
   if [[ -e /work/"${packages_subfolder}"/$package/$package.pp ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/$package.pp"
     /work/pkgbuild-patcher.sh /work/"${packages_subfolder}"/"$package"/"$package".pp PKGBUILD
-    cat PKGBUILD
+    #~ cat PKGBUILD
   fi
   if [[ -x /work/"${packages_subfolder}"/$package/patch.sh ]] ; then
     echo "Applying patch /work/${packages_subfolder}/$package/patch.sh"
@@ -209,7 +209,8 @@ build_aur_single() {
   package="$1"
   header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
-  wget https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
+  #~ wget --waitretry=3 --tries=3 https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
+  /usr/bin/curl -qgb "" -fLC - --retry 3 --retry-delay 3 -o "${package}".tar.gz https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
   tar xvzf "${package}".tar.gz
   do_the_job "$package" || exit 1
 }
