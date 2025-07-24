@@ -1,5 +1,5 @@
 pkgname=ledspicer
-pkgver=0.6.3.1
+pkgver=0.6.4
 pkgrel=1
 pkgdesc="LED Animator and Controller for Linux"
 arch=('any')
