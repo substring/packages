@@ -23,3 +23,7 @@ LEDSpicer:
   pkg: ledspicer
   source: github://meduzapat/LEDSpicer
   origin: groovy
+EasyBashGUI:
+  pkg: easybashgui
+  source: github://BashGui/easybashgui
+  origin: groovy
