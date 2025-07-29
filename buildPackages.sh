@@ -154,7 +154,8 @@ do_the_job() {
     [[ -e "$(pwd)/$(basename $f)" ]] && echo "Replacing $(basename $f)"
     cp -v "$f" "$(pwd)"
   done
-  updpkgsums
+  #updpkgsums uses the MAKEPKG_OPTS, and needs it to be an array, so avoid any conflict
+  (MAKEPKG_OPTS='' updpkgsums)
   # Need -c because linux-rt is first cloned in linux, can conflic with a previous build in CI
   # shellcheck disable=SC2086
   PKGDEST="$_output" makepkg --noconfirm --skippgpcheck -c $MAKEPKG_OPTS
@@ -207,6 +208,7 @@ done < <(grep -E "^${package_to_build}[[:space:]]*" /work/packages_arch.lst)
 
 build_aur_single() {
   package="$1"
+  # remove all gasetup/gatools/galauncher and their -git version to revent conflicts at build
   header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   #~ wget --waitretry=3 --tries=3 https://aur.archlinux.org/cgit/aur.git/snapshot/"${package}".tar.gz || return 1
@@ -227,6 +229,7 @@ done < <(grep "^${package_to_build}$" /work/packages_aur.lst)
 
 build_groovy_single() {
   package="$1"
+  for p in {gasetup,gatools,galauncher}{,-git} ; do pacman -Q "$p" &>/dev/null && sudo pacman -R --noconfirm "$p" ; done
   header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   cp -R /work/"$packages_subfolder"/"$package" . || return 1
