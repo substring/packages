@@ -22,5 +22,6 @@ overlayroot
 # For PCSX2
 shaderc-non-semantic-debug
 # For xbox one controllers
+xone-dkms
 xone-dongle-firmware
 sdl2
