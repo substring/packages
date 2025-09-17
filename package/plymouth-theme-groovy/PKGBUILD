@@ -1,5 +1,5 @@
 pkgname=plymouth-theme-groovy
-pkgver=1.0
+pkgver=1.1
 pkgrel=1
 pkgdesc="GroovyArcade plymouth theme for Arch Linux"
 arch=('any')
