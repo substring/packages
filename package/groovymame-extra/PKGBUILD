@@ -1,12 +1,12 @@
 pkgname=groovymame-extra
-pkgver=0.279
+pkgver=0.281
 pkgrel=1
 pkgdesc="GroovyMame extra files"
 arch=('any')
 url=https://gitlab.com/groovyarcade
 _mamever=${pkgver#*.}
-_nplayers=0277
-_supportfiles=278
+_nplayers=0278
+_supportfiles=280
 license=('GPL3')
 makedepends=('p7zip')
 source=("https://www.mameworld.info/mameinfo/files%2b/Mameinfo0${_mamever}.zip"
