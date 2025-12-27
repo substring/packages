@@ -1,6 +1,6 @@
 pkgname=attractplus
-pkgver=3.1.2
-pkgrel=2
+pkgver=3.2.0
+pkgrel=1
 #_commit=
 pkgdesc="A graphical front-end for command line emulators that hides the underlying operating system and is intended to be controlled with a joystick or gamepad."
 arch=('any')
