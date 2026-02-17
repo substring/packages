@@ -1,0 +1,649 @@
+diff --git a/include/SDL3/SDL_video.h b/include/SDL3/SDL_video.h
+index 2f062959f..31f302a83 100644
+--- a/include/SDL3/SDL_video.h
++++ b/include/SDL3/SDL_video.h
+@@ -151,6 +151,43 @@ typedef struct SDL_DisplayMode
+ 
+ } SDL_DisplayMode;
+ 
++#define SDL_DISPLAY_MODE_LEN 64
++#define SDL_MODELINE_FLAG_PHSYNC       (1 << 0)  /**< Positive horizontal sync */
++#define SDL_MODELINE_FLAG_NHSYNC       (1 << 1)  /**< Negative horizontal sync */
++#define SDL_MODELINE_FLAG_PVSYNC       (1 << 2)  /**< Positive vertical sync */
++#define SDL_MODELINE_FLAG_NVSYNC       (1 << 3)  /**< Negative vertical sync */
++#define SDL_MODELINE_FLAG_INTERLACE    (1 << 4)  /**< Interlaced mode */
++#define SDL_MODELINE_FLAG_DBLSCAN      (1 << 5)  /**< Double scan mode */
++#define SDL_MODELINE_FLAG_CSYNC        (1 << 6)  /**< Composite sync */
++
++typedef struct SDL_CustomDisplayMode
++{
++    char name[SDL_DISPLAY_MODE_LEN]; /* Modeline name */
++
++    int w;
++    int h;
++    float refresh_rate;
++
++    /* Horizontal timings */
++    int hdisplay;
++    int hsync_start;
++    int hsync_end;
++    int htotal;
++
++    /* Vertical timings */
++    int vdisplay;
++    int vsync_start;
++    int vsync_end;
++    int vtotal;
++
++    int pixel_clock_khz;
++
++    Uint32 flags; /* DRM / X11 compatible flags */
++
++    void *backend_data; /* Backend-owned. drmModeModeInfo for kmsdrm, XRRmodeInfo for x11 */
++} SDL_CustomDisplayMode;
++
++
+ /**
+  * Display orientation values; the way a display is rotated.
+  *
+@@ -832,6 +869,10 @@ extern SDL_DECLSPEC float SDLCALL SDL_GetDisplayContentScale(SDL_DisplayID displ
+  */
+ extern SDL_DECLSPEC SDL_DisplayMode ** SDLCALL SDL_GetFullscreenDisplayModes(SDL_DisplayID displayID, int *count);
+ 
++extern SDL_DECLSPEC SDL_DisplayMode * SDLCALL SDL_AddCustomDisplayMode(SDL_DisplayID displayID, const SDL_CustomDisplayMode *mode);
++
++extern  SDL_CustomDisplayMode *SDL_GetCustomDisplayMode(SDL_DisplayID display_id, const SDL_DisplayMode *mode);
++
+ /**
+  * Get the closest match to the requested display mode.
+  *
+diff --git a/src/dynapi/SDL_dynapi.sym b/src/dynapi/SDL_dynapi.sym
+index ec2e97beb..1003ff8c4 100644
+--- a/src/dynapi/SDL_dynapi.sym
++++ b/src/dynapi/SDL_dynapi.sym
+@@ -6,6 +6,7 @@ SDL3_0.0.0 {
+     SDL_AcquireGPUCommandBuffer;
+     SDL_AcquireGPUSwapchainTexture;
+     SDL_AddAtomicInt;
++    SDL_AddCustomDisplayMode;
+     SDL_AddEventWatch;
+     SDL_AddGamepadMapping;
+     SDL_AddGamepadMappingsFromFile;
+diff --git a/src/dynapi/SDL_dynapi_overrides.h b/src/dynapi/SDL_dynapi_overrides.h
+index bf8d64273..daccaff73 100644
+--- a/src/dynapi/SDL_dynapi_overrides.h
++++ b/src/dynapi/SDL_dynapi_overrides.h
+@@ -31,6 +31,7 @@
+ #define SDL_AcquireGPUCommandBuffer SDL_AcquireGPUCommandBuffer_REAL
+ #define SDL_AcquireGPUSwapchainTexture SDL_AcquireGPUSwapchainTexture_REAL
+ #define SDL_AddAtomicInt SDL_AddAtomicInt_REAL
++#define SDL_AddCustomDisplayMode SDL_AddCustomDisplayMode_REAL
+ #define SDL_AddEventWatch SDL_AddEventWatch_REAL
+ #define SDL_AddGamepadMapping SDL_AddGamepadMapping_REAL
+ #define SDL_AddGamepadMappingsFromFile SDL_AddGamepadMappingsFromFile_REAL
+diff --git a/src/dynapi/SDL_dynapi_procs.h b/src/dynapi/SDL_dynapi_procs.h
+index 9f28b68a5..80468e434 100644
+--- a/src/dynapi/SDL_dynapi_procs.h
++++ b/src/dynapi/SDL_dynapi_procs.h
+@@ -48,6 +48,7 @@ SDL_DYNAPI_PROC(int,SDL_swprintf,(SDL_OUT_Z_CAP(b) wchar_t *a, size_t b, SDL_PRI
+ #endif
+ 
+ /* New API symbols are added at the end */
++SDL_DYNAPI_PROC(SDL_DisplayMode*,SDL_AddCustomDisplayMode,(SDL_DisplayID a, const SDL_CustomDisplayMode *b),(a,b),return)
+ SDL_DYNAPI_PROC(SDL_Surface*,SDL_AcquireCameraFrame,(SDL_Camera *a, Uint64 *b),(a,b),return)
+ SDL_DYNAPI_PROC(SDL_GPUCommandBuffer*,SDL_AcquireGPUCommandBuffer,(SDL_GPUDevice *a),(a),return)
+ SDL_DYNAPI_PROC(bool,SDL_AcquireGPUSwapchainTexture,(SDL_GPUCommandBuffer *a, SDL_Window *b, SDL_GPUTexture **c, Uint32 *d, Uint32 *e),(a,b,c,d,e),return)
+diff --git a/src/video/SDL_video.c b/src/video/SDL_video.c
+index 93c7b05fb..eabb48ec6 100644
+--- a/src/video/SDL_video.c
++++ b/src/video/SDL_video.c
+@@ -1268,6 +1268,103 @@ static const SDL_DisplayMode *SDL_GetFullscreenModeMatch(const SDL_DisplayMode *
+     return mode;
+ }
+ 
++typedef struct SDL_CustomModeEntry
++{
++    SDL_DisplayID display_id;
++    SDL_DisplayMode mode;         /* Copy returned to client */ // renommer en mode
++    SDL_CustomDisplayMode custom_mode;   /* Full modeline + backend_data */
++} SDL_CustomModeEntry;
++
++static int num_custom_modes = 0;
++#define MAX_CUSTOM_MODES 128 // Ugly, should be dynamic
++
++static SDL_CustomModeEntry SDL_CustomFullscreenModes[MAX_CUSTOM_MODES];
++
++SDL_CustomDisplayMode *SDL_GetCustomDisplayMode(SDL_DisplayID display_id,
++                         const SDL_DisplayMode *mode)
++{
++printf("Number of custom modes: %d\n", num_custom_modes);
++    for (int i = 0; i < num_custom_modes; ++i) {
++        SDL_CustomModeEntry *entry = &SDL_CustomFullscreenModes[i];
++printf("Entry: %d : %d -> %dx%d@%.2f - %dx%d@%.2f\n", display_id, entry->display_id, mode->w, mode->h, mode->refresh_rate, entry->mode.w, entry->mode.h, entry->mode.refresh_rate);
++        if (entry->display_id == display_id &&
++            entry->custom_mode.h == mode->h &&
++            entry->custom_mode.w == mode->w &&
++            entry->custom_mode.refresh_rate == mode->refresh_rate) {
++printf("Found a custom display mode!\n");
++            return &entry->custom_mode;
++        }
++    }
++printf("Could not find a matching custom display mode :(\n");
++    return NULL;
++}
++
++SDL_DisplayMode *SDL_AddCustomDisplayMode(SDL_DisplayID display, const SDL_CustomDisplayMode *mode)
++{
++    SDL_DisplayMode new_mode;
++
++    if (!mode || num_custom_modes >= MAX_CUSTOM_MODES) {
++        return NULL;
++    }
++
++    if (num_custom_modes >= MAX_CUSTOM_MODES) {
++        SDL_SetError("Max number of custom mode exceeded");
++        return NULL;
++    }
++
++    SDL_VideoDisplay *videodisplay = SDL_GetVideoDisplay(display);
++    if (!videodisplay) {
++        return NULL;
++    }
++
++    // Fill a temporary mode, validate it and then add in the custom list
++    new_mode.displayID = display;
++    new_mode.format = SDL_PIXELFORMAT_ARGB8888; // TODO: don't force this
++    new_mode.w = mode->w;
++    new_mode.h = mode->h;
++    new_mode.pixel_density = 1.0;
++    new_mode.refresh_rate = mode->refresh_rate;
++    new_mode.internal = NULL; /* This is how we'll differ a custom SDL_DisplayMode from a system SDL_DisplayMode */
++
++    // Copy from kmsdrm's CalculateRefreshRate
++    new_mode.refresh_rate_numerator = mode->pixel_clock_khz * 1000;
++    new_mode.refresh_rate_denominator = mode->htotal * mode->vtotal;
++
++    if (mode->flags & SDL_MODELINE_FLAG_INTERLACE) {
++        new_mode.refresh_rate_numerator *= 2;
++    }
++
++    if (mode->flags & SDL_MODELINE_FLAG_DBLSCAN) {
++        new_mode.refresh_rate_denominator *= 2;
++    }
++
++    /*if (mode->vscan > 1) {
++        new_mode.refresh_rate_denominator *= mode->vscan;
++    }*/
++
++    if(!SDL_AddFullscreenDisplayMode(videodisplay, &new_mode)) {
++        return NULL;
++    }
++
++    // At this point, SDL_AddFullscreenDisplayMode has validated the new mode, let's go on
++    // This part is heavily inspired from SDL_AddFullscreenDisplayMode
++    SDL_CustomModeEntry *entry = &SDL_CustomFullscreenModes[num_custom_modes++];
++    SDL_memset(entry, 0, sizeof(*entry));
++    SDL_memcpy(&entry->mode, &new_mode, sizeof(new_mode));
++    SDL_memcpy(&entry->custom_mode, mode, sizeof(SDL_CustomDisplayMode));
++    SDL_FinalizeDisplayMode(&entry->mode);
++    entry->display_id = display;
++    entry->custom_mode.backend_data = NULL;
++    /* Handling the list of custom modes could have been done like the list of modes in a display
++     * (see SDL_AddFullscreenDisplayMode how it was done there)
++       But it would have turned to a nightmare when the list size has to be increased because
++       we'd have to remap all the mode pointers in the SDL main modes list
++    */
++
++printf("-> Added new mode %dx%d@%.2f to display id %d and takes %ld bytes\n", entry->mode.w, entry->mode.h, entry->mode.refresh_rate, entry->mode.displayID, sizeof(SDL_CustomModeEntry));
++    return &entry->mode;
++}
++
+ bool SDL_AddFullscreenDisplayMode(SDL_VideoDisplay *display, const SDL_DisplayMode *mode)
+ {
+     SDL_DisplayMode *modes;
+diff --git a/src/video/kmsdrm/SDL_kmsdrmvideo.c b/src/video/kmsdrm/SDL_kmsdrmvideo.c
+index 888451f32..7403d263a 100644
+--- a/src/video/kmsdrm/SDL_kmsdrmvideo.c
++++ b/src/video/kmsdrm/SDL_kmsdrmvideo.c
+@@ -584,6 +584,56 @@ drm_atomic_waitpending(SDL_VideoDevice *_this, SDL_DisplayData *dispdata)
+     }
+ }
+ 
++static drmModeModeInfo *KMSDRM_CreateModeFromCustom(const SDL_CustomDisplayMode *custom)
++{
++    if (!custom) {
++        return NULL;
++    }
++
++    drmModeModeInfo *mode = SDL_malloc(sizeof(drmModeModeInfo));
++    if (!mode) {
++        return NULL;
++    }
++
++    SDL_memset(mode, 0, sizeof(*mode));
++
++    SDL_strlcpy(mode->name, custom->name, SDL_min(DRM_DISPLAY_MODE_LEN, SDL_DISPLAY_MODE_LEN));
++    mode->hdisplay = custom->w;
++    mode->vdisplay = custom->h;
++    mode->hsync_start = custom->hsync_start;
++    mode->hsync_end   = custom->hsync_end;
++    mode->htotal      = custom->htotal;
++    mode->vsync_start = custom->vsync_start;
++    mode->vsync_end   = custom->vsync_end;
++    mode->vtotal      = custom->vtotal;
++    mode->clock = custom->pixel_clock_khz;
++    if (custom->flags & SDL_MODELINE_FLAG_PHSYNC) {
++        mode->flags |= DRM_MODE_FLAG_PHSYNC;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_NHSYNC) {
++        mode->flags |= DRM_MODE_FLAG_NHSYNC;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_PVSYNC) {
++        mode->flags |= DRM_MODE_FLAG_PVSYNC;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_NVSYNC) {
++        mode->flags |= DRM_MODE_FLAG_NVSYNC;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_INTERLACE) {
++        mode->flags |= DRM_MODE_FLAG_INTERLACE;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_DBLSCAN) {
++        mode->flags |= DRM_MODE_FLAG_DBLSCAN;
++    }
++    if (custom->flags & SDL_MODELINE_FLAG_CSYNC) {
++        mode->flags |= DRM_MODE_FLAG_CSYNC;
++    }
++    mode->hskew = 0;
++    mode->vscan = 0;
++
++    return mode;
++}
++
+ static bool KMSDRM_Available(void)
+ {
+ #ifdef SDL_PLATFORM_OPENBSD
+@@ -915,8 +965,18 @@ static drmModeModeInfo *KMSDRM_GetClosestDisplayMode(SDL_VideoDisplay *display,
+     drmModeModeInfo *drm_mode;
+ 
+     if (SDL_GetClosestFullscreenDisplayMode(display->id, width, height, 0.0f, false, &closest)) {
+-        const SDL_DisplayModeData *modedata = closest.internal;
+-        drm_mode = &conn->modes[modedata->mode_index];
++        if (closest.internal == NULL) {
++printf("Boucle internal == NULL -> %dx%d\n", closest.w, closest.h);
++            SDL_CustomDisplayMode *custom = SDL_GetCustomDisplayMode(display->id, &closest);
++printf("Custom display mode: %dx%d\n", custom->hdisplay, custom->vdisplay);
++            drmModeModeInfo *drm = KMSDRM_CreateModeFromCustom(custom);
++printf("drmModeModeinfo custom: %dx%d\n", drm->hdisplay, drm->vdisplay);
++            //custom->backend_data = drm;
++            drm_mode = drm;
++        } else {
++            const SDL_DisplayModeData *modedata = closest.internal;
++            drm_mode = &conn->modes[modedata->mode_index];
++        }
+         return drm_mode;
+     } else {
+         return NULL;
+@@ -958,7 +1018,28 @@ static void KMSDRM_DeinitDisplays(SDL_VideoDevice *_this)
+     if (displays) {
+         // Iterate on the SDL Display list.
+         for (i = 0; displays[i]; ++i) {
+-
++            // First free all the drmModeModeInfo stored in backend_data
++            SDL_DisplayMode **modes;
++            int num_modes;
++
++            modes = SDL_GetFullscreenDisplayModes(displays[i], &num_modes);
++            if (modes) {
++                for (int m = 0; m < num_modes; ++m) {
++                    const SDL_DisplayMode *mode = modes[m];
++
++                    /* internal == NULL => injected custom mode */
++                    if (mode && mode->internal == NULL) {
++                        const SDL_CustomDisplayMode *custom =
++                            SDL_GetCustomDisplayMode(displays[i], mode);
++
++                        if (custom && custom->backend_data != NULL) {
++                            SDL_free(custom->backend_data);
++                            ((SDL_CustomDisplayMode *)custom)->backend_data = NULL;
++                        }
++                    }
++                }
++                SDL_free(modes);
++            }
+             // Get the internal for this display
+             dispdata = SDL_GetDisplayDriverData(displays[i]);
+ 
+@@ -1968,6 +2049,9 @@ bool KMSDRM_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *display, SD
+     SDL_DisplayData *dispdata = display->internal;
+     SDL_DisplayModeData *modedata = mode->internal;
+     drmModeConnector *conn = dispdata->connector.connector;
++    SDL_CustomDisplayMode *custom;
++    SDL_GetCustomDisplayMode(display->id, mode);
++
+     int i;
+ 
+     // Don't do anything if we are in Vulkan mode.
+@@ -1975,6 +2059,33 @@ bool KMSDRM_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *display, SD
+         return true;
+     }
+ 
++    custom = SDL_GetCustomDisplayMode(display->id, mode);
++    if (custom) {
++        if (!custom->backend_data) {
++            custom->backend_data = (void*)KMSDRM_CreateModeFromCustom(custom);
++        }
++        dispdata->fullscreen_mode = *(drmModeModeInfo*)custom->backend_data;
++        printf("Modeline \"%s\" %.3f %u %u %u %u %u %u %u %u\n",
++        dispdata->fullscreen_mode.name,
++        dispdata->fullscreen_mode.clock / 1000.0,
++        dispdata->fullscreen_mode.hdisplay,
++        dispdata->fullscreen_mode.hsync_start,
++        dispdata->fullscreen_mode.hsync_end,
++        dispdata->fullscreen_mode.htotal,
++        dispdata->fullscreen_mode.vdisplay,
++        dispdata->fullscreen_mode.vsync_start,
++        dispdata->fullscreen_mode.vsync_end,
++        dispdata->fullscreen_mode.vtotal);
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_INTERLACE) printf(" INTERLACE");
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_DBLSCAN)  printf(" DBLSCAN");
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_CSYNC)    printf(" CSYNC");
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_PHSYNC)   printf(" PHSYNC");
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_NVSYNC)   printf(" NVSYNC");
++        if (dispdata->fullscreen_mode.flags & DRM_MODE_FLAG_PVSYNC)   printf(" PVSYNC");
++        printf("\n");
++        goto dirty;
++    }
++
+     if (!modedata) {
+         return SDL_SetError("Mode doesn't have an associated index");
+     }
+@@ -1983,6 +2094,7 @@ bool KMSDRM_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *display, SD
+        so it's done in SwapWindow. */
+     dispdata->fullscreen_mode = conn->modes[modedata->mode_index];
+ 
++dirty:
+     for (i = 0; i < viddata->num_windows; i++) {
+         KMSDRM_DirtySurfaces(viddata->windows[i]);
+     }
+@@ -2085,7 +2197,7 @@ bool KMSDRM_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Propert
+     if (!windata) {
+         return false;
+     }
+-
++printf("Vulkan ? %d\n", is_vulkan ? 1 : 0);
+     // Setup driver data for this window
+     windata->viddata = viddata;
+     window->internal = windata;
+@@ -2159,6 +2271,7 @@ bool KMSDRM_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Propert
+            If a window is fullscreen, SDL internals will call
+            KMSDRM_SetWindowFullscreen() to reconfigure it if necessary. */
+         mode = KMSDRM_GetClosestDisplayMode(display, window->windowed.w, window->windowed.h);
++printf("Window size  %dx%d\n", window->windowed.w, window->windowed.h);
+ 
+         if (mode) {
+             dispdata->fullscreen_mode = *mode;
+diff --git a/src/video/x11/SDL_x11modes.c b/src/video/x11/SDL_x11modes.c
+index 2b7ab0ffe..5728a91c0 100644
+--- a/src/video/x11/SDL_x11modes.c
++++ b/src/video/x11/SDL_x11modes.c
+@@ -27,6 +27,16 @@
+ #include "edid.h"
+ #include "../../events/SDL_displayevents_c.h"
+ 
++#define RR_PHSYNC    (1 << 0)
++#define RR_NHSYNC    (1 << 1)
++#define RR_PVSYNC    (1 << 2)
++#define RR_NVSYNC    (1 << 3)
++#define RR_INTERLACE (1 << 4)
++#define RR_DOUBLESCAN (1 << 5)
++#define RR_CSYNC     (1 << 6)
++#define RR_PCSYNC    (1 << 7)
++#define RR_NCSYNC    (1 << 8)
++
+ #include "../../core/unix/SDL_gtk.h"
+ 
+ // #define X11MODES_DEBUG
+@@ -1019,6 +1029,69 @@ static int SDL_XRRSetScreenSizeErrHandler(Display *d, XErrorEvent *e)
+ }
+ #endif
+ 
++static unsigned int X11_ModeFlagsFromSDL(Uint32 sdl_flags)
++{
++    unsigned int x11_flags = 0;
++
++    if (sdl_flags & SDL_MODELINE_FLAG_PHSYNC) {
++        x11_flags |= RR_PHSYNC;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_NHSYNC) {
++        x11_flags |= RR_NHSYNC;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_PVSYNC) {
++        x11_flags |= RR_PVSYNC;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_NVSYNC) {
++        x11_flags |= RR_NVSYNC;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_INTERLACE) {
++        x11_flags |= RR_INTERLACE;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_DBLSCAN) {
++        x11_flags |= RR_DOUBLESCAN;
++    }
++    if (sdl_flags & SDL_MODELINE_FLAG_CSYNC) {
++        x11_flags |= RR_CSYNC;
++    }
++    //~ if (sdl_flags & SDL_MODELINE_FLAG_PCSYNC) {
++        //~ x11_flags |= RR_PCSYNC;
++    //~ }
++    //~ if (sdl_flags & SDL_MODELINE_FLAG_NCSYNC) {
++        //~ x11_flags |= RR_NCSYNC;
++    //~ }
++
++    return x11_flags;
++}
++
++static XRRModeInfo *X11_CreateModeFromCustom(const SDL_CustomDisplayMode *custom)
++{
++    XRRModeInfo *mode = SDL_calloc(1, sizeof(*mode));
++    if (!mode) {
++        return NULL;
++    }
++
++    mode->name = SDL_strdup(custom->name);
++    mode->nameLength = SDL_strlen(custom->name);
++
++    mode->width  = custom->hdisplay;
++    mode->height = custom->vdisplay;
++
++    mode->dotClock = (long)custom->pixel_clock_khz * 1000;
++
++    mode->hSyncStart = custom->hsync_start;
++    mode->hSyncEnd   = custom->hsync_end;
++    mode->hTotal     = custom->htotal;
++
++    mode->vSyncStart = custom->vsync_start;
++    mode->vSyncEnd   = custom->vsync_end;
++    mode->vTotal     = custom->vtotal;
++
++    mode->modeFlags = X11_ModeFlagsFromSDL(custom->flags);
++
++    return mode;
++}
++
+ bool X11_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *sdl_display, SDL_DisplayMode *mode)
+ {
+     SDL_VideoData *viddata = _this->internal;
+@@ -1044,6 +1117,7 @@ bool X11_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *sdl_display, S
+         XRROutputInfo *output_info;
+         XRRCrtcInfo *crtc;
+         Status status;
++        RRMode rrmode = 0;
+ 
+         res = X11_XRRGetScreenResources(display, RootWindow(display, data->screen));
+         if (!res) {
+@@ -1063,7 +1137,7 @@ bool X11_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *sdl_display, S
+             return SDL_SetError("Couldn't get XRandR crtc info");
+         }
+ 
+-        if (crtc->mode == modedata->xrandr_mode) {
++        if (mode->internal != NULL && crtc->mode == modedata->xrandr_mode) {
+ #ifdef X11MODES_DEBUG
+             printf("already in desired mode 0x%lx (%ux%u), nothing to do\n",
+                    crtc->mode, crtc->width, crtc->height);
+@@ -1079,6 +1153,56 @@ bool X11_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *sdl_display, S
+             goto ungrabServer;
+         }
+ 
++        if (mode->internal == NULL) {
++            const SDL_CustomDisplayMode *custom =
++                SDL_GetCustomDisplayMode(sdl_display->id, mode);
++            X11_CustomModeData *custom_data;
++
++            if (!custom) {
++                return SDL_SetError("Custom display mode not found");
++            }
++
++            custom_data = (X11_CustomModeData *)custom->backend_data;
++
++            if (!custom_data) {
++                XRRModeInfo *info;
++                RRMode mode_id;
++
++                info = X11_CreateModeFromCustom(custom);
++                if (!info) {
++                    return SDL_OutOfMemory();
++                }
++
++                Window root = RootWindow(display, data->screen);
++                mode_id = X11_XRRCreateMode(display, root, info);
++                if (!mode_id) {
++                    SDL_free(info->name);
++                    SDL_free(info);
++                    return SDL_SetError("XRRCreateMode failed");
++                }
++
++                X11_XRRAddOutputMode(display, data->xrandr_output, mode_id);
++
++                custom_data = SDL_calloc(1, sizeof(*custom_data));
++                if (!custom_data) {
++                    X11_XRRDestroyMode(display, mode_id);
++                    SDL_free(info->name);
++                    SDL_free(info);
++                    return SDL_OutOfMemory();
++                }
++
++                custom_data->info = info;
++                custom_data->mode_id = mode_id;
++                custom_data->output = data->xrandr_output;
++
++                ((SDL_CustomDisplayMode *)custom)->backend_data = custom_data;
++            }
++
++            rrmode = custom_data->mode_id;
++        } else {
++            rrmode = modedata->xrandr_mode;
++        }
++
+         mm_width = mode->w * DisplayWidthMM(display, data->screen) / DisplayWidth(display, data->screen);
+         mm_height = mode->h * DisplayHeightMM(display, data->screen) / DisplayHeight(display, data->screen);
+ 
+@@ -1097,7 +1221,7 @@ bool X11_SetDisplayMode(SDL_VideoDevice *_this, SDL_VideoDisplay *sdl_display, S
+         X11_XSetErrorHandler(PreXRRSetScreenSizeErrorHandler);
+ 
+         status = X11_XRRSetCrtcConfig(display, res, output_info->crtc, CurrentTime,
+-                                      crtc->x, crtc->y, modedata->xrandr_mode, crtc->rotation,
++                                      crtc->x, crtc->y, rrmode, crtc->rotation,
+                                       &data->xrandr_output, 1);
+ 
+     ungrabServer:
+diff --git a/src/video/x11/SDL_x11sym.h b/src/video/x11/SDL_x11sym.h
+index 1f1335373..8ca76efea 100644
+--- a/src/video/x11/SDL_x11sym.h
++++ b/src/video/x11/SDL_x11sym.h
+@@ -343,6 +343,10 @@ SDL_X11_SYM(int,XRRGetOutputProperty,(Display *dpy,RROutput output, Atom propert
+ SDL_X11_SYM(RROutput,XRRGetOutputPrimary,(Display *dpy,Window window))
+ SDL_X11_SYM(void,XRRSelectInput,(Display *dpy, Window window, int mask))
+ SDL_X11_SYM(Status,XRRGetCrtcTransform,(Display *dpy,RRCrtc crtc,XRRCrtcTransformAttributes **attributes))
++SDL_X11_SYM(RRMode,XRRCreateMode,(Display *dpy, Window window, XRRModeInfo *mode))
++SDL_X11_SYM(void, XRRDestroyMode,(Display *dpy, RRMode mode))
++SDL_X11_SYM(void, XRRAddOutputMode,(Display *dpy, RROutput output, RRMode mode))
++SDL_X11_SYM(void, XRRDeleteOutputMode, (Display *dpy, RROutput output, RRMode mode))
+ #endif
+ 
+ // MIT-SCREEN-SAVER support
+diff --git a/src/video/x11/SDL_x11video.c b/src/video/x11/SDL_x11video.c
+index c4f00021f..454d4060a 100644
+--- a/src/video/x11/SDL_x11video.c
++++ b/src/video/x11/SDL_x11video.c
+@@ -479,6 +479,53 @@ void X11_VideoQuit(SDL_VideoDevice *_this)
+     X11_QuitPen(_this);
+     X11_QuitClipboard(_this);
+     X11_QuitXsettings(_this);
++
++    SDL_DisplayID *displays;
++    int i;
++
++    displays = SDL_GetDisplays(NULL);
++    if (displays) {
++        for (i = 0; displays[i]; ++i) {
++            SDL_DisplayID display_id = displays[i];
++
++            SDL_VideoDisplay *display = SDL_GetVideoDisplay(display_id);
++            SDL_DisplayMode **modes;
++            int num_modes;
++
++            // Force restore desktop mode, or we may not be able to delete a custom mode
++            // if it's the active one
++            X11_SetDisplayMode(_this, display, &display->desktop_mode);
++            modes = SDL_GetFullscreenDisplayModes(display_id, &num_modes);
++            if (modes) {
++                for (int m = 0; m < num_modes; ++m) {
++                    const SDL_DisplayMode *mode = modes[m];
++
++                    /* internal == NULL => injected custom mode */
++                    if (mode && mode->internal == NULL) {
++                        const SDL_CustomDisplayMode *custom =
++                            SDL_GetCustomDisplayMode(display_id, mode);
++
++                        if (custom && custom->backend_data) {
++                            X11_CustomModeData *x11mode = (X11_CustomModeData *)custom->backend_data;
++
++                                if (x11mode->mode_id != None) {
++                                    X11_XRRDeleteOutputMode(data->display, x11mode->output, x11mode->mode_id);
++                                    X11_XRRDestroyMode(data->display, x11mode->mode_id);
++                                }
++                            /* X11 backend owns this */
++                            SDL_free(custom->backend_data);
++printf("Purge du backend_data de %dx%d\n", mode->w, mode->h);
++                            /* prevent dangling pointer */
++                            ((SDL_CustomDisplayMode *)custom)->backend_data = NULL;
++                        }
++                    }
++                }
++                SDL_free(modes);
++            }
++        }
++        SDL_free(displays);
++    }
++
+ }
+ 
+ bool X11_UseDirectColorVisuals(void)
+diff --git a/src/video/x11/SDL_x11video.h b/src/video/x11/SDL_x11video.h
+index 2dc4d3ab6..c2550b0ad 100644
+--- a/src/video/x11/SDL_x11video.h
++++ b/src/video/x11/SDL_x11video.h
+@@ -41,6 +41,13 @@
+ #include "SDL_x11window.h"
+ #include "SDL_x11vulkan.h"
+ 
++typedef struct
++{
++    XRRModeInfo *info; /* description XRandR */
++    RRMode mode_id;    /* XID serveur */
++    RROutput output;
++} X11_CustomModeData;
++
+ // Private display data
+ 
+ struct SDL_VideoData

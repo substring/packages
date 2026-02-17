@@ -5,3 +5,4 @@ linux-lts
 #retroarch
 bash
 filesystem
+sdl3
