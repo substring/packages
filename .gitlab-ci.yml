@@ -246,9 +246,6 @@ release:testing:
     - echo "Releasing testing packages"
     - pacman -Sy --noconfirm --needed tar xz grep github-cli
     - ./release.sh -t
-  artifacts:
-    paths:
-      - work/output
 
 
 reease:stable:
