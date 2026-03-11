@@ -251,11 +251,9 @@ release:testing:
       - work/output
 
 
-deploy:stable:
-  stage: deploy
+reease:stable:
+  stage: release
   when: manual
-  dependencies:
-    - release:testing
   <<: *onlymasterortags
   script:
     - echo "Releasing stable packages"
