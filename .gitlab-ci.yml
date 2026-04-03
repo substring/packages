@@ -248,7 +248,7 @@ release:testing:
     - ./release.sh -t
 
 
-reease:stable:
+release:stable:
   stage: release
   when: manual
   <<: *onlymasterortags
