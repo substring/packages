@@ -6,3 +6,4 @@ linux-lts
 bash
 filesystem
 sdl3
+xorg-xinit

@@ -1,0 +1,66 @@
+diff --git a/configure b/configure
+index 32b1d43..d0bb0f5 100755
+--- a/configure
++++ b/configure
+@@ -12539,7 +12539,7 @@ fi
+ 
+ 
+ # Additional substitutions in startx, xinitrc & man pages
+-SHELL_CMD="/bin/sh"
++SHELL_CMD="/bin/bash"
+ XSERVERNAME="Xorg"
+ XCONFIGFILE="xorg.conf"
+ XCONFIGFILEMAN='${XCONFIGFILE} (${FILE_MAN_SUFFIX})'
+diff --git a/configure.ac b/configure.ac
+index bd99f8a..4a92b7c 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -165,7 +165,7 @@ AC_SUBST(MCOOKIE)
+ AC_SUBST(STARTX_COOKIE_FLAGS)
+ 
+ # Additional substitutions in startx, xinitrc & man pages
+-SHELL_CMD="/bin/sh"
++SHELL_CMD="/bin/bash"
+ XSERVERNAME="Xorg"
+ XCONFIGFILE="xorg.conf"
+ XCONFIGFILEMAN='${XCONFIGFILE} (${FILE_MAN_SUFFIX})'
+diff --git a/startx.in b/startx.in
+index 9b224af..378c241 100644
+--- a/startx.in
++++ b/startx.in
+@@ -160,13 +160,13 @@ while [ "$1" != "" ]; do
+ 	    if [ "$client" = "" ] && [ "$clientargs" = "" ]; then
+ 		client="$1"
+ 	    else
+-		clientargs="$clientargs $1"
++		clientargs="$clientargs \"$1\""
+ 	    fi
+ 	else
+ 	    if [ "$server" = "" ] && [ "$serverargs" = "" ]; then
+ 		server="$1"
+ 	    else
+-		serverargs="$serverargs $1"
++		serverargs="$serverargs \"$1\""
+ 	    fi
+ 	fi
+ 	;;
+@@ -182,7 +182,7 @@ while [ "$1" != "" ]; do
+ 		 expr "$1" : ':[0-9][0-9]*$' > /dev/null 2>&1; then
+ 		display="$1"
+ 	    else
+-		serverargs="$serverargs $1"
++		serverargs="$serverargs \"$1\""
+ 	    fi
+ 	fi
+ 	;;
+@@ -324,7 +324,9 @@ CYGWIN_NT*|Darwin)
+     eval "$xinit" \"$client\" $clientargs -- \"$server\" $display $serverargs
+     ;;
+ *)
+-    "$xinit" "$client" $clientargs -- "$server" $display $serverargs
++    eval "clientargsarray=($clientargs)"
++    eval "serverargsarray=($serverargs)"
++    "$xinit" "$client" "${clientargsarray[@]}" -- "$server" $display "${serverargsarray[@]}"
+     ;;
+ esac
+ retval=$?
