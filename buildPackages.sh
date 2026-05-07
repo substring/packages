@@ -154,6 +154,8 @@ do_the_job() {
     [[ -e "$(pwd)/$(basename $f)" ]] && echo "Replacing $(basename $f)"
     cp -v "$f" "$(pwd)"
   done
+  # For packages requiring pod2man
+  export PATH="$PATH:/usr/bin/vendor_perl:/usr/bin/core_perl"
   #updpkgsums uses the MAKEPKG_OPTS, and needs it to be an array, so avoid any conflict
   (MAKEPKG_OPTS='' updpkgsums)
   # Need -c because linux-rt is first cloned in linux, can conflic with a previous build in CI
@@ -275,7 +277,8 @@ build_single_package() {
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
-    realpkg="$(grep "$cmd_arg " /work/packages_arch.lst)"
+    realpkg="$(grep "^$cmd_arg$" /work/packages_arch.lst)"
+    [[ -z "$realpkg" ]] && realpkg="$(grep "$cmd_arg " /work/packages_arch.lst)"
     [[ -n "$realpkg" ]] && pkgname="$realpkg"
     # shellcheck disable=SC2046
     build_native_single "$pkgname" "$pkgver" || exit $?
