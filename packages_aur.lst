@@ -19,8 +19,6 @@ overlayroot
 # The day I decide to enable new features of x86_64
 #alhp-keyring
 #alhp-mirrorlist
-# For PCSX2
-shaderc-non-semantic-debug
 # For xbox one controllers
 xone-dkms
 xone-dongle-firmware
