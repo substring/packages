@@ -12,6 +12,7 @@ con2fbmap
 vi-vim-symlink
 systemd-boot-pacman-hook
 freeimage
+emulationstation-de
 # Removed since pkg maintainer uses the epoch, which corrupts the filename on github
 #upd72020x-fw
 game-devices-udev
