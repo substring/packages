@@ -51,6 +51,7 @@ COPY packages_dkms.lst /work
 COPY groovy-ux-repo.conf /etc/pacman.d
 COPY release.sh /work
 COPY settings /work
+COPY makepkg-autopatch.patch /work
 
 RUN grep -q groovy-ux-repo.conf /etc/pacman.conf || echo -e "\nInclude = /etc/pacman.d/groovy-ux-repo.conf" >> /etc/pacman.conf
 
@@ -59,6 +60,7 @@ RUN [[ $(curl -L -o /dev/null -s -w "%{http_code}\n" https://github.com/substrin
 RUN cat /etc/pacman.d/groovy-ux-repo.conf
 
 RUN pacman -Syu --noconfirm
+RUN patch -p1 -d / < /work/makepkg-autopatch.patch
 
 USER build
 

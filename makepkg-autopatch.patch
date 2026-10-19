@@ -1,0 +1,194 @@
+--- a/usr/bin/makepkg
++++ b/usr/bin/makepkg
+@@ -70,6 +70,7 @@
+ PKGFUNC=0
+ PKGVERFUNC=0
+ PREPAREFUNC=0
++AUTOPATCH=1
+ REPKG=0
+ REPRODUCIBLE=0
+ RMDEPS=0
+@@ -457,6 +458,147 @@
+ 	run_function_safe "prepare"
+ }
+ 
++# Try a patch for real on a scratch copy of the files it touches, as
++# `patch --dry-run` fails on series (git format-patch) whose commits change
++# the same file. With -R, the commits are reversed last to first.
++# usage: try_patch <dir> <strip level> <patch file> [-R]
++# Sets try_patch_found (files of the patch found in <dir>) and, without -R,
++# try_patch_log (patch output and rejected hunks).
++try_patch() {
++	local dir=$1 lvl=$2 file=$3 reverse=$4 tmp f i piece rej rc=0
++	try_patch_found=0 try_patch_log=
++
++	tmp=$(mktemp -d) || return 1
++	mkdir "$tmp/tree" "$tmp/pieces"
++
++	while IFS= read -r f; do
++		for (( i = 0; i < lvl; i++ )); do
++			[[ $f = */* ]] || continue 2
++			f=${f#*/}
++		done
++		[[ -n $f && $f != /* && $f != *..* && -e $dir/$f ]] || continue
++		[[ $f = */* ]] && mkdir -p "$tmp/tree/${f%/*}"
++		[[ -e $tmp/tree/$f ]] && continue
++		cp -pP "$dir/$f" "$tmp/tree/$f" 2>/dev/null && (( ++try_patch_found ))
++	done < <(sed -n 's/^\(---\|+++\) \([^\t]*\).*/\2/p' "$file")
++
++	if [[ $reverse = -R ]]; then
++		awk -v d="$tmp/pieces" '
++			/^From [0-9a-f]+ Mon Sep 17 00:00:00 2001$/ { if (out) close(out); n++ }
++			{ out = sprintf("%s/%06d", d, n); print > out }' "$file"
++		for piece in $(printf '%s\n' "$tmp"/pieces/* | sort -r); do
++			(cd "$tmp/tree" && command patch -p"$lvl" -R -f -s -i "$piece") </dev/null &>/dev/null || { rc=1; break; }
++		done
++	else
++		try_patch_log=$(cd "$tmp/tree" && command patch -p"$lvl" -N -f -i "$file" </dev/null 2>&1) || rc=1
++		if (( rc )); then
++			while IFS= read -r rej; do
++				try_patch_log+=$'\n'"$(printf -- "$(gettext "Rejected hunks for %s:")" "${rej%.rej}")"
++				try_patch_log+=$'\n'"$(<"$tmp/tree/$rej")"
++			done < <(cd "$tmp/tree" && find . -name '*.rej' -printf '%P\n' | sort)
++		fi
++	fi
++
++	rm -rf "$tmp"
++	return $rc
++}
++
++# Apply every patch listed in source=() that is not already applied.
++# Runs after prepare(), so PKGBUILDs that apply their own patches keep
++# working: a patch that reverse-applies cleanly is considered applied.
++# PKGBUILD knobs:
++#   patchdir=<dir>       directory (relative to $srcdir) to apply patches in
++#   nopatch=(<file>...)  source files not to apply automatically
++run_patch() {
++	local all_sources netfile file dirs=() dir lvl applied forward header=0
++	local best_found best_log best_where try_patch_found try_patch_log line n
++	local -a levels=(1 0 2)
++
++	get_all_sources_for_arch 'all_sources'
++
++	if [[ -n $patchdir ]]; then
++		dirs=("$srcdir/$patchdir")
++	else
++		# real (non-symlink) top-level directories, then $srcdir itself
++		for dir in "$srcdir"/*/; do
++			dir=${dir%/}
++			[[ -d $dir && ! -L $dir ]] && dirs+=("$dir")
++		done
++		dirs+=("$srcdir")
++	fi
++
++	for netfile in "${all_sources[@]}"; do
++		file=$(get_filename "$netfile")
++		case $file in
++			*.patch|*.diff) ;;
++			*) continue ;;
++		esac
++		in_array "$file" "${nopatch[@]}" && continue
++		(( header++ )) || msg "$(gettext "Applying source patches...")"
++		file="$srcdir/$file"
++
++		applied=0 forward=
++		# first pass: is it already applied somewhere (e.g. by prepare())?
++		for dir in "${dirs[@]}"; do
++			for lvl in "${levels[@]}"; do
++				if try_patch "$dir" "$lvl" "$file" -R; then
++					applied=1
++					break 2
++				fi
++			done
++		done
++		if (( applied )); then
++			msg2 "$(gettext "Skipping %s (already applied)")" "${file##*/}"
++			continue
++		fi
++
++		# second pass: find where it applies, keeping the closest failure
++		best_found=0 best_log= best_where=
++		for dir in "${dirs[@]}"; do
++			for lvl in "${levels[@]}"; do
++				if try_patch "$dir" "$lvl" "$file"; then
++					forward="$dir:$lvl"
++					break 2
++				fi
++				if (( try_patch_found > best_found )); then
++					best_found=$try_patch_found best_log=$try_patch_log
++					best_where="-p$lvl in ${dir#"$srcdir"/}"
++				fi
++			done
++		done
++		if [[ -z $forward ]]; then
++			error "$(gettext "Patch %s does not apply")" "${file##*/}"
++			if (( best_found )); then
++				plainerr "$(gettext "Closest attempt (%s):")" "$best_where"
++				n=0
++				while IFS= read -r line; do
++					if (( ++n > 60 )); then
++						plainerr "$(gettext "[...]")"
++						break
++					fi
++					printf '      %s\n' "$line" >&2
++				done <<< "$best_log"
++			else
++				line=
++				for dir in "${dirs[@]}"; do
++					[[ $dir = "$srcdir" ]] && dir='$srcdir' || dir=${dir#"$srcdir"/}
++					line+="${line:+, }$dir"
++				done
++				plainerr "$(gettext "None of the files it changes exist in %s.")" "$line"
++			fi
++			plainerr "$(gettext "Set %s or add it to %s in the %s.")" "patchdir" "nopatch" "$BUILDSCRIPT"
++			exit $E_USER_FUNCTION_FAILED
++		fi
++
++		dir=${forward%:*} lvl=${forward##*:}
++		msg2 "$(gettext "Applying %s (-p%s in %s)")" "${file##*/}" "$lvl" "${dir#"$srcdir"/}"
++		if ! (cd_safe "$dir" && command patch -p"$lvl" -N -f -i "$file" </dev/null); then
++			error "$(gettext "Failed to apply %s")" "${file##*/}"
++			exit $E_USER_FUNCTION_FAILED
++		fi
++	done
++}
++
+ run_build() {
+ 	run_function_safe "build"
+ }
+@@ -912,6 +1054,7 @@
+ 	printf -- "$(gettext "  --noarchive      Do not create package archive")\n"
+ 	printf -- "$(gettext "  --nocheck        Do not run the %s function in the %s")\n" "check()" "$BUILDSCRIPT"
+ 	printf -- "$(gettext "  --noprepare      Do not run the %s function in the %s")\n" "prepare()" "$BUILDSCRIPT"
++	printf -- "$(gettext "  --nopatch        Do not apply patches listed in %s")\n" "source=()"
+ 	printf -- "$(gettext "  --nosign         Do not create a signature for the package")\n"
+ 	printf -- "$(gettext "  --packagelist    Only list package filepaths that would be produced")\n"
+ 	printf -- "$(gettext "  --printsrcinfo   Print the generated SRCINFO and exit")\n"
+@@ -960,7 +1103,7 @@
+ OPT_SHORT="AcCdD:efFghiLmop:rRsSV"
+ OPT_LONG=('allsource' 'check' 'clean' 'cleanbuild' 'config:' 'dir:' 'force' 'geninteg'
+           'help' 'holdver' 'ignorearch' 'install' 'key:' 'log' 'noarchive' 'nobuild'
+-          'nocolor' 'nocheck' 'nodeps' 'noextract' 'noprepare' 'nosign' 'packagelist'
++          'nocolor' 'nocheck' 'nodeps' 'noextract' 'nopatch' 'noprepare' 'nosign' 'packagelist'
+           'printsrcinfo' 'repackage' 'rmdeps' 'sign' 'skipchecksums' 'skipinteg'
+           'skippgpcheck' 'source' 'syncdeps' 'verifysource' 'version')
+ 
+@@ -1004,6 +1147,7 @@
+ 		--nocheck)        RUN_CHECK='n' ;;
+ 		--noverify)       RUN_VERIFY='n' ;;
+ 		--noprepare)      RUN_PREPARE='n' ;;
++		--nopatch)        AUTOPATCH=0 ;;
+ 		--nosign)         SIGNPKG='n' ;;
+ 		-o|--nobuild)     BUILDPKG=0 NOBUILD=1 ;;
+ 		-p)               shift; BUILDFILE=$1 ;;
+@@ -1372,6 +1516,10 @@
+ 		if (( PREPAREFUNC )); then
+ 			run_prepare
+ 		fi
++		if (( AUTOPATCH )); then
++			cd_safe "$srcdir"
++			run_patch
++		fi
+ 		if (( REPRODUCIBLE )); then
+ 			# We have activated reproducible builds, so unify source times before
+ 			# building
