@@ -1,0 +1,313 @@
+From e1c559a7e1477d63c29fca9772fb4c844438b01b Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sun, 18 Oct 2026 22:58:53 +0200
+Subject: [PATCH 1/5] Add USE_SYSTEM_LIB_SWITCHRES to link the system Switchres
+ library
+
+Like the other USE_SYSTEM_LIB_* options, link Switchres from the system
+instead of building the bundled copy, e.g. to use a Switchres with a
+backend the bundled one doesn't have yet.
+
+The headers of the system library are found through pkg-config, or given
+with USE_SYSTEM_LIB_SWITCHRES=switchres:<includedir>. As most projects
+have 3rdparty as an include directory, where <switchres/switchres.h>
+would resolve to the bundled headers, the system headers are exposed
+through a generated directory searched before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ makefile                 |  4 ++++
+ scripts/extlib.lua       |  5 +++++
+ scripts/genie.lua        | 23 +++++++++++++++++++++++
+ scripts/src/3rdparty.lua |  2 ++
+ scripts/src/main.lua     |  8 +++++++-
+ 5 files changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/makefile b/makefile
+index fe983b80..7bbd09f9 100644
+--- a/makefile
++++ b/makefile
+@@ -534,6 +534,10 @@ ifdef USE_SYSTEM_LIB_PUGIXML
+ PARAMS += --with-system-pugixml='$(USE_SYSTEM_LIB_PUGIXML)'
+ endif
+ 
++ifdef USE_SYSTEM_LIB_SWITCHRES
++PARAMS += --with-system-switchres='$(USE_SYSTEM_LIB_SWITCHRES)'
++endif
++
+ ifdef TOOLCHAIN
+ PARAMS += --TOOLCHAIN='$(TOOLCHAIN)'
+ endif
+diff --git a/scripts/extlib.lua b/scripts/extlib.lua
+index 02af1224..30e2c37b 100644
+--- a/scripts/extlib.lua
++++ b/scripts/extlib.lua
+@@ -74,6 +74,11 @@ newoption {
+ 	description = "Use system LUA library",
+ }
+ 
++newoption {
++	trigger = "with-system-switchres",
++	description = "Use system Switchres library",
++}
++
+ newoption {
+ 	trigger = "with-system-utf8proc",
+ 	description = "Use system utf8proc library",
+diff --git a/scripts/genie.lua b/scripts/genie.lua
+index fa4a5bb6..f348c0cf 100644
+--- a/scripts/genie.lua
++++ b/scripts/genie.lua
+@@ -677,6 +677,29 @@ else
+ 	}
+ end
+ 
++if _OPTIONS["with-system-switchres"] ~= nil and _OPTIONS["with-system-switchres"] ~= "0" then
++	-- Most projects have 3rdparty as an include directory, where the bundled
++	-- headers would be found for <switchres/switchres.h>: expose the headers
++	-- of the system library through a directory searched before
++	local incdir = ext_includedir("switchres")
++	if type(incdir) == "table" then
++		incdir = incdir[1]
++	end
++	if incdir == nil or incdir == "" then
++		local pkgconfig = os.getenv("PKG_CONFIG") or "pkg-config"
++		incdir = backtick(pkgconfig .. " --variable=includedir switchres")
++	end
++	if incdir == nil or incdir == "" or not os.isdir(incdir .. "/switchres") then
++		error("system Switchres headers not found, give their directory with USE_SYSTEM_LIB_SWITCHRES=switchres:<includedir>")
++	end
++	local sysinc = GEN_DIR .. "system-switchres"
++	os.mkdir(sysinc)
++	os.execute("ln -sfn '" .. incdir .. "/switchres' '" .. sysinc .. "/switchres'")
++	includedirs {
++		sysinc,
++	}
++end
++
+ if _OPTIONS["NOASM"] == "1" then
+ 	defines {
+ 		"MAME_NOASM"
+diff --git a/scripts/src/3rdparty.lua b/scripts/src/3rdparty.lua
+index 6dba7c4c..f7200d11 100755
+--- a/scripts/src/3rdparty.lua
++++ b/scripts/src/3rdparty.lua
+@@ -2105,6 +2105,7 @@ end
+ -- switchres library
+ --------------------------------------------------
+ 
++if _OPTIONS["with-system-switchres"] == nil or _OPTIONS["with-system-switchres"] == "0" then
+ project "switchres"
+ 	uuid "556720c2-c830-4c5f-bb6c-ec89eface072"
+ 	kind "StaticLib"
+@@ -2177,3 +2178,4 @@ if _OPTIONS["gcc"]~=nil and string.find(_OPTIONS["gcc"], "clang") then
+ 		"-Wno-unused-private-field",
+ 	}
+ end
++end
+diff --git a/scripts/src/main.lua b/scripts/src/main.lua
+index 791ff7da..3be46d7a 100644
+--- a/scripts/src/main.lua
++++ b/scripts/src/main.lua
+@@ -206,9 +206,15 @@ end
+ 		"bgfx",
+ 		"bimg",
+ 		"bx",
+-		"switchres",
++		ext_lib("switchres"),
+ 		"ocore_" .. _OPTIONS["osd"],
+ 	}
++	if _OPTIONS["with-system-switchres"] ~= nil and _OPTIONS["with-system-switchres"] ~= "0" then
++		local pkgconfig = os.getenv("PKG_CONFIG") or "pkg-config"
++		local str = backtick(pkgconfig .. " --libs switchres")
++		addlibfromstring(str)
++		addoptionsfromstring(str)
++	end
+ 
+ 	override_resources = false;
+ 
+
+From 04367639d17d414acd70939d01427f4453e4b107 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 16:14:24 +0200
+Subject: [PATCH 2/5] sdl: follow the output mode under Wayland
+
+With Switchres, the output mode is changed behind SDL's back. Under
+Wayland, SDL's exclusive fullscreen keeps a buffer sized after the mode
+of the window creation, and has the compositor scale it to the output
+through a viewport: the picture is filtered, and an interlaced mode
+gets the line count of the desktop mode.
+
+Use fullscreen desktop under Wayland when Switchres is enabled: the
+buffer then follows the size of the output mode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/osd/sdl/window.cpp | 22 +++++++++++++++++++---
+ 1 file changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/src/osd/sdl/window.cpp b/src/osd/sdl/window.cpp
+index 8a777324..ff215cec 100644
+--- a/src/osd/sdl/window.cpp
++++ b/src/osd/sdl/window.cpp
+@@ -64,6 +64,22 @@
+ 
+ #define SDL_VERSION_EQUALS(v1, vnum2) (SDL_VERSIONNUM(v1.major, v1.minor, v1.patch) == vnum2)
+ 
++//============================================================
++//  fullscreen_flag
++//============================================================
++
++// Under Wayland, SDL's exclusive fullscreen keeps a buffer sized after the
++// mode of the window creation and has the compositor scale it to the output.
++// When Switchres changes the output mode, use fullscreen desktop instead, so
++// that the buffer follows the size of the output mode.
++static Uint32 fullscreen_flag()
++{
++	const char *driver = SDL_GetCurrentVideoDriver();
++	if (video_config.switchres && driver != nullptr && !strcmp(driver, "wayland"))
++		return SDL_WINDOW_FULLSCREEN_DESKTOP;
++	return SDL_WINDOW_FULLSCREEN;
++}
++
+ 
+ 
+ //============================================================
+@@ -224,7 +240,7 @@ void sdl_window_info::toggle_full_screen()
+ 	// toggle the window mode
+ 	set_fullscreen(!fullscreen());
+ 
+-	SDL_SetWindowFullscreen(platform_window(), fullscreen() ? SDL_WINDOW_FULLSCREEN : 0);
++	SDL_SetWindowFullscreen(platform_window(), fullscreen() ? fullscreen_flag() : 0);
+ 	SDL_SetWindowBordered(platform_window(), fullscreen() ? SDL_FALSE : SDL_TRUE);
+ 	SDL_SetWindowResizable(platform_window(), fullscreen() ? SDL_FALSE : SDL_TRUE);
+ 
+@@ -632,7 +648,7 @@ void sdl_window_info::complete_destroy()
+ 	{
+ 		SDL_SetWindowFullscreen(platform_window(), 0);
+ 		SDL_SetWindowDisplayMode(platform_window(), &m_original_mode);
+-		SDL_SetWindowFullscreen(platform_window(), SDL_WINDOW_FULLSCREEN);
++		SDL_SetWindowFullscreen(platform_window(), fullscreen_flag());
+ 	}
+ 
+ 	renderer_reset();
+@@ -880,7 +896,7 @@ int sdl_window_info::complete_create()
+ 	// create the SDL window
+ 	// soft driver also used | SDL_WINDOW_INPUT_GRABBED | SDL_WINDOW_MOUSE_FOCUS
+ 	m_extra_flags |= (fullscreen() ?
+-			SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_FULLSCREEN : SDL_WINDOW_RESIZABLE);
++			SDL_WINDOW_INPUT_FOCUS | fullscreen_flag() : SDL_WINDOW_RESIZABLE);
+ 
+ //#if defined(SDLMAME_WIN32)
+ 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+
+From 6f8bfa2b5cec219d3320ee06ddf2a4416887e3e3 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 16:39:52 +0200
+Subject: [PATCH 3/5] sdl: prefer the Wayland video driver under Wayland
+
+SDL2 prefers X11, so in a Wayland session GroovyMAME ran on Xwayland.
+Switchres sets the modes through the compositor, but on exit SDL
+restores the window's mode with RRSetCrtcConfig, which Xwayland rejects
+with BadMatch: Xlib exits on the spot, before Switchres restores the
+desktop mode and removes its modes.
+
+With videodriver auto and no SDL_VIDEODRIVER in the environment, ask
+for 'wayland,x11' when WAYLAND_DISPLAY is set.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/osd/sdl/osdsdl.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/osd/sdl/osdsdl.cpp b/src/osd/sdl/osdsdl.cpp
+index 549869be..56a8fc6e 100644
+--- a/src/osd/sdl/osdsdl.cpp
++++ b/src/osd/sdl/osdsdl.cpp
+@@ -214,6 +214,13 @@ void sdl_osd_interface::init(running_machine &machine)
+ 		osd_printf_verbose("Setting SDL videodriver '%s' ...\n", stemp);
+ 		osd_setenv(SDLENV_VIDEODRIVER, stemp, 1);
+ 	}
++	else if (osd_getenv("WAYLAND_DISPLAY") != nullptr && osd_getenv(SDLENV_VIDEODRIVER) == nullptr)
++	{
++		// SDL2 prefers X11, i.e. Xwayland, which can't change modes: under
++		// Wayland, modes are set through the compositor, so use its driver
++		osd_printf_verbose("Setting SDL videodriver 'wayland,x11' ...\n");
++		osd_setenv(SDLENV_VIDEODRIVER, "wayland,x11", 1);
++	}
+ 
+ 	stemp = options().render_driver();
+ 	if (stemp != nullptr)
+
+From c2e4f7a6331b9f3a1da19de9b393d85110b0c89f Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 17:52:43 +0200
+Subject: [PATCH 4/5] sdl: no libdecor in fullscreen
+
+Under COSMIC, SDL2 with libdecor never sees the window configured and
+blocks in SDL_CreateWindow, even for a plain window. Fullscreen needs no
+client-side decorations: disable libdecor unless running windowed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/osd/sdl/osdsdl.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/osd/sdl/osdsdl.cpp b/src/osd/sdl/osdsdl.cpp
+index 56a8fc6e..39d18f7b 100644
+--- a/src/osd/sdl/osdsdl.cpp
++++ b/src/osd/sdl/osdsdl.cpp
+@@ -222,6 +222,11 @@ void sdl_osd_interface::init(running_machine &machine)
+ 		osd_setenv(SDLENV_VIDEODRIVER, "wayland,x11", 1);
+ 	}
+ 
++	// Fullscreen needs no client-side decorations, and with libdecor SDL2
++	// waits forever for the window to be configured under COSMIC
++	if (!options().window())
++		SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_ALLOW_LIBDECOR, "0");
++
+ 	stemp = options().render_driver();
+ 	if (stemp != nullptr)
+ 	{
+
+From 46e6a01309cbf1b1cf76e370b7f631ecd8584c19 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Tue, 20 Oct 2026 13:32:18 +0200
+Subject: [PATCH 5/5] kmsraw: map the window under Wayland
+
+kmsraw never draws into its window. Under Wayland, with the output
+leased by the compositor, a window without content is never mapped, so
+it never gets the keyboard focus and the game gets no input. Give the
+window one black frame.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/osd/modules/render/drawkmsraw.cpp | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/src/osd/modules/render/drawkmsraw.cpp b/src/osd/modules/render/drawkmsraw.cpp
+index 6c41cb13..eca1932d 100644
+--- a/src/osd/modules/render/drawkmsraw.cpp
++++ b/src/osd/modules/render/drawkmsraw.cpp
+@@ -88,6 +88,21 @@ int renderer_kmsraw::create()
+ 	if (window().index() == 0)
+ 		m_sync.osd_init(window().monitor()->oshandle(), nullptr, nullptr);
+ 
++	// kmsraw never draws into the window. Under Wayland, where the output is
++	// leased by the compositor, a window without content isn't mapped, so it
++	// never gets the keyboard focus: give it one black frame.
++	const char *driver = SDL_GetCurrentVideoDriver();
++	if (driver != nullptr && !strcmp(driver, "wayland"))
++	{
++		SDL_Window *sdl_window = dynamic_cast<sdl_window_info &>(window()).platform_window();
++		SDL_Surface *surface = SDL_GetWindowSurface(sdl_window);
++		if (surface != nullptr)
++		{
++			SDL_FillRect(surface, nullptr, 0);
++			SDL_UpdateWindowSurface(sdl_window);
++		}
++	}
++
+ 	return 0;
+ }
+ 

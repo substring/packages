@@ -1,0 +1,774 @@
+From ae68bda6ff775231d96cf61e56f6b0d24f056b8d Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 00:33:31 +0200
+Subject: [PATCH 1/6] output-management: add custom timings (v5)
+
+Add a timings event to zwlr_output_mode_v1 and a set_custom_timings
+request to zwlr_output_configuration_head_v1, so clients can set modes
+from detailed timings (modelines), e.g. for CRT monitors.
+
+On DRM outputs the timings are registered as a user mode. Other
+backends fall back to a custom mode with the same size and refresh.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../wlr-output-management-unstable-v1.xml     | 84 +++++++++++++++-
+ types/wlr_output_management_v1.c              | 96 ++++++++++++++++++-
+ 2 files changed, 174 insertions(+), 6 deletions(-)
+
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 541284a..1d0e59c 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -39,7 +39,7 @@
+     interface version number is reset.
+   </description>
+ 
+-  <interface name="zwlr_output_manager_v1" version="4">
++  <interface name="zwlr_output_manager_v1" version="5">
+     <description summary="output device configuration manager">
+       This interface is a manager that allows reading and writing the current
+       output device configuration.
+@@ -125,7 +125,7 @@
+     </event>
+   </interface>
+ 
+-  <interface name="zwlr_output_head_v1" version="4">
++  <interface name="zwlr_output_head_v1" version="5">
+     <description summary="output device">
+       A head is an output device. The difference between a wl_output object and
+       a head is that heads are advertised even if they are turned off. A head
+@@ -366,7 +366,7 @@
+     </event>
+   </interface>
+ 
+-  <interface name="zwlr_output_mode_v1" version="3">
++  <interface name="zwlr_output_mode_v1" version="5">
+     <description summary="output mode">
+       This object describes an output mode.
+ 
+@@ -419,9 +419,47 @@
+         object.
+       </description>
+     </request>
++
++    <!-- Version 5 additions -->
++
++    <enum name="timing_flags" bitfield="true" since="5">
++      <description summary="mode timing flags">
++        Flags describing sync polarity and scan type of a mode. The values
++        match the DRM_MODE_FLAG_* values of the Linux kernel.
++      </description>
++      <entry name="phsync" value="0x1" summary="positive horizontal sync"/>
++      <entry name="nhsync" value="0x2" summary="negative horizontal sync"/>
++      <entry name="pvsync" value="0x4" summary="positive vertical sync"/>
++      <entry name="nvsync" value="0x8" summary="negative vertical sync"/>
++      <entry name="interlace" value="0x10" summary="interlaced scan"/>
++      <entry name="dblscan" value="0x20" summary="double scan"/>
++      <entry name="csync" value="0x40" summary="composite sync"/>
++      <entry name="pcsync" value="0x80" summary="positive composite sync"/>
++      <entry name="ncsync" value="0x100" summary="negative composite sync"/>
++    </enum>
++
++    <event name="timings" since="5">
++      <description summary="detailed mode timings">
++        This event describes the exact timings of the mode, as they would be
++        programmed into the display hardware. It is only sent if the head
++        exposes hardware timings, such as a DRM connector.
++
++        For interlaced modes, vertical values describe the full frame.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </event>
+   </interface>
+ 
+-  <interface name="zwlr_output_configuration_v1" version="4">
++  <interface name="zwlr_output_configuration_v1" version="5">
+     <description summary="output configuration">
+       This object is used by the client to describe a full output configuration.
+ 
+@@ -539,7 +577,7 @@
+     </request>
+   </interface>
+ 
+-  <interface name="zwlr_output_configuration_head_v1" version="4">
++  <interface name="zwlr_output_configuration_head_v1" version="5">
+     <description summary="head configuration">
+       This object is used by the client to update a single head's configuration.
+ 
+@@ -554,6 +592,8 @@
+       <entry name="invalid_scale" value="5" summary="scale negative or zero"/>
+       <entry name="invalid_adaptive_sync_state" value="6" since="4"
+         summary="invalid enum value used in the set_adaptive_sync request"/>
++      <entry name="invalid_custom_timings" value="7" since="5"
++        summary="timings are inconsistent"/>
+     </enum>
+ 
+     <request name="set_mode">
+@@ -607,5 +647,39 @@
+       </description>
+       <arg name="state" type="uint" enum="zwlr_output_head_v1.adaptive_sync_state"/>
+     </request>
++
++    <!-- Version 5 additions -->
++
++    <request name="set_custom_timings" since="5">
++      <description summary="set a mode from detailed timings">
++        This request assigns a mode described by its exact hardware timings to
++        the head, like a modeline. This allows modes which are not advertised
++        by the display, for instance for CRT monitors.
++
++        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
++        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
++        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
++        protocol error is raised. The compositor may still reject timings that
++        the hardware cannot drive by sending the failed event on the
++        configuration.
++
++        Once applied, the compositor advertises the mode as a regular
++        zwlr_output_mode_v1 object with matching timings. The compositor may
++        remove such a mode once it is no longer in use.
++
++        It is a protocol error to combine this request with set_mode or
++        set_custom_mode.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </request>
+   </interface>
+ </protocol>
+diff --git a/types/wlr_output_management_v1.c b/types/wlr_output_management_v1.c
+index 83e2085..0bc31e1 100644
+--- a/types/wlr_output_management_v1.c
++++ b/types/wlr_output_management_v1.c
+@@ -3,11 +3,17 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <wlr/backend.h>
++#include <wlr/config.h>
+ #include <wlr/types/wlr_output_management_v1.h>
+ #include <wlr/util/log.h>
+ #include "wlr-output-management-unstable-v1-protocol.h"
+ 
+-#define OUTPUT_MANAGER_VERSION 4
++#if WLR_HAS_DRM_BACKEND
++#include <wlr/backend/drm.h>
++#include <xf86drmMode.h>
++#endif
++
++#define OUTPUT_MANAGER_VERSION 5
+ 
+ enum {
+ 	HEAD_STATE_ENABLED = 1 << 0,
+@@ -238,6 +244,76 @@ static void config_head_handle_set_custom_mode(struct wl_client *client,
+ 	config_head->state.custom_mode.refresh = refresh;
+ }
+ 
++static void config_head_handle_set_custom_timings(struct wl_client *client,
++		struct wl_resource *config_head_resource, uint32_t clock,
++		uint32_t hdisplay, uint32_t hsync_start, uint32_t hsync_end,
++		uint32_t htotal, uint32_t vdisplay, uint32_t vsync_start,
++		uint32_t vsync_end, uint32_t vtotal, uint32_t flags) {
++	struct wlr_output_configuration_head_v1 *config_head =
++		config_head_from_resource(config_head_resource);
++	if (config_head == NULL) {
++		return;
++	}
++
++	if (clock == 0 || hdisplay == 0 || vdisplay == 0 ||
++			hdisplay > hsync_start || hsync_start > hsync_end ||
++			hsync_end > htotal || htotal > UINT16_MAX ||
++			vdisplay > vsync_start || vsync_start > vsync_end ||
++			vsync_end > vtotal || vtotal > UINT16_MAX) {
++		wl_resource_post_error(config_head_resource,
++			ZWLR_OUTPUT_CONFIGURATION_HEAD_V1_ERROR_INVALID_CUSTOM_TIMINGS,
++			"invalid custom timings");
++		return;
++	}
++
++	struct wlr_output *output = config_head->state.output;
++
++#if WLR_HAS_DRM_BACKEND
++	if (wlr_output_is_drm(output)) {
++		drmModeModeInfo modeinfo = {
++			.clock = clock,
++			.hdisplay = hdisplay,
++			.hsync_start = hsync_start,
++			.hsync_end = hsync_end,
++			.htotal = htotal,
++			.vdisplay = vdisplay,
++			.vsync_start = vsync_start,
++			.vsync_end = vsync_end,
++			.vtotal = vtotal,
++			.flags = flags,
++			.type = DRM_MODE_TYPE_USERDEF,
++		};
++		snprintf(modeinfo.name, sizeof(modeinfo.name), "%ux%u%s",
++			hdisplay, vdisplay,
++			(flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "");
++		struct wlr_output_mode *mode =
++			wlr_drm_connector_add_mode(output, &modeinfo);
++		if (mode != NULL) {
++			config_head->state.mode = mode;
++			config_head->state.custom_mode.width = 0;
++			config_head->state.custom_mode.height = 0;
++			config_head->state.custom_mode.refresh = 0;
++			return;
++		}
++	}
++#endif
++
++	// The backend can't program timings: fall back to a custom mode with the
++	// same size and refresh rate
++	uint64_t refresh = ((uint64_t)clock * 1000000 + htotal * vtotal / 2) /
++		((uint64_t)htotal * vtotal);
++	if (flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_INTERLACE) {
++		refresh *= 2;
++	}
++	if (flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_DBLSCAN) {
++		refresh /= 2;
++	}
++	config_head->state.mode = NULL;
++	config_head->state.custom_mode.width = hdisplay;
++	config_head->state.custom_mode.height = vdisplay;
++	config_head->state.custom_mode.refresh = refresh;
++}
++
+ static void config_head_handle_set_position(struct wl_client *client,
+ 		struct wl_resource *config_head_resource, int32_t x, int32_t y) {
+ 	struct wlr_output_configuration_head_v1 *config_head =
+@@ -313,6 +389,7 @@ static void config_head_handle_set_adaptive_sync(struct wl_client *client,
+ static const struct zwlr_output_configuration_head_v1_interface config_head_impl = {
+ 	.set_mode = config_head_handle_set_mode,
+ 	.set_custom_mode = config_head_handle_set_custom_mode,
++	.set_custom_timings = config_head_handle_set_custom_timings,
+ 	.set_position = config_head_handle_set_position,
+ 	.set_transform = config_head_handle_set_transform,
+ 	.set_scale = config_head_handle_set_scale,
+@@ -705,6 +782,22 @@ static struct wlr_output_configuration_head_v1 *configuration_get_head(
+ 	return NULL;
+ }
+ 
++static void send_mode_timings(struct wl_resource *mode_resource,
++		struct wlr_output *output, struct wlr_output_mode *mode) {
++#if WLR_HAS_DRM_BACKEND
++	if (wl_resource_get_version(mode_resource) <
++			ZWLR_OUTPUT_MODE_V1_TIMINGS_SINCE_VERSION ||
++			!wlr_output_is_drm(output)) {
++		return;
++	}
++	const drmModeModeInfo *info = wlr_drm_mode_get_info(mode);
++	zwlr_output_mode_v1_send_timings(mode_resource, info->clock,
++		info->hdisplay, info->hsync_start, info->hsync_end, info->htotal,
++		info->vdisplay, info->vsync_start, info->vsync_end, info->vtotal,
++		info->flags & 0x1ff);
++#endif
++}
++
+ static void send_mode_state(struct wl_resource *mode_resource,
+ 		struct wlr_output_mode *mode) {
+ 	zwlr_output_mode_v1_send_size(mode_resource, mode->width, mode->height);
+@@ -747,6 +840,7 @@ static struct wl_resource *head_send_mode(struct wlr_output_head_v1 *head,
+ 
+ 	if (mode != NULL) {
+ 		send_mode_state(mode_resource, mode);
++		send_mode_timings(mode_resource, head->state.output, mode);
+ 	}
+ 
+ 	return mode_resource;
+
+From 48023f0a40af705f926242c3bd145d55e81c61db Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 14:53:02 +0200
+Subject: [PATCH 2/6] output-management: name and remove custom modes
+
+Add a name to set_custom_timings and a name event on modes, so clients
+can recognize the modes they created. Add remove_custom_mode on heads
+to remove a mode created with set_custom_timings; the mode in use is
+kept, and the serial is bumped so that pending configurations which
+may reference the removed mode are cancelled.
+
+Add wlr_drm_connector_remove_mode() as the counterpart of
+wlr_drm_connector_add_mode().
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/drm/drm.c                             | 19 ++++
+ include/wlr/backend/drm.h                     |  9 ++
+ .../wlr-output-management-unstable-v1.xml     | 38 +++++++-
+ types/wlr_output_management_v1.c              | 86 ++++++++++++++++++-
+ 4 files changed, 146 insertions(+), 6 deletions(-)
+
+diff --git a/backend/drm/drm.c b/backend/drm/drm.c
+index dd3edfa..d1e51e9 100644
+--- a/backend/drm/drm.c
++++ b/backend/drm/drm.c
+@@ -1121,6 +1121,25 @@ struct wlr_output_mode *wlr_drm_connector_add_mode(struct wlr_output *output,
+ 	return &mode->wlr_mode;
+ }
+ 
++bool wlr_drm_connector_remove_mode(struct wlr_output *output,
++		struct wlr_output_mode *wlr_mode) {
++	struct wlr_drm_connector *conn = get_drm_connector_from_output(output);
++	struct wlr_drm_mode *mode = wl_container_of(wlr_mode, mode, wlr_mode);
++
++	if (mode->drm_mode.type != DRM_MODE_TYPE_USERDEF ||
++			wlr_mode == output->current_mode) {
++		return false;
++	}
++
++	wlr_drm_conn_log(conn, WLR_INFO, "Removing custom mode "
++			"%"PRId32"x%"PRId32"@%"PRId32,
++			wlr_mode->width, wlr_mode->height, wlr_mode->refresh);
++
++	wl_list_remove(&wlr_mode->link);
++	free(mode);
++	return true;
++}
++
+ const drmModeModeInfo *wlr_drm_mode_get_info(struct wlr_output_mode *wlr_mode) {
+ 	const struct wlr_drm_mode *mode = wl_container_of(wlr_mode, mode, wlr_mode);
+ 	return &mode->drm_mode;
+diff --git a/include/wlr/backend/drm.h b/include/wlr/backend/drm.h
+index 233bbcb..77727af 100644
+--- a/include/wlr/backend/drm.h
++++ b/include/wlr/backend/drm.h
+@@ -82,6 +82,15 @@ void wlr_drm_lease_terminate(struct wlr_drm_lease *lease);
+ struct wlr_output_mode *wlr_drm_connector_add_mode(struct wlr_output *output,
+ 	const drmModeModeInfo *mode);
+ 
++/**
++ * Remove a mode added with wlr_drm_connector_add_mode().
++ *
++ * Fails if the mode is the current mode of the output. The caller must make
++ * sure nothing else references the mode, which is freed.
++ */
++bool wlr_drm_connector_remove_mode(struct wlr_output *output,
++	struct wlr_output_mode *mode);
++
+ /**
+  * Get the raw DRM mode information from a struct wlr_output_mode.
+  *
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 1d0e59c..0d5a608 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -364,6 +364,28 @@
+       </description>
+       <arg name="state" type="uint" enum="adaptive_sync_state"/>
+     </event>
++
++    <!-- Version 5 additions -->
++
++    <enum name="error" since="5">
++      <entry name="invalid_mode" value="1" summary="mode doesn't belong to head"/>
++      <entry name="not_custom" value="2"
++        summary="mode wasn't created with set_custom_timings"/>
++    </enum>
++
++    <request name="remove_custom_mode" since="5">
++      <description summary="remove a custom mode">
++        This request removes a mode created with
++        zwlr_output_configuration_head_v1.set_custom_timings. Removing any
++        other mode raises the not_custom protocol error.
++
++        A mode in use by the head can't be removed: the request is then
++        ignored. Otherwise the compositor sends the finished event on every
++        object of the mode, followed by a done event on the manager. As the
++        serial changes, pending configurations are cancelled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
+   </interface>
+ 
+   <interface name="zwlr_output_mode_v1" version="5">
+@@ -438,6 +460,15 @@
+       <entry name="ncsync" value="0x100" summary="negative composite sync"/>
+     </enum>
+ 
++    <event name="name" since="5">
++      <description summary="mode name">
++        This event describes the name of the mode, as known by the display
++        hardware or given with set_custom_timings. It is only sent if the head
++        exposes hardware timings, along with the timings event.
++      </description>
++      <arg name="name" type="string" summary="mode name"/>
++    </event>
++
+     <event name="timings" since="5">
+       <description summary="detailed mode timings">
+         This event describes the exact timings of the mode, as they would be
+@@ -664,8 +695,9 @@
+         configuration.
+ 
+         Once applied, the compositor advertises the mode as a regular
+-        zwlr_output_mode_v1 object with matching timings. The compositor may
+-        remove such a mode once it is no longer in use.
++        zwlr_output_mode_v1 object with matching timings and name. The mode
++        stays available until it is removed with
++        zwlr_output_head_v1.remove_custom_mode.
+ 
+         It is a protocol error to combine this request with set_mode or
+         set_custom_mode.
+@@ -680,6 +712,8 @@
+       <arg name="vsync_end" type="uint" summary="vertical sync end"/>
+       <arg name="vtotal" type="uint" summary="vertical total"/>
+       <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++      <arg name="name" type="string"
++        summary="mode name, truncated by the compositor if too long"/>
+     </request>
+   </interface>
+ </protocol>
+diff --git a/types/wlr_output_management_v1.c b/types/wlr_output_management_v1.c
+index 0bc31e1..829ff99 100644
+--- a/types/wlr_output_management_v1.c
++++ b/types/wlr_output_management_v1.c
+@@ -248,7 +248,7 @@ static void config_head_handle_set_custom_timings(struct wl_client *client,
+ 		struct wl_resource *config_head_resource, uint32_t clock,
+ 		uint32_t hdisplay, uint32_t hsync_start, uint32_t hsync_end,
+ 		uint32_t htotal, uint32_t vdisplay, uint32_t vsync_start,
+-		uint32_t vsync_end, uint32_t vtotal, uint32_t flags) {
++		uint32_t vsync_end, uint32_t vtotal, uint32_t flags, const char *name) {
+ 	struct wlr_output_configuration_head_v1 *config_head =
+ 		config_head_from_resource(config_head_resource);
+ 	if (config_head == NULL) {
+@@ -283,9 +283,13 @@ static void config_head_handle_set_custom_timings(struct wl_client *client,
+ 			.flags = flags,
+ 			.type = DRM_MODE_TYPE_USERDEF,
+ 		};
+-		snprintf(modeinfo.name, sizeof(modeinfo.name), "%ux%u%s",
+-			hdisplay, vdisplay,
+-			(flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "");
++		if (name[0] != '\0') {
++			snprintf(modeinfo.name, sizeof(modeinfo.name), "%s", name);
++		} else {
++			snprintf(modeinfo.name, sizeof(modeinfo.name), "%ux%u%s",
++				hdisplay, vdisplay,
++				(flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "");
++		}
+ 		struct wlr_output_mode *mode =
+ 			wlr_drm_connector_add_mode(output, &modeinfo);
+ 		if (mode != NULL) {
+@@ -791,6 +795,9 @@ static void send_mode_timings(struct wl_resource *mode_resource,
+ 		return;
+ 	}
+ 	const drmModeModeInfo *info = wlr_drm_mode_get_info(mode);
++	char name[sizeof(info->name) + 1];
++	snprintf(name, sizeof(name), "%.*s", (int)sizeof(info->name), info->name);
++	zwlr_output_mode_v1_send_name(mode_resource, name);
+ 	zwlr_output_mode_v1_send_timings(mode_resource, info->clock,
+ 		info->hdisplay, info->hsync_start, info->hsync_end, info->htotal,
+ 		info->vdisplay, info->vsync_start, info->vsync_end, info->vtotal,
+@@ -924,8 +931,79 @@ static void head_handle_release(struct wl_client *client,
+ 	wl_resource_destroy(resource);
+ }
+ 
++static void manager_bump_serial(struct wlr_output_manager_v1 *manager) {
++	manager->serial = wl_display_next_serial(manager->display);
++	struct wl_resource *manager_resource;
++	wl_resource_for_each(manager_resource, &manager->resources) {
++		zwlr_output_manager_v1_send_done(manager_resource, manager->serial);
++	}
++}
++
++static void head_handle_remove_custom_mode(struct wl_client *client,
++		struct wl_resource *head_resource, struct wl_resource *mode_resource) {
++	struct wlr_output_head_v1 *head = head_from_resource(head_resource);
++	// Mode is NULL for the virtual mode of a custom mode, or once finished
++	struct wlr_output_mode *mode = mode_from_resource(mode_resource);
++	if (head == NULL || mode == NULL) {
++		return;
++	}
++	struct wlr_output *output = head->state.output;
++
++	bool found = false;
++	struct wlr_output_mode *m;
++	wl_list_for_each(m, &output->modes, link) {
++		if (m == mode) {
++			found = true;
++			break;
++		}
++	}
++	if (!found) {
++		wl_resource_post_error(head_resource,
++			ZWLR_OUTPUT_HEAD_V1_ERROR_INVALID_MODE,
++			"mode doesn't belong to head");
++		return;
++	}
++
++	bool custom = false;
++#if WLR_HAS_DRM_BACKEND
++	custom = wlr_output_is_drm(output) &&
++		wlr_drm_mode_get_info(mode)->type == DRM_MODE_TYPE_USERDEF;
++#endif
++	if (!custom) {
++		wl_resource_post_error(head_resource,
++			ZWLR_OUTPUT_HEAD_V1_ERROR_NOT_CUSTOM,
++			"mode wasn't created with set_custom_timings");
++		return;
++	}
++
++	if (mode == output->current_mode || mode == head->state.mode) {
++		wlr_log(WLR_DEBUG, "Ignoring removal of mode in use on %s",
++			output->name);
++		return;
++	}
++
++	// Make every object of the mode inert, they are no longer part of the head
++	struct wl_resource *resource, *tmp;
++	wl_resource_for_each_safe(resource, tmp, &head->mode_resources) {
++		if (mode_from_resource(resource) == mode) {
++			zwlr_output_mode_v1_send_finished(resource);
++			wl_resource_set_user_data(resource, NULL);
++			wl_list_remove(wl_resource_get_link(resource));
++			wl_list_init(wl_resource_get_link(resource));
++		}
++	}
++
++#if WLR_HAS_DRM_BACKEND
++	wlr_drm_connector_remove_mode(output, mode);
++#endif
++
++	// Configurations may still reference the mode: invalidate them
++	manager_bump_serial(head->manager);
++}
++
+ static const struct zwlr_output_head_v1_interface head_impl = {
+ 	.release = head_handle_release,
++	.remove_custom_mode = head_handle_remove_custom_mode,
+ };
+ 
+ static void manager_send_head(struct wlr_output_manager_v1 *manager,
+
+From 8a41678a67995561e44321e0f5832cc4511b0135 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:37:06 +0200
+Subject: [PATCH 3/6] protocol: avoid XML entities in set_custom_timings
+
+The Rust wayland-scanner rejects entities such as &lt; in descriptions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ protocol/wlr-output-management-unstable-v1.xml | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 0d5a608..7b6411e 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -687,10 +687,11 @@
+         the head, like a modeline. This allows modes which are not advertised
+         by the display, for instance for CRT monitors.
+ 
+-        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
+-        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
+-        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
+-        protocol error is raised. The compositor may still reject timings that
++        Horizontal values must not decrease from hdisplay to hsync_start,
++        hsync_end and htotal, likewise for vertical values from vdisplay to
++        vsync_start, vsync_end and vtotal, and clock, hdisplay and vdisplay
++        must be non-zero, otherwise the invalid_custom_timings protocol error
++        is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+         configuration.
+ 
+
+From 16447a8f560e0d675c1809ffb302f8106e4652a8 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sun, 18 Oct 2026 21:58:14 +0200
+Subject: [PATCH 4/6] output: add interlaced flag to modes
+
+Width, height and refresh rate don't tell an interlaced mode from a
+progressive one with the same values, e.g. 1080i50 and 1080p50.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/drm/drm.c              | 1 +
+ include/wlr/types/wlr_output.h | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/backend/drm/drm.c b/backend/drm/drm.c
+index d1e51e9..79d6db8 100644
+--- a/backend/drm/drm.c
++++ b/backend/drm/drm.c
+@@ -1086,6 +1086,7 @@ static struct wlr_drm_mode *drm_mode_create(const drmModeModeInfo *modeinfo) {
+ 	if (modeinfo->type & DRM_MODE_TYPE_PREFERRED) {
+ 		mode->wlr_mode.preferred = true;
+ 	}
++	mode->wlr_mode.interlaced = modeinfo->flags & DRM_MODE_FLAG_INTERLACE;
+ 
+ 	return mode;
+ }
+diff --git a/include/wlr/types/wlr_output.h b/include/wlr/types/wlr_output.h
+index c8e44b0..4f0d34f 100644
+--- a/include/wlr/types/wlr_output.h
++++ b/include/wlr/types/wlr_output.h
+@@ -30,8 +30,9 @@ enum wlr_output_mode_aspect_ratio {
+ 
+ struct wlr_output_mode {
+ 	int32_t width, height;
+-	int32_t refresh; // mHz
++	int32_t refresh; // mHz, field rate for interlaced modes
+ 	bool preferred;
++	bool interlaced;
+ 	enum wlr_output_mode_aspect_ratio picture_aspect_ratio;
+ 	struct wl_list link;
+ };
+
+From 3cb18f0759daa769eaec7a6c16dbe470711d295d Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sun, 18 Oct 2026 21:58:38 +0200
+Subject: [PATCH 5/6] backend/drm: keep interlaced modes
+
+Interlaced modes were skipped because they couldn't be told from
+progressive ones by size and refresh rate (sway#3167). Modes now have
+an interlaced flag: keep interlaced modes, after the progressive ones,
+so that a lookup by size and refresh rate still picks the progressive
+mode when both exist.
+
+Displays which only support interlaced modes, such as 15 kHz CRT
+monitors and TVs, had no mode at all.
+
+Also match the current mode by its timings, as the mode read from the
+CRTC may differ from the connector's one in name or type.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/drm/drm.c | 34 ++++++++++++++++++++++++++--------
+ 1 file changed, 26 insertions(+), 8 deletions(-)
+
+diff --git a/backend/drm/drm.c b/backend/drm/drm.c
+index 79d6db8..ddf9a87 100644
+--- a/backend/drm/drm.c
++++ b/backend/drm/drm.c
+@@ -1072,6 +1072,17 @@ static bool drm_connector_alloc_crtc(struct wlr_drm_connector *conn) {
+ 	return ok;
+ }
+ 
++// Same timings, regardless of the name and type of the modes
++static bool drm_mode_timings_equal(const drmModeModeInfo *a, const drmModeModeInfo *b) {
++	return a->clock == b->clock &&
++		a->hdisplay == b->hdisplay && a->hsync_start == b->hsync_start &&
++		a->hsync_end == b->hsync_end && a->htotal == b->htotal &&
++		a->hskew == b->hskew &&
++		a->vdisplay == b->vdisplay && a->vsync_start == b->vsync_start &&
++		a->vsync_end == b->vsync_end && a->vtotal == b->vtotal &&
++		a->vscan == b->vscan && a->flags == b->flags;
++}
++
+ static struct wlr_drm_mode *drm_mode_create(const drmModeModeInfo *modeinfo) {
+ 	struct wlr_drm_mode *mode = calloc(1, sizeof(*mode));
+ 	if (!mode) {
+@@ -1673,12 +1684,13 @@ static bool connect_drm_connector(struct wlr_drm_connector *wlr_conn,
+ 
+ 	wlr_log(WLR_INFO, "Detected modes:");
+ 
++	// Interlaced modes come after progressive ones, so that looking up a mode
++	// by size and refresh rate picks the progressive one when both exist
++	struct wl_list interlaced_modes;
++	wl_list_init(&interlaced_modes);
++
+ 	bool found_current_mode = false;
+ 	for (int i = 0; i < drm_conn->count_modes; ++i) {
+-		if (drm_conn->modes[i].flags & DRM_MODE_FLAG_INTERLACE) {
+-			continue;
+-		}
+-
+ 		struct wlr_drm_mode *mode = drm_mode_create(&drm_conn->modes[i]);
+ 		if (!mode) {
+ 			wlr_log_errno(WLR_ERROR, "Allocation failed");
+@@ -1689,19 +1701,25 @@ static bool connect_drm_connector(struct wlr_drm_connector *wlr_conn,
+ 
+ 		// If this is the current mode set on the conn's crtc,
+ 		// then set it as the conn's output current mode.
+-		if (current_modeinfo != NULL && memcmp(&mode->drm_mode,
+-				current_modeinfo, sizeof(*current_modeinfo)) == 0) {
++		if (current_modeinfo != NULL && !found_current_mode &&
++				drm_mode_timings_equal(&mode->drm_mode, current_modeinfo)) {
+ 			wlr_output_state_set_mode(&state, &mode->wlr_mode);
+ 			found_current_mode = true;
+ 		}
+ 
+-		wlr_log(WLR_INFO, "  %"PRId32"x%"PRId32" @ %.3f Hz %s",
++		wlr_log(WLR_INFO, "  %"PRId32"x%"PRId32"%s @ %.3f Hz %s",
+ 			mode->wlr_mode.width, mode->wlr_mode.height,
++			mode->wlr_mode.interlaced ? "i" : "",
+ 			(float)mode->wlr_mode.refresh / 1000,
+ 			mode->wlr_mode.preferred ? "(preferred)" : "");
+ 
+-		wl_list_insert(modes.prev, &mode->wlr_mode.link);
++		if (mode->wlr_mode.interlaced) {
++			wl_list_insert(interlaced_modes.prev, &mode->wlr_mode.link);
++		} else {
++			wl_list_insert(modes.prev, &mode->wlr_mode.link);
++		}
+ 	}
++	wl_list_insert_list(modes.prev, &interlaced_modes);
+ 
+ 	if (current_modeinfo != NULL) {
+ 		int32_t refresh = calculate_refresh_rate(current_modeinfo);
+
+From 402700d61eb931686c374d2696aeb4835d55eff3 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sun, 18 Oct 2026 21:58:50 +0200
+Subject: [PATCH 6/6] backend/drm: keep the timings of the current mode
+
+When the mode set on the CRTC wasn't among the connector's modes, it
+was kept as a custom mode, i.e. width, height and refresh rate only,
+and regenerated as a CVT mode on the next modeset. CVT timings can be
+out of range for the display: a 640x480i mode at 15 kHz became a
+640x480 one at 31 kHz, which a 15 kHz CRT monitor can't handle.
+
+Add the mode in use to the output modes instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/drm/drm.c | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/backend/drm/drm.c b/backend/drm/drm.c
+index ddf9a87..b8f8e65 100644
+--- a/backend/drm/drm.c
++++ b/backend/drm/drm.c
+@@ -1725,8 +1725,22 @@ static bool connect_drm_connector(struct wlr_drm_connector *wlr_conn,
+ 		int32_t refresh = calculate_refresh_rate(current_modeinfo);
+ 
+ 		if (!found_current_mode) {
+-			wlr_output_state_set_custom_mode(&state,
+-				current_modeinfo->hdisplay, current_modeinfo->vdisplay, refresh);
++			// Keep the exact timings of the mode in use: a custom mode would
++			// be regenerated as a CVT mode on the next modeset, which may be
++			// out of range for the display
++			struct wlr_drm_mode *mode = drm_mode_create(current_modeinfo);
++			if (mode != NULL) {
++				mode->wlr_mode.preferred = false;
++				wlr_log(WLR_INFO, "  %"PRId32"x%"PRId32"%s @ %.3f Hz (current, not advertised)",
++					mode->wlr_mode.width, mode->wlr_mode.height,
++					mode->wlr_mode.interlaced ? "i" : "",
++					(float)mode->wlr_mode.refresh / 1000);
++				wl_list_insert(modes.prev, &mode->wlr_mode.link);
++				wlr_output_state_set_mode(&state, &mode->wlr_mode);
++			} else {
++				wlr_output_state_set_custom_mode(&state,
++					current_modeinfo->hdisplay, current_modeinfo->vdisplay, refresh);
++			}
+ 		}
+ 
+ 		uint64_t mode_id = 0;

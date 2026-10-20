@@ -1,0 +1,4878 @@
+From d6a57c141c8c6b4e7c382d2dbdad97f036141c3a Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 00:33:31 +0200
+Subject: [PATCH 1/7] Add Wayland backend
+
+Set modes through the compositor with wlr-output-management. Version 5
+of the protocol carries full timings; with older versions only modes
+advertised by the compositor are used, since it would otherwise pick
+its own timings for the requested size.
+
+The backend is preferred when WAYLAND_DISPLAY is set, as Xwayland only
+emulates XRANDR modes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .gitignore                                    |   2 +
+ custom_video.cpp                              |  15 +
+ custom_video.h                                |   1 +
+ custom_video_wayland.cpp                      | 716 ++++++++++++++++++
+ custom_video_wayland.h                        | 111 +++
+ display_linux.cpp                             |   4 +
+ makefile                                      |  36 +-
+ .../wlr-output-management-unstable-v1.xml     | 685 +++++++++++++++++
+ 8 files changed, 1566 insertions(+), 4 deletions(-)
+ create mode 100644 custom_video_wayland.cpp
+ create mode 100644 custom_video_wayland.h
+ create mode 100644 protocols/wlr-output-management-unstable-v1.xml
+
+diff --git a/.gitignore b/.gitignore
+index 467e3df..d2faabe 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -8,3 +8,5 @@ switchres_main
+ grid
+ switchres
+ switchres.pc
++*-client-protocol.h
++*-protocol.c
+diff --git a/custom_video.cpp b/custom_video.cpp
+index a5968ba..d400733 100644
+--- a/custom_video.cpp
++++ b/custom_video.cpp
+@@ -15,6 +15,7 @@
+ 
+ 
+ #include <stdio.h>
++#include <stdlib.h>
+ #include "custom_video.h"
+ #include "log.h"
+ 
+@@ -29,6 +30,10 @@
+ #ifdef SR_WITH_KMSDRM
+ #include "custom_video_drmkms.h"
+ #endif
++
++#ifdef SR_WITH_WAYLAND
++#include "custom_video_wayland.h"
++#endif
+ #endif
+ 
+ 
+@@ -83,6 +88,16 @@ custom_video *custom_video::make(char *device_name, char *device_id, int method,
+ 	if (device_id != NULL)
+ 		log_info("Device value is %s.\n", device_id);
+ 
++#ifdef SR_WITH_WAYLAND
++	// Under Wayland, Xwayland only emulates XRANDR modes: the compositor must be asked instead
++	if (method == CUSTOM_VIDEO_TIMING_WAYLAND || (method == 0 && getenv("WAYLAND_DISPLAY") != NULL))
++	{
++		m_custom_video = new wayland_timing(device_name, vs);
++		m_custom_method = CUSTOM_VIDEO_TIMING_WAYLAND;
++		return m_custom_video;
++	}
++#endif /* SR_WITH_WAYLAND */
++
+ #ifdef SR_WITH_XRANDR
+ 	if (method == CUSTOM_VIDEO_TIMING_XRANDR || method == 0)
+ 	{
+diff --git a/custom_video.h b/custom_video.h
+index 8439793..b944676 100644
+--- a/custom_video.h
++++ b/custom_video.h
+@@ -28,6 +28,7 @@
+ #define CUSTOM_VIDEO_TIMING_ATI_LEGACY  0x00000080
+ #define CUSTOM_VIDEO_TIMING_ATI_ADL     0x00000100
+ #define CUSTOM_VIDEO_TIMING_DRMKMS      0x00000200
++#define CUSTOM_VIDEO_TIMING_WAYLAND     0x00000400
+ 
+ // Custom video caps
+ #define CUSTOM_VIDEO_CAPS_UPDATE            0x001
+diff --git a/custom_video_wayland.cpp b/custom_video_wayland.cpp
+new file mode 100644
+index 0000000..41c7890
+--- /dev/null
++++ b/custom_video_wayland.cpp
+@@ -0,0 +1,716 @@
++/**************************************************************
++
++   custom_video_wayland.cpp - Linux Wayland video management layer
++
++   ---------------------------------------------------------
++
++   Switchres   Modeline generation engine for emulation
++
++   License     GPL-2.0+
++   Copyright   2010-2021 Chris Kennedy, Antonio Giner,
++                         Alexandre Wodarczyk, Gil Delescluse
++
++ **************************************************************/
++
++// Wayland compositors own the display: modes are set by asking the
++// compositor through the wlr-output-management protocol. Version 5 of the
++// protocol carries full timings (modelines), older versions only allow
++// width x height @ refresh, leaving the timings to the compositor.
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <poll.h>
++#include <wayland-client.h>
++#include "wlr-output-management-unstable-v1-client-protocol.h"
++
++#include "custom_video_wayland.h"
++#include "log.h"
++
++#define WAYLAND_TIMINGS_VERSION 5
++#define WAYLAND_MAX_VERSION 5
++
++// DRM_MODE_FLAG_* values, mirrored by zwlr_output_mode_v1.timing_flags
++#define WL_FLAG_PHSYNC    0x01
++#define WL_FLAG_NHSYNC    0x02
++#define WL_FLAG_PVSYNC    0x04
++#define WL_FLAG_NVSYNC    0x08
++#define WL_FLAG_INTERLACE 0x10
++#define WL_FLAG_DBLSCAN   0x20
++
++enum
++{
++	CONFIG_PENDING = 0,
++	CONFIG_SUCCEEDED,
++	CONFIG_FAILED,
++	CONFIG_CANCELLED
++};
++
++static wayland_timing *self(void *data) { return (wayland_timing *)data; }
++
++//============================================================
++//  Protocol listeners
++//============================================================
++
++// zwlr_output_mode_v1
++
++static void mode_size(void *data, zwlr_output_mode_v1 *, int32_t width, int32_t height)
++{
++	wayland_mode *m = (wayland_mode *)data;
++	m->width = width;
++	m->height = height;
++}
++
++static void mode_refresh(void *data, zwlr_output_mode_v1 *, int32_t refresh)
++{
++	((wayland_mode *)data)->refresh = refresh;
++}
++
++static void mode_preferred(void *data, zwlr_output_mode_v1 *)
++{
++	((wayland_mode *)data)->preferred = true;
++}
++
++static void mode_finished(void *data, zwlr_output_mode_v1 *);
++
++static void mode_timings(void *data, zwlr_output_mode_v1 *, uint32_t clock,
++	uint32_t hdisplay, uint32_t hsync_start, uint32_t hsync_end, uint32_t htotal,
++	uint32_t vdisplay, uint32_t vsync_start, uint32_t vsync_end, uint32_t vtotal, uint32_t flags)
++{
++	wayland_mode *m = (wayland_mode *)data;
++	m->has_timings = true;
++	m->timings = { clock, hdisplay, hsync_start, hsync_end, htotal, vdisplay, vsync_start, vsync_end, vtotal, flags };
++}
++
++static const zwlr_output_mode_v1_listener mode_listener =
++{
++	mode_size,
++	mode_refresh,
++	mode_preferred,
++	mode_finished,
++	mode_timings,
++};
++
++// zwlr_output_head_v1, user data is the wayland_head, the backend is reached through the manager
++
++static wayland_timing *s_instance = nullptr;
++
++static void head_name(void *data, zwlr_output_head_v1 *, const char *name)
++{
++	((wayland_head *)data)->name = name;
++}
++
++static void head_description(void *, zwlr_output_head_v1 *, const char *) {}
++static void head_physical_size(void *, zwlr_output_head_v1 *, int32_t, int32_t) {}
++
++static void head_mode(void *data, zwlr_output_head_v1 *, zwlr_output_mode_v1 *mode)
++{
++	s_instance->on_mode((wayland_head *)data, mode);
++}
++
++static void head_enabled(void *data, zwlr_output_head_v1 *, int32_t enabled)
++{
++	wayland_head *h = (wayland_head *)data;
++	h->enabled = enabled;
++	if (!enabled)
++		h->current_mode = nullptr;
++}
++
++static void head_current_mode(void *data, zwlr_output_head_v1 *, zwlr_output_mode_v1 *mode)
++{
++	wayland_head *h = (wayland_head *)data;
++	h->current_mode = (wayland_mode *)zwlr_output_mode_v1_get_user_data(mode);
++}
++
++static void head_position(void *data, zwlr_output_head_v1 *, int32_t x, int32_t y)
++{
++	wayland_head *h = (wayland_head *)data;
++	h->x = x;
++	h->y = y;
++}
++
++static void head_transform(void *data, zwlr_output_head_v1 *, int32_t transform)
++{
++	((wayland_head *)data)->transform = transform;
++}
++
++static void head_scale(void *data, zwlr_output_head_v1 *, wl_fixed_t scale)
++{
++	((wayland_head *)data)->scale = wl_fixed_to_double(scale);
++}
++
++static void head_finished(void *data, zwlr_output_head_v1 *)
++{
++	s_instance->on_head_finished((wayland_head *)data);
++}
++
++static void head_make(void *, zwlr_output_head_v1 *, const char *) {}
++static void head_model(void *, zwlr_output_head_v1 *, const char *) {}
++static void head_serial_number(void *, zwlr_output_head_v1 *, const char *) {}
++static void head_adaptive_sync(void *, zwlr_output_head_v1 *, uint32_t) {}
++
++static const zwlr_output_head_v1_listener head_listener =
++{
++	head_name,
++	head_description,
++	head_physical_size,
++	head_mode,
++	head_enabled,
++	head_current_mode,
++	head_position,
++	head_transform,
++	head_scale,
++	head_finished,
++	head_make,
++	head_model,
++	head_serial_number,
++	head_adaptive_sync,
++};
++
++static void mode_finished(void *data, zwlr_output_mode_v1 *)
++{
++	s_instance->on_mode_finished((wayland_mode *)data);
++}
++
++// zwlr_output_manager_v1
++
++static void manager_head(void *data, zwlr_output_manager_v1 *, zwlr_output_head_v1 *head)
++{
++	self(data)->on_head(head);
++}
++
++static void manager_done(void *data, zwlr_output_manager_v1 *, uint32_t serial)
++{
++	self(data)->on_done(serial);
++}
++
++static void manager_finished(void *, zwlr_output_manager_v1 *) {}
++
++static const zwlr_output_manager_v1_listener manager_listener =
++{
++	manager_head,
++	manager_done,
++	manager_finished,
++};
++
++// zwlr_output_configuration_v1
++
++static void config_succeeded(void *data, zwlr_output_configuration_v1 *)
++{
++	self(data)->on_config_result(CONFIG_SUCCEEDED);
++}
++
++static void config_failed(void *data, zwlr_output_configuration_v1 *)
++{
++	self(data)->on_config_result(CONFIG_FAILED);
++}
++
++static void config_cancelled(void *data, zwlr_output_configuration_v1 *)
++{
++	self(data)->on_config_result(CONFIG_CANCELLED);
++}
++
++static const zwlr_output_configuration_v1_listener config_listener =
++{
++	config_succeeded,
++	config_failed,
++	config_cancelled,
++};
++
++// wl_registry
++
++static void registry_global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
++{
++	self(data)->on_global(registry, name, interface, version);
++}
++
++static void registry_global_remove(void *, wl_registry *, uint32_t) {}
++
++static const wl_registry_listener registry_listener =
++{
++	registry_global,
++	registry_global_remove,
++};
++
++//============================================================
++//  Helpers
++//============================================================
++
++static void modeline_to_timings(modeline *mode, wl_timings *t)
++{
++	t->clock       = mode->pclock / 1000;
++	t->hdisplay    = mode->hactive;
++	t->hsync_start = mode->hbegin;
++	t->hsync_end   = mode->hend;
++	t->htotal      = mode->htotal;
++	t->vdisplay    = mode->vactive;
++	t->vsync_start = mode->vbegin;
++	t->vsync_end   = mode->vend;
++	t->vtotal      = mode->vtotal;
++	t->flags       = (mode->interlace ? WL_FLAG_INTERLACE : 0) | (mode->doublescan ? WL_FLAG_DBLSCAN : 0) |
++	                 (mode->hsync ? WL_FLAG_PHSYNC : WL_FLAG_NHSYNC) | (mode->vsync ? WL_FLAG_PVSYNC : WL_FLAG_NVSYNC);
++}
++
++static bool same_timings(const wl_timings *a, const wl_timings *b)
++{
++	return a->clock == b->clock &&
++		a->hdisplay == b->hdisplay && a->hsync_start == b->hsync_start && a->hsync_end == b->hsync_end && a->htotal == b->htotal &&
++		a->vdisplay == b->vdisplay && a->vsync_start == b->vsync_start && a->vsync_end == b->vsync_end && a->vtotal == b->vtotal &&
++		(a->flags & (WL_FLAG_INTERLACE | WL_FLAG_DBLSCAN)) == (b->flags & (WL_FLAG_INTERLACE | WL_FLAG_DBLSCAN)) &&
++		((a->flags & WL_FLAG_PHSYNC) != 0) == ((b->flags & WL_FLAG_PHSYNC) != 0) &&
++		((a->flags & WL_FLAG_PVSYNC) != 0) == ((b->flags & WL_FLAG_PVSYNC) != 0);
++}
++
++//============================================================
++//  wayland_timing::wayland_timing
++//============================================================
++
++wayland_timing::wayland_timing(char *device_name, custom_video_settings *vs)
++{
++	m_vs = *vs;
++	strncpy(m_device_name, device_name, sizeof(m_device_name) - 1);
++	m_device_name[sizeof(m_device_name) - 1] = 0;
++}
++
++//============================================================
++//  wayland_timing::~wayland_timing
++//============================================================
++
++wayland_timing::~wayland_timing()
++{
++	for (auto head : m_heads)
++	{
++		for (auto mode : head->modes)
++		{
++			zwlr_output_mode_v1_destroy(mode->obj);
++			delete mode;
++		}
++		zwlr_output_head_v1_destroy(head->obj);
++		delete head;
++	}
++	m_heads.clear();
++
++	if (m_manager)
++		zwlr_output_manager_v1_destroy(m_manager);
++	if (m_registry)
++		wl_registry_destroy(m_registry);
++	if (m_display)
++		wl_display_disconnect(m_display);
++
++	if (s_instance == this)
++		s_instance = nullptr;
++}
++
++//============================================================
++//  wayland_timing::init
++//============================================================
++
++bool wayland_timing::init()
++{
++	log_verbose("Wayland: <%d> (init) loading Wayland support\n", m_id);
++
++	if (s_instance != nullptr)
++	{
++		log_error("Wayland: <%d> (init) [ERROR] only one Wayland backend instance is supported\n", m_id);
++		return false;
++	}
++
++	m_display = wl_display_connect(nullptr);
++	if (m_display == nullptr)
++	{
++		log_verbose("Wayland: <%d> (init) no Wayland compositor found\n", m_id);
++		return false;
++	}
++
++	s_instance = this;
++	m_registry = wl_display_get_registry(m_display);
++	wl_registry_add_listener(m_registry, &registry_listener, this);
++	wl_display_roundtrip(m_display);
++
++	if (m_manager == nullptr)
++	{
++		log_error("Wayland: <%d> (init) [ERROR] compositor doesn't support wlr-output-management\n", m_id);
++		return false;
++	}
++
++	// Wait for the initial head and mode description
++	while (!m_done)
++		if (wl_display_dispatch(m_display) < 0)
++			return false;
++
++	if (strcmp(m_device_name, "auto") && strcmp(m_device_name, ""))
++		m_head_name = m_device_name;
++
++	m_head = find_head();
++	if (m_head == nullptr)
++	{
++		log_error("Wayland: <%d> (init) [ERROR] no output matching '%s'\n", m_id, m_device_name);
++		return false;
++	}
++
++	log_info("Wayland: <%d> (init) output %s, protocol version %d, %s\n", m_id, m_head->name.c_str(), m_manager_version,
++		m_manager_version >= WAYLAND_TIMINGS_VERSION ? "custom timings supported" : "custom timings not supported, only advertised modes can be used");
++
++	return true;
++}
++
++//============================================================
++//  Event sinks
++//============================================================
++
++void wayland_timing::on_global(wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
++{
++	if (strcmp(interface, zwlr_output_manager_v1_interface.name) == 0)
++	{
++		m_manager_version = version < WAYLAND_MAX_VERSION ? version : WAYLAND_MAX_VERSION;
++		m_manager = (zwlr_output_manager_v1 *)wl_registry_bind(registry, name, &zwlr_output_manager_v1_interface, m_manager_version);
++		zwlr_output_manager_v1_add_listener(m_manager, &manager_listener, this);
++	}
++}
++
++void wayland_timing::on_head(zwlr_output_head_v1 *obj)
++{
++	wayland_head *head = new wayland_head();
++	head->obj = obj;
++	head->scale = 1.0;
++	m_heads.push_back(head);
++	zwlr_output_head_v1_add_listener(obj, &head_listener, head);
++}
++
++void wayland_timing::on_head_finished(wayland_head *head)
++{
++	for (auto mode : head->modes)
++	{
++		zwlr_output_mode_v1_destroy(mode->obj);
++		delete mode;
++	}
++	zwlr_output_head_v1_destroy(head->obj);
++
++	for (auto it = m_heads.begin(); it != m_heads.end(); ++it)
++		if (*it == head)
++		{
++			m_heads.erase(it);
++			break;
++		}
++
++	if (m_head == head)
++	{
++		log_error("Wayland: <%d> output %s disappeared\n", m_id, head->name.c_str());
++		m_head = nullptr;
++	}
++	delete head;
++}
++
++void wayland_timing::on_mode(wayland_head *head, zwlr_output_mode_v1 *obj)
++{
++	wayland_mode *mode = new wayland_mode();
++	mode->obj = obj;
++	mode->head = head;
++	head->modes.push_back(mode);
++	zwlr_output_mode_v1_add_listener(obj, &mode_listener, mode);
++}
++
++void wayland_timing::on_mode_finished(wayland_mode *mode)
++{
++	wayland_head *head = mode->head;
++	for (auto it = head->modes.begin(); it != head->modes.end(); ++it)
++		if (*it == mode)
++		{
++			head->modes.erase(it);
++			break;
++		}
++	if (head->current_mode == mode)
++		head->current_mode = nullptr;
++	zwlr_output_mode_v1_destroy(mode->obj);
++	delete mode;
++}
++
++void wayland_timing::on_done(uint32_t serial)
++{
++	m_serial = serial;
++	m_done = true;
++}
++
++void wayland_timing::on_config_result(int result)
++{
++	m_config_result = result;
++}
++
++//============================================================
++//  wayland_timing::sync
++//============================================================
++
++bool wayland_timing::sync()
++{
++	if (m_display == nullptr)
++		return false;
++
++	// Process any pending changes from the compositor
++	if (wl_display_roundtrip(m_display) < 0)
++	{
++		log_error("Wayland: <%d> [ERROR] lost connection to the compositor\n", m_id);
++		return false;
++	}
++
++	if (m_head == nullptr)
++		m_head = find_head();
++
++	return m_head != nullptr;
++}
++
++//============================================================
++//  wayland_timing::find_head
++//============================================================
++
++wayland_head *wayland_timing::find_head()
++{
++	// Explicit output: connector name or index
++	if (!m_head_name.empty())
++	{
++		char *end;
++		long index = strtol(m_head_name.c_str(), &end, 10);
++		if (*end == 0)
++			return (index >= 0 && index < (long)m_heads.size()) ? m_heads[index] : nullptr;
++
++		for (auto head : m_heads)
++			if (head->name == m_head_name)
++				return head;
++
++		return nullptr;
++	}
++
++	// Auto: first enabled output
++	for (auto head : m_heads)
++		if (head->enabled)
++			return head;
++
++	return nullptr;
++}
++
++//============================================================
++//  wayland_timing::find_mode
++//============================================================
++
++wayland_mode *wayland_timing::find_mode(modeline *mode)
++{
++	if (m_head == nullptr)
++		return nullptr;
++
++	if (m_manager_version >= WAYLAND_TIMINGS_VERSION)
++	{
++		wl_timings t;
++		modeline_to_timings(mode, &t);
++		for (auto m : m_head->modes)
++			if (m->has_timings && same_timings(&m->timings, &t))
++				return m;
++		return nullptr;
++	}
++
++	// No timings: only modes reported by get_timing can be matched, a
++	// calculated modeline (with a pixel clock) could otherwise match an
++	// advertised mode of the same size and refresh but different timings
++	if (mode->pclock != 0)
++		return nullptr;
++
++	for (auto m : m_head->modes)
++		if (m->width == mode->width && m->height == mode->height && (m->refresh + 500) / 1000 == mode->refresh)
++			return m;
++
++	return nullptr;
++}
++
++//============================================================
++//  wayland_timing::apply
++//============================================================
++
++bool wayland_timing::apply(modeline *mode, wayland_mode *existing)
++{
++	for (int attempt = 0; attempt < 3; attempt++)
++	{
++		zwlr_output_configuration_v1 *config = zwlr_output_manager_v1_create_configuration(m_manager, m_serial);
++		zwlr_output_configuration_v1_add_listener(config, &config_listener, this);
++
++		// Every head must be part of the configuration, untouched ones keep their state
++		for (auto head : m_heads)
++		{
++			if (head != m_head && !head->enabled)
++			{
++				zwlr_output_configuration_v1_disable_head(config, head->obj);
++				continue;
++			}
++
++			zwlr_output_configuration_head_v1 *config_head = zwlr_output_configuration_v1_enable_head(config, head->obj);
++			if (head != m_head)
++				continue;
++
++			if (existing != nullptr)
++				zwlr_output_configuration_head_v1_set_mode(config_head, existing->obj);
++			else
++			{
++				wl_timings t;
++				modeline_to_timings(mode, &t);
++				zwlr_output_configuration_head_v1_set_custom_timings(config_head, t.clock,
++					t.hdisplay, t.hsync_start, t.hsync_end, t.htotal,
++					t.vdisplay, t.vsync_start, t.vsync_end, t.vtotal, t.flags);
++			}
++		}
++
++		m_config_result = CONFIG_PENDING;
++		zwlr_output_configuration_v1_apply(config);
++
++		while (m_config_result == CONFIG_PENDING)
++			if (wl_display_dispatch(m_display) < 0)
++			{
++				zwlr_output_configuration_v1_destroy(config);
++				return false;
++			}
++
++		zwlr_output_configuration_v1_destroy(config);
++
++		if (m_config_result == CONFIG_SUCCEEDED)
++		{
++			// The new state, if any, is sent along with the result: a roundtrip
++			// is enough to get the new mode and current mode
++			return wl_display_roundtrip(m_display) >= 0;
++		}
++
++		if (m_config_result == CONFIG_FAILED)
++			return false;
++
++		// Cancelled: the output configuration changed meanwhile, retry with the new serial
++		log_verbose("Wayland: <%d> (apply) configuration cancelled, retrying\n", m_id);
++		wl_display_roundtrip(m_display);
++	}
++
++	return false;
++}
++
++//============================================================
++//  wayland_timing::add_mode
++//============================================================
++
++bool wayland_timing::add_mode(modeline *mode)
++{
++	// Modes are registered by the compositor when they're applied
++	return mode != nullptr;
++}
++
++//============================================================
++//  wayland_timing::delete_mode
++//============================================================
++
++bool wayland_timing::delete_mode(modeline *mode)
++{
++	// The compositor drops user modes on its own
++	return mode != nullptr;
++}
++
++//============================================================
++//  wayland_timing::update_mode
++//============================================================
++
++bool wayland_timing::update_mode(modeline *mode)
++{
++	return mode != nullptr;
++}
++
++//============================================================
++//  wayland_timing::set_timing
++//============================================================
++
++bool wayland_timing::set_timing(modeline *mode)
++{
++	if (mode == nullptr || mode->hactive == 0 || mode->vactive == 0)
++		return false;
++
++	if (!sync())
++		return false;
++
++	mode->type |= CUSTOM_VIDEO_TIMING_WAYLAND;
++
++	// Reuse an existing mode object if the compositor already knows these timings
++	wayland_mode *existing = find_mode(mode);
++
++	if (existing != nullptr && existing == m_head->current_mode)
++	{
++		log_verbose("Wayland: <%d> (set_timing) mode already active\n", m_id);
++		return true;
++	}
++
++	// Without timings, the compositor would pick its own timings for the size
++	// and refresh, possibly out of range for the monitor: only advertised modes
++	// are safe
++	if (existing == nullptr && m_manager_version < WAYLAND_TIMINGS_VERSION)
++	{
++		log_error("Wayland: <%d> (set_timing) [ERROR] the compositor doesn't support custom timings, can't set %dx%d%s %.3fHz\n",
++			m_id, mode->hactive, mode->vactive, mode->interlace ? "i" : "", mode->vfreq);
++		return false;
++	}
++
++	log_verbose("Wayland: <%d> (set_timing) %s %dx%d%s %.3fHz on %s\n", m_id, existing ? "selecting" : "setting",
++		mode->hactive, mode->vactive, mode->interlace ? "i" : "", mode->vfreq, m_head->name.c_str());
++
++	if (!apply(mode, existing))
++	{
++		log_error("Wayland: <%d> (set_timing) [ERROR] the compositor rejected the mode\n", m_id);
++		return false;
++	}
++
++	return true;
++}
++
++//============================================================
++//  wayland_timing::get_timing
++//============================================================
++
++bool wayland_timing::get_timing(modeline *mode)
++{
++	if (m_video_modes_position == 0 && !sync())
++		return false;
++
++	if (m_head == nullptr || m_video_modes_position >= m_head->modes.size())
++	{
++		// End of list
++		m_video_modes_position = 0;
++		return true;
++	}
++
++	wayland_mode *m = m_head->modes[m_video_modes_position++];
++	mode->platform_data = m_video_modes_position - 1;
++
++	if (m->has_timings)
++	{
++		const wl_timings *t = &m->timings;
++		mode->pclock     = (uint64_t)t->clock * 1000;
++		mode->hactive    = t->hdisplay;
++		mode->hbegin     = t->hsync_start;
++		mode->hend       = t->hsync_end;
++		mode->htotal     = t->htotal;
++		mode->vactive    = t->vdisplay;
++		mode->vbegin     = t->vsync_start;
++		mode->vend       = t->vsync_end;
++		mode->vtotal     = t->vtotal;
++		mode->interlace  = (t->flags & WL_FLAG_INTERLACE) ? 1 : 0;
++		mode->doublescan = (t->flags & WL_FLAG_DBLSCAN) ? 1 : 0;
++		mode->hsync      = (t->flags & WL_FLAG_PHSYNC) ? 1 : 0;
++		mode->vsync      = (t->flags & WL_FLAG_PVSYNC) ? 1 : 0;
++		mode->hfreq      = (double)mode->pclock / mode->htotal;
++		mode->vfreq      = mode->hfreq / mode->vtotal * (mode->interlace ? 2 : 1) / (mode->doublescan ? 2 : 1);
++	}
++	else
++	{
++		mode->hactive = m->width;
++		mode->vactive = m->height;
++		mode->vfreq   = m->refresh / 1000.0;
++	}
++
++	mode->width   = m->width;
++	mode->height  = m->height;
++	mode->refresh = (m->refresh + 500) / 1000;
++
++	mode->type |= CUSTOM_VIDEO_TIMING_WAYLAND;
++	if (m == m_head->current_mode)
++		mode->type |= MODE_DESKTOP;
++
++	return true;
++}
+diff --git a/custom_video_wayland.h b/custom_video_wayland.h
+new file mode 100644
+index 0000000..6e57afb
+--- /dev/null
++++ b/custom_video_wayland.h
+@@ -0,0 +1,111 @@
++/**************************************************************
++
++   custom_video_wayland.h - Linux Wayland video management layer
++
++   ---------------------------------------------------------
++
++   Switchres   Modeline generation engine for emulation
++
++   License     GPL-2.0+
++   Copyright   2010-2021 Chris Kennedy, Antonio Giner,
++                         Alexandre Wodarczyk, Gil Delescluse
++
++ **************************************************************/
++
++#ifndef __CUSTOM_VIDEO_WAYLAND__
++#define __CUSTOM_VIDEO_WAYLAND__
++
++#include <vector>
++#include <string>
++#include "custom_video.h"
++
++struct wl_display;
++struct wl_registry;
++struct zwlr_output_manager_v1;
++struct zwlr_output_head_v1;
++struct zwlr_output_mode_v1;
++
++// Detailed timings as exchanged with the compositor, DRM units (kHz, DRM_MODE_FLAG_*)
++typedef struct wl_timings
++{
++	uint32_t clock;
++	uint32_t hdisplay, hsync_start, hsync_end, htotal;
++	uint32_t vdisplay, vsync_start, vsync_end, vtotal;
++	uint32_t flags;
++} wl_timings;
++
++struct wayland_head;
++
++typedef struct wayland_mode
++{
++	zwlr_output_mode_v1 *obj;
++	wayland_head *head;
++	int width, height;
++	int refresh; // mHz
++	bool preferred;
++	bool has_timings;
++	wl_timings timings;
++} wayland_mode;
++
++typedef struct wayland_head
++{
++	zwlr_output_head_v1 *obj;
++	std::string name;
++	bool enabled;
++	int x, y;
++	int transform;
++	double scale;
++	wayland_mode *current_mode;
++	std::vector<wayland_mode *> modes;
++} wayland_head;
++
++class wayland_timing : public custom_video
++{
++	public:
++		wayland_timing(char *device_name, custom_video_settings *vs);
++		~wayland_timing();
++		const char *api_name() { return "WAYLAND"; }
++		int caps() { return CUSTOM_VIDEO_CAPS_ADD; }
++		bool init();
++
++		bool add_mode(modeline *mode);
++		bool delete_mode(modeline *mode);
++		bool update_mode(modeline *mode);
++
++		bool get_timing(modeline *mode);
++		bool set_timing(modeline *mode);
++
++		// Protocol event sinks, public for the C listeners
++		void on_global(wl_registry *registry, uint32_t name, const char *interface, uint32_t version);
++		void on_head(zwlr_output_head_v1 *obj);
++		void on_head_finished(wayland_head *head);
++		void on_mode(wayland_head *head, zwlr_output_mode_v1 *obj);
++		void on_mode_finished(wayland_mode *mode);
++		void on_done(uint32_t serial);
++		void on_config_result(int result);
++
++	private:
++		int m_id = 0;
++		char m_device_name[32];
++
++		wl_display *m_display = nullptr;
++		wl_registry *m_registry = nullptr;
++		zwlr_output_manager_v1 *m_manager = nullptr;
++		uint32_t m_manager_version = 0;
++		uint32_t m_serial = 0;
++		bool m_done = false;
++		int m_config_result = 0;
++
++		std::vector<wayland_head *> m_heads;
++		wayland_head *m_head = nullptr;
++		std::string m_head_name;
++
++		size_t m_video_modes_position = 0;
++
++		bool sync();
++		wayland_head *find_head();
++		wayland_mode *find_mode(modeline *mode);
++		bool apply(modeline *mode, wayland_mode *existing);
++};
++
++#endif
+diff --git a/display_linux.cpp b/display_linux.cpp
+index 470647f..0032501 100644
+--- a/display_linux.cpp
++++ b/display_linux.cpp
+@@ -56,6 +56,10 @@ bool linux_display::init(void* pfdata)
+ 	if (!strcmp(m_ds.api, "drmkms"))
+ 		method = CUSTOM_VIDEO_TIMING_DRMKMS;
+ #endif
++#ifdef SR_WITH_WAYLAND
++	if (!strcmp(m_ds.api, "wayland"))
++		method = CUSTOM_VIDEO_TIMING_WAYLAND;
++#endif
+ 
+ 	set_factory(new custom_video);
+ 	set_custom_video(factory()->make(m_ds.screen, NULL, method, &m_ds.vs));
+diff --git a/makefile b/makefile
+index 6811ca4..32ce30b 100644
+--- a/makefile
++++ b/makefile
+@@ -6,7 +6,6 @@ TARGET_LIB = libswitchres
+ DRMHOOK_LIB = libdrmhook
+ GRID = grid
+ SRC = monitor.cpp modeline.cpp switchres.cpp display.cpp custom_video.cpp log.cpp switchres_wrapper.cpp edid.cpp
+-OBJS = $(SRC:.cpp=.o)
+ 
+ CROSS_COMPILE ?=
+ CXX ?= g++
+@@ -69,6 +68,19 @@ else
+     endif
+ endif
+ 
++HAS_VALID_WAYLAND := $(shell $(PKG_CONFIG) --silence-errors --libs wayland-client wayland-scanner; echo $$?)
++ifeq ($(HAS_VALID_WAYLAND),1)
++    $(info Switchres needs wayland-client and wayland-scanner. Wayland support is disabled)
++else
++    $(info Wayland support enabled)
++    WAYLAND_SCANNER := $(shell $(PKG_CONFIG) --variable=wayland_scanner wayland-scanner)
++    WAYLAND_PROTOCOL = wlr-output-management-unstable-v1
++    CPPFLAGS += -DSR_WITH_WAYLAND
++    EXTRA_LIBS += wayland-client
++    SRC += custom_video_wayland.cpp
++    PROTOCOL_OBJS = $(WAYLAND_PROTOCOL)-protocol.o
++endif
++
+ # SDL2 misses a test for drm as drm.h is required
+ HAS_VALID_SDL2 := $(shell $(PKG_CONFIG) --silence-errors --libs "sdl2 >= 2.0.16"; echo $$?)
+ ifeq ($(HAS_VALID_SDL2),1)
+@@ -121,15 +133,30 @@ Libs: -L$${libdir} -ldl -lswitchres
+ endef
+ 
+ 
++.DEFAULT_GOAL := all
++
++OBJS = $(SRC:.cpp=.o) $(PROTOCOL_OBJS)
++
+ %.o : %.cpp
+ 	$(FINAL_CXX) -c $(CPPFLAGS) $< -o $@
+ 
+-all: $(SRC:.cpp=.o) $(MAIN).cpp $(TARGET_LIB) prepare_pkg_config
++$(WAYLAND_PROTOCOL)-client-protocol.h: protocols/$(WAYLAND_PROTOCOL).xml
++	$(WAYLAND_SCANNER) client-header $< $@
++
++$(WAYLAND_PROTOCOL)-protocol.c: protocols/$(WAYLAND_PROTOCOL).xml
++	$(WAYLAND_SCANNER) private-code $< $@
++
++$(WAYLAND_PROTOCOL)-protocol.o: $(WAYLAND_PROTOCOL)-protocol.c
++	$(CROSS_COMPILE)$(CC) -c -fPIC $(shell $(PKG_CONFIG) --cflags wayland-client) $< -o $@
++
++custom_video_wayland.o: $(WAYLAND_PROTOCOL)-client-protocol.h
++
++all: $(OBJS) $(MAIN).cpp $(TARGET_LIB) prepare_pkg_config
+ 	@echo $(OSFLAG)
+-	$(FINAL_CXX) $(CPPFLAGS) $(CXXFLAGS) $(SRC:.cpp=.o) $(MAIN).cpp $(LIBS) -o $(STANDALONE)
++	$(FINAL_CXX) $(CPPFLAGS) $(CXXFLAGS) $(OBJS) $(MAIN).cpp $(LIBS) -o $(STANDALONE)
+ 
+ $(TARGET_LIB): $(OBJS)
+-	$(FINAL_CXX) $(LDFLAGS) $(CPPFLAGS) $(LIB_CPPFLAGS) -o $@.$(DYNAMIC_LIB_EXT) $^
++	$(FINAL_CXX) $(LDFLAGS) $(CPPFLAGS) $(LIB_CPPFLAGS) -o $@.$(DYNAMIC_LIB_EXT) $^ $(LIBS)
+ 	$(FINAL_CXX) -c $(CPPFLAGS) -DSR_WIN32_STATIC switchres_wrapper.cpp -o switchres_wrapper.o
+ 	$(FINAL_AR) rcs $@.$(STATIC_LIB_EXT) $(^)
+ 
+@@ -141,6 +168,7 @@ $(GRID):
+ 
+ clean:
+ 	$(REMOVE) $(OBJS) $(STANDALONE) $(TARGET_LIB).*
++	$(REMOVE) *-client-protocol.h *-protocol.c
+ 	$(REMOVE) switchres.pc
+ 
+ prepare_pkg_config:
+diff --git a/protocols/wlr-output-management-unstable-v1.xml b/protocols/wlr-output-management-unstable-v1.xml
+new file mode 100644
+index 0000000..1d0e59c
+--- /dev/null
++++ b/protocols/wlr-output-management-unstable-v1.xml
+@@ -0,0 +1,685 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_output_management_unstable_v1">
++  <copyright>
++    Copyright © 2019 Purism SPC
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <description summary="protocol to configure output devices">
++    This protocol exposes interfaces to obtain and modify output device
++    configuration.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_output_manager_v1" version="5">
++    <description summary="output device configuration manager">
++      This interface is a manager that allows reading and writing the current
++      output device configuration.
++
++      Output devices that display pixels (e.g. a physical monitor or a virtual
++      output in a window) are represented as heads. Heads cannot be created nor
++      destroyed by the client, but they can be enabled or disabled and their
++      properties can be changed. Each head may have one or more available modes.
++
++      Whenever a head appears (e.g. a monitor is plugged in), it will be
++      advertised via the head event. Immediately after the output manager is
++      bound, all current heads are advertised.
++
++      Whenever a head's properties change, the relevant wlr_output_head events
++      will be sent. Not all head properties will be sent: only properties that
++      have changed need to.
++
++      Whenever a head disappears (e.g. a monitor is unplugged), a
++      wlr_output_head.finished event will be sent.
++
++      After one or more heads appear, change or disappear, the done event will
++      be sent. It carries a serial which can be used in a create_configuration
++      request to update heads properties.
++
++      The information obtained from this protocol should only be used for output
++      configuration purposes. This protocol is not designed to be a generic
++      output property advertisement protocol for regular clients. Instead,
++      protocols such as xdg-output should be used.
++    </description>
++
++    <event name="head">
++      <description summary="introduce a new head">
++        This event introduces a new head. This happens whenever a new head
++        appears (e.g. a monitor is plugged in) or after the output manager is
++        bound.
++      </description>
++      <arg name="head" type="new_id" interface="zwlr_output_head_v1"/>
++    </event>
++
++    <event name="done">
++      <description summary="sent all information about current configuration">
++        This event is sent after all information has been sent after binding to
++        the output manager object and after any subsequent changes. This applies
++        to child head and mode objects as well. In other words, this event is
++        sent whenever a head or mode is created or destroyed and whenever one of
++        their properties has been changed. Not all state is re-sent each time
++        the current configuration changes: only the actual changes are sent.
++
++        This allows changes to the output configuration to be seen as atomic,
++        even if they happen via multiple events.
++
++        A serial is sent to be used in a future create_configuration request.
++      </description>
++      <arg name="serial" type="uint" summary="current configuration serial"/>
++    </event>
++
++    <request name="create_configuration">
++      <description summary="create a new output configuration object">
++        Create a new output configuration object. This allows to update head
++        properties.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_configuration_v1"/>
++      <arg name="serial" type="uint"/>
++    </request>
++
++    <request name="stop">
++      <description summary="stop sending events">
++        Indicates the client no longer wishes to receive events for output
++        configuration changes. However the compositor may emit further events,
++        until the finished event is emitted.
++
++        The client must not send any more requests after this one.
++      </description>
++    </request>
++
++    <event name="finished" type="destructor">
++      <description summary="the compositor has finished with the manager">
++        This event indicates that the compositor is done sending manager events.
++        The compositor will destroy the object immediately after sending this
++        event, so it will become invalid and the client should release any
++        resources associated with it.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="zwlr_output_head_v1" version="5">
++    <description summary="output device">
++      A head is an output device. The difference between a wl_output object and
++      a head is that heads are advertised even if they are turned off. A head
++      object only advertises properties and cannot be used directly to change
++      them.
++
++      A head has some read-only properties: modes, name, description and
++      physical_size. These cannot be changed by clients.
++
++      Other properties can be updated via a wlr_output_configuration object.
++
++      Properties sent via this interface are applied atomically via the
++      wlr_output_manager.done event. No guarantees are made regarding the order
++      in which properties are sent.
++    </description>
++
++    <event name="name">
++      <description summary="head name">
++        This event describes the head name.
++
++        The naming convention is compositor defined, but limited to alphanumeric
++        characters and dashes (-). Each name is unique among all wlr_output_head
++        objects, but if a wlr_output_head object is destroyed the same name may
++        be reused later. The names will also remain consistent across sessions
++        with the same hardware and software configuration.
++
++        Examples of names include 'HDMI-A-1', 'WL-1', 'X11-1', etc. However, do
++        not assume that the name is a reflection of an underlying DRM
++        connector, X11 connection, etc.
++
++        If this head matches a wl_output, the wl_output.name event must report
++        the same name.
++
++        The name event is sent after a wlr_output_head object is created. This
++        event is only sent once per object, and the name does not change over
++        the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="name" type="string"/>
++    </event>
++
++    <event name="description">
++      <description summary="head description">
++        This event describes a human-readable description of the head.
++
++        The description is a UTF-8 string with no convention defined for its
++        contents. Examples might include 'Foocorp 11" Display' or 'Virtual X11
++        output via :1'. However, do not assume that the name is a reflection of
++        the make, model, serial of the underlying DRM connector or the display
++        name of the underlying X11 connection, etc.
++
++        If this head matches a wl_output, the wl_output.description event must
++        report the same name.
++
++        The description event is sent after a wlr_output_head object is created.
++        This event is only sent once per object, and the description does not
++        change over the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="description" type="string"/>
++    </event>
++
++    <event name="physical_size">
++      <description summary="head physical size">
++        This event describes the physical size of the head. This event is only
++        sent if the head has a physical size (e.g. is not a projector or a
++        virtual device).
++
++        The physical size event is sent after a wlr_output_head object is created. This
++        event is only sent once per object, and the physical size does not change over
++        the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="width" type="int" summary="width in millimeters of the output"/>
++      <arg name="height" type="int" summary="height in millimeters of the output"/>
++    </event>
++
++    <event name="mode">
++      <description summary="introduce a mode">
++        This event introduces a mode for this head. It is sent once per
++        supported mode.
++      </description>
++      <arg name="mode" type="new_id" interface="zwlr_output_mode_v1"/>
++    </event>
++
++    <event name="enabled">
++      <description summary="head is enabled or disabled">
++        This event describes whether the head is enabled. A disabled head is not
++        mapped to a region of the global compositor space.
++
++        When a head is disabled, some properties (current_mode, position,
++        transform and scale) are irrelevant.
++      </description>
++      <arg name="enabled" type="int" summary="zero if disabled, non-zero if enabled"/>
++    </event>
++
++    <event name="current_mode">
++      <description summary="current mode">
++        This event describes the mode currently in use for this head. It is only
++        sent if the output is enabled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </event>
++
++    <event name="position">
++      <description summary="current position">
++        This events describes the position of the head in the global compositor
++        space. It is only sent if the output is enabled.
++      </description>
++      <arg name="x" type="int"
++        summary="x position within the global compositor space"/>
++      <arg name="y" type="int"
++        summary="y position within the global compositor space"/>
++    </event>
++
++    <event name="transform">
++      <description summary="current transformation">
++        This event describes the transformation currently applied to the head.
++        It is only sent if the output is enabled.
++      </description>
++      <arg name="transform" type="int" enum="wl_output.transform"/>
++    </event>
++
++    <event name="scale">
++      <description summary="current scale">
++        This events describes the scale of the head in the global compositor
++        space. It is only sent if the output is enabled.
++      </description>
++      <arg name="scale" type="fixed"/>
++    </event>
++
++    <event name="finished">
++      <description summary="the head has disappeared">
++        This event indicates that the head is no longer available. The head
++        object becomes inert. Clients should send a destroy request and release
++        any resources associated with it.
++      </description>
++    </event>
++
++    <!-- Version 2 additions -->
++
++    <event name="make" since="2">
++      <description summary="head manufacturer">
++        This event describes the manufacturer of the head.
++
++        Together with the model and serial_number events the purpose is to
++        allow clients to recognize heads from previous sessions and for example
++        load head-specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the make of
++        the head or the definition of a make is not sensible in the current
++        setup, for example in a virtual session. Clients can still try to
++        identify the head by available information from other events but should
++        be aware that there is an increased risk of false positives.
++
++        If sent, the make event is sent after a wlr_output_head object is
++        created and only sent once per object. The make does not change over
++        the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the make string in UI to users. For
++        that the string provided by the description event should be preferred.
++      </description>
++      <arg name="make" type="string"/>
++    </event>
++
++    <event name="model" since="2">
++      <description summary="head model">
++        This event describes the model of the head.
++
++        Together with the make and serial_number events the purpose is to
++        allow clients to recognize heads from previous sessions and for example
++        load head-specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the model of
++        the head or the definition of a model is not sensible in the current
++        setup, for example in a virtual session. Clients can still try to
++        identify the head by available information from other events but should
++        be aware that there is an increased risk of false positives.
++
++        If sent, the model event is sent after a wlr_output_head object is
++        created and only sent once per object. The model does not change over
++        the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the model string in UI to users. For
++        that the string provided by the description event should be preferred.
++      </description>
++      <arg name="model" type="string"/>
++    </event>
++
++    <event name="serial_number" since="2">
++      <description summary="head serial number">
++        This event describes the serial number of the head.
++
++        Together with the make and model events the purpose is to allow clients
++        to recognize heads from previous sessions and for example load head-
++        specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the serial
++        number of the head or the definition of a serial number is not sensible
++        in the current setup. Clients can still try to identify the head by
++        available information from other events but should be aware that there
++        is an increased risk of false positives.
++
++        If sent, the serial number event is sent after a wlr_output_head object
++        is created and only sent once per object. The serial number does not
++        change over the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the serial_number string in UI to
++        users. For that the string provided by the description event should be
++        preferred.
++      </description>
++      <arg name="serial_number" type="string"/>
++    </event>
++
++    <!-- Version 3 additions -->
++
++    <request name="release" type="destructor" since="3">
++      <description summary="destroy the head object">
++        This request indicates that the client will no longer use this head
++        object.
++      </description>
++    </request>
++
++    <!-- Version 4 additions -->
++
++    <enum name="adaptive_sync_state" since="4">
++      <entry name="disabled" value="0" summary="adaptive sync is disabled"/>
++      <entry name="enabled" value="1" summary="adaptive sync is enabled"/>
++    </enum>
++
++    <event name="adaptive_sync" since="4">
++      <description summary="current adaptive sync state">
++        This event describes whether adaptive sync is currently enabled for
++        the head or not. Adaptive sync is also known as Variable Refresh
++        Rate or VRR.
++      </description>
++      <arg name="state" type="uint" enum="adaptive_sync_state"/>
++    </event>
++  </interface>
++
++  <interface name="zwlr_output_mode_v1" version="5">
++    <description summary="output mode">
++      This object describes an output mode.
++
++      Some heads don't support output modes, in which case modes won't be
++      advertised.
++
++      Properties sent via this interface are applied atomically via the
++      wlr_output_manager.done event. No guarantees are made regarding the order
++      in which properties are sent.
++    </description>
++
++    <event name="size">
++      <description summary="mode size">
++        This event describes the mode size. The size is given in physical
++        hardware units of the output device. This is not necessarily the same as
++        the output size in the global compositor space. For instance, the output
++        may be scaled or transformed.
++      </description>
++      <arg name="width" type="int" summary="width of the mode in hardware units"/>
++      <arg name="height" type="int" summary="height of the mode in hardware units"/>
++    </event>
++
++    <event name="refresh">
++      <description summary="mode refresh rate">
++        This event describes the mode's fixed vertical refresh rate. It is only
++        sent if the mode has a fixed refresh rate.
++      </description>
++      <arg name="refresh" type="int" summary="vertical refresh rate in mHz"/>
++    </event>
++
++    <event name="preferred">
++      <description summary="mode is preferred">
++        This event advertises this mode as preferred.
++      </description>
++    </event>
++
++    <event name="finished">
++      <description summary="the mode has disappeared">
++        This event indicates that the mode is no longer available. The mode
++        object becomes inert. Clients should send a destroy request and release
++        any resources associated with it.
++      </description>
++    </event>
++
++    <!-- Version 3 additions -->
++
++    <request name="release" type="destructor" since="3">
++      <description summary="destroy the mode object">
++        This request indicates that the client will no longer use this mode
++        object.
++      </description>
++    </request>
++
++    <!-- Version 5 additions -->
++
++    <enum name="timing_flags" bitfield="true" since="5">
++      <description summary="mode timing flags">
++        Flags describing sync polarity and scan type of a mode. The values
++        match the DRM_MODE_FLAG_* values of the Linux kernel.
++      </description>
++      <entry name="phsync" value="0x1" summary="positive horizontal sync"/>
++      <entry name="nhsync" value="0x2" summary="negative horizontal sync"/>
++      <entry name="pvsync" value="0x4" summary="positive vertical sync"/>
++      <entry name="nvsync" value="0x8" summary="negative vertical sync"/>
++      <entry name="interlace" value="0x10" summary="interlaced scan"/>
++      <entry name="dblscan" value="0x20" summary="double scan"/>
++      <entry name="csync" value="0x40" summary="composite sync"/>
++      <entry name="pcsync" value="0x80" summary="positive composite sync"/>
++      <entry name="ncsync" value="0x100" summary="negative composite sync"/>
++    </enum>
++
++    <event name="timings" since="5">
++      <description summary="detailed mode timings">
++        This event describes the exact timings of the mode, as they would be
++        programmed into the display hardware. It is only sent if the head
++        exposes hardware timings, such as a DRM connector.
++
++        For interlaced modes, vertical values describe the full frame.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </event>
++  </interface>
++
++  <interface name="zwlr_output_configuration_v1" version="5">
++    <description summary="output configuration">
++      This object is used by the client to describe a full output configuration.
++
++      First, the client needs to setup the output configuration. Each head can
++      be either enabled (and configured) or disabled. It is a protocol error to
++      send two enable_head or disable_head requests with the same head. It is a
++      protocol error to omit a head in a configuration.
++
++      Then, the client can apply or test the configuration. The compositor will
++      then reply with a succeeded, failed or cancelled event. Finally the client
++      should destroy the configuration object.
++    </description>
++
++    <enum name="error">
++      <entry name="already_configured_head" value="1"
++        summary="head has been configured twice"/>
++      <entry name="unconfigured_head" value="2"
++        summary="head has not been configured"/>
++      <entry name="already_used" value="3"
++        summary="request sent after configuration has been applied or tested"/>
++    </enum>
++
++    <request name="enable_head">
++      <description summary="enable and configure a head">
++        Enable a head. This request creates a head configuration object that can
++        be used to change the head's properties.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_configuration_head_v1"
++        summary="a new object to configure the head"/>
++      <arg name="head" type="object" interface="zwlr_output_head_v1"
++        summary="the head to be enabled"/>
++    </request>
++
++    <request name="disable_head">
++      <description summary="disable a head">
++        Disable a head.
++      </description>
++      <arg name="head" type="object" interface="zwlr_output_head_v1"
++        summary="the head to be disabled"/>
++    </request>
++
++    <request name="apply">
++      <description summary="apply the configuration">
++        Apply the new output configuration.
++
++        In case the configuration is successfully applied, there is no guarantee
++        that the new output state matches completely the requested
++        configuration. For instance, a compositor might round the scale if it
++        doesn't support fractional scaling.
++
++        After this request has been sent, the compositor must respond with an
++        succeeded, failed or cancelled event. Sending a request that isn't the
++        destructor is a protocol error.
++      </description>
++    </request>
++
++    <request name="test">
++      <description summary="test the configuration">
++        Test the new output configuration. The configuration won't be applied,
++        but will only be validated.
++
++        Even if the compositor succeeds to test a configuration, applying it may
++        fail.
++
++        After this request has been sent, the compositor must respond with an
++        succeeded, failed or cancelled event. Sending a request that isn't the
++        destructor is a protocol error.
++      </description>
++    </request>
++
++    <event name="succeeded">
++      <description summary="configuration changes succeeded">
++        Sent after the compositor has successfully applied the changes or
++        tested them.
++
++        Upon receiving this event, the client should destroy this object.
++
++        If the current configuration has changed, events to describe the changes
++        will be sent followed by a wlr_output_manager.done event.
++      </description>
++    </event>
++
++    <event name="failed">
++      <description summary="configuration changes failed">
++        Sent if the compositor rejects the changes or failed to apply them. The
++        compositor should revert any changes made by the apply request that
++        triggered this event.
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <event name="cancelled">
++      <description summary="configuration has been cancelled">
++        Sent if the compositor cancels the configuration because the state of an
++        output changed and the client has outdated information (e.g. after an
++        output has been hotplugged).
++
++        The client can create a new configuration with a newer serial and try
++        again.
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the output configuration">
++        Using this request a client can tell the compositor that it is not going
++        to use the configuration object anymore. Any changes to the outputs
++        that have not been applied will be discarded.
++
++        This request also destroys wlr_output_configuration_head objects created
++        via this object.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_output_configuration_head_v1" version="5">
++    <description summary="head configuration">
++      This object is used by the client to update a single head's configuration.
++
++      It is a protocol error to set the same property twice.
++    </description>
++
++    <enum name="error">
++      <entry name="already_set" value="1" summary="property has already been set"/>
++      <entry name="invalid_mode" value="2" summary="mode doesn't belong to head"/>
++      <entry name="invalid_custom_mode" value="3" summary="mode is invalid"/>
++      <entry name="invalid_transform" value="4" summary="transform value outside enum"/>
++      <entry name="invalid_scale" value="5" summary="scale negative or zero"/>
++      <entry name="invalid_adaptive_sync_state" value="6" since="4"
++        summary="invalid enum value used in the set_adaptive_sync request"/>
++      <entry name="invalid_custom_timings" value="7" since="5"
++        summary="timings are inconsistent"/>
++    </enum>
++
++    <request name="set_mode">
++      <description summary="set the mode">
++        This request sets the head's mode.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
++
++    <request name="set_custom_mode">
++      <description summary="set a custom mode">
++        This request assigns a custom mode to the head. The size is given in
++        physical hardware units of the output device. If set to zero, the
++        refresh rate is unspecified.
++
++        It is a protocol error to set both a mode and a custom mode.
++      </description>
++      <arg name="width" type="int" summary="width of the mode in hardware units"/>
++      <arg name="height" type="int" summary="height of the mode in hardware units"/>
++      <arg name="refresh" type="int" summary="vertical refresh rate in mHz or zero"/>
++    </request>
++
++    <request name="set_position">
++      <description summary="set the position">
++        This request sets the head's position in the global compositor space.
++      </description>
++      <arg name="x" type="int" summary="x position in the global compositor space"/>
++      <arg name="y" type="int" summary="y position in the global compositor space"/>
++    </request>
++
++    <request name="set_transform">
++      <description summary="set the transform">
++        This request sets the head's transform.
++      </description>
++      <arg name="transform" type="int" enum="wl_output.transform"/>
++    </request>
++
++    <request name="set_scale">
++      <description summary="set the scale">
++        This request sets the head's scale.
++      </description>
++      <arg name="scale" type="fixed"/>
++    </request>
++
++    <!-- Version 4 additions -->
++
++    <request name="set_adaptive_sync" since="4">
++      <description summary="enable/disable adaptive sync">
++        This request enables/disables adaptive sync. Adaptive sync is also
++        known as Variable Refresh Rate or VRR.
++      </description>
++      <arg name="state" type="uint" enum="zwlr_output_head_v1.adaptive_sync_state"/>
++    </request>
++
++    <!-- Version 5 additions -->
++
++    <request name="set_custom_timings" since="5">
++      <description summary="set a mode from detailed timings">
++        This request assigns a mode described by its exact hardware timings to
++        the head, like a modeline. This allows modes which are not advertised
++        by the display, for instance for CRT monitors.
++
++        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
++        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
++        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
++        protocol error is raised. The compositor may still reject timings that
++        the hardware cannot drive by sending the failed event on the
++        configuration.
++
++        Once applied, the compositor advertises the mode as a regular
++        zwlr_output_mode_v1 object with matching timings. The compositor may
++        remove such a mode once it is no longer in use.
++
++        It is a protocol error to combine this request with set_mode or
++        set_custom_mode.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </request>
++  </interface>
++</protocol>
+
+From 74208c991799abb6559b1053c775ca008d51f728 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 14:53:02 +0200
+Subject: [PATCH 2/7] Wayland: name modes SR- and remove them
+
+Name the modes created through the compositor like the other backends
+(SR-<id>_<w>x<h>@<refresh>), and remove them: a mode no longer in use
+is removed when switching to another one, and the remaining one when
+switchres restores the modes on exit, unless changes are kept.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_wayland.cpp                      | 164 +++++++++++++++++-
+ custom_video_wayland.h                        |   8 +
+ .../wlr-output-management-unstable-v1.xml     |  38 +++-
+ 3 files changed, 201 insertions(+), 9 deletions(-)
+
+diff --git a/custom_video_wayland.cpp b/custom_video_wayland.cpp
+index 41c7890..fe3a5a7 100644
+--- a/custom_video_wayland.cpp
++++ b/custom_video_wayland.cpp
+@@ -73,6 +73,11 @@ static void mode_preferred(void *data, zwlr_output_mode_v1 *)
+ 
+ static void mode_finished(void *data, zwlr_output_mode_v1 *);
+ 
++static void mode_name(void *data, zwlr_output_mode_v1 *, const char *name)
++{
++	((wayland_mode *)data)->name = name;
++}
++
+ static void mode_timings(void *data, zwlr_output_mode_v1 *, uint32_t clock,
+ 	uint32_t hdisplay, uint32_t hsync_start, uint32_t hsync_end, uint32_t htotal,
+ 	uint32_t vdisplay, uint32_t vsync_start, uint32_t vsync_end, uint32_t vtotal, uint32_t flags)
+@@ -88,6 +93,7 @@ static const zwlr_output_mode_v1_listener mode_listener =
+ 	mode_refresh,
+ 	mode_preferred,
+ 	mode_finished,
++	mode_name,
+ 	mode_timings,
+ };
+ 
+@@ -261,6 +267,11 @@ static bool same_timings(const wl_timings *a, const wl_timings *b)
+ 		((a->flags & WL_FLAG_PVSYNC) != 0) == ((b->flags & WL_FLAG_PVSYNC) != 0);
+ }
+ 
++static bool is_sr_mode(const wayland_mode *m)
++{
++	return m->name.compare(0, 3, "SR-") == 0;
++}
++
+ //============================================================
+ //  wayland_timing::wayland_timing
+ //============================================================
+@@ -500,10 +511,7 @@ wayland_mode *wayland_timing::find_mode(modeline *mode)
+ 	{
+ 		wl_timings t;
+ 		modeline_to_timings(mode, &t);
+-		for (auto m : m_head->modes)
+-			if (m->has_timings && same_timings(&m->timings, &t))
+-				return m;
+-		return nullptr;
++		return find_mode(&t, false);
+ 	}
+ 
+ 	// No timings: only modes reported by get_timing can be matched, a
+@@ -519,6 +527,74 @@ wayland_mode *wayland_timing::find_mode(modeline *mode)
+ 	return nullptr;
+ }
+ 
++wayland_mode *wayland_timing::find_mode(const wl_timings *t, bool sr_only)
++{
++	if (m_head == nullptr)
++		return nullptr;
++
++	// Prefer our own modes when several share the same timings
++	wayland_mode *found = nullptr;
++	for (auto m : m_head->modes)
++		if (m->has_timings && same_timings(&m->timings, t) && (!sr_only || is_sr_mode(m)))
++		{
++			if (is_sr_mode(m))
++				return m;
++			if (found == nullptr)
++				found = m;
++		}
++
++	return found;
++}
++
++//============================================================
++//  wayland_timing::remove_mode
++//============================================================
++
++bool wayland_timing::remove_mode(wayland_mode *mode)
++{
++	if (mode == m_head->current_mode)
++	{
++		log_verbose("Wayland: <%d> (remove_mode) %s is in use, kept\n", m_id, mode->name.c_str());
++		return false;
++	}
++
++	log_verbose("Wayland: <%d> (remove_mode) removing %s\n", m_id, mode->name.c_str());
++	std::string name = mode->name;
++	zwlr_output_head_v1_remove_custom_mode(m_head->obj, mode->obj);
++
++	// The mode object is finished by the compositor on success
++	if (wl_display_roundtrip(m_display) < 0)
++		return false;
++
++	for (auto m : m_head->modes)
++		if (m == mode)
++		{
++			log_error("Wayland: <%d> (remove_mode) [ERROR] the compositor kept %s\n", m_id, name.c_str());
++			return false;
++		}
++
++	return true;
++}
++
++//============================================================
++//  wayland_timing::collect_created
++//============================================================
++
++void wayland_timing::collect_created()
++{
++	// Remove the SR- modes created earlier which are no longer in use
++	for (auto it = m_created.begin(); it != m_created.end(); )
++	{
++		wayland_mode *m = find_mode(&*it, true);
++		if (m == nullptr)
++			it = m_created.erase(it);
++		else if (m != m_head->current_mode && remove_mode(m))
++			it = m_created.erase(it);
++		else
++			++it;
++	}
++}
++
+ //============================================================
+ //  wayland_timing::apply
+ //============================================================
+@@ -549,9 +625,11 @@ bool wayland_timing::apply(modeline *mode, wayland_mode *existing)
+ 			{
+ 				wl_timings t;
+ 				modeline_to_timings(mode, &t);
++				char name[32];
++				snprintf(name, sizeof(name), "SR-%d_%dx%d@%.02f%s", m_id, mode->hactive, mode->vactive, mode->vfreq, mode->interlace ? "i" : "");
+ 				zwlr_output_configuration_head_v1_set_custom_timings(config_head, t.clock,
+ 					t.hdisplay, t.hsync_start, t.hsync_end, t.htotal,
+-					t.vdisplay, t.vsync_start, t.vsync_end, t.vtotal, t.flags);
++					t.vdisplay, t.vsync_start, t.vsync_end, t.vtotal, t.flags, name);
+ 			}
+ 		}
+ 
+@@ -601,8 +679,28 @@ bool wayland_timing::add_mode(modeline *mode)
+ 
+ bool wayland_timing::delete_mode(modeline *mode)
+ {
+-	// The compositor drops user modes on its own
+-	return mode != nullptr;
++	if (mode == nullptr)
++		return false;
++
++	if (m_manager_version < WAYLAND_TIMINGS_VERSION || !sync())
++		return true;
++
++	wl_timings t;
++	modeline_to_timings(mode, &t);
++
++	// Only our own modes can be removed, others are left alone
++	wayland_mode *m = find_mode(&t, true);
++	bool removed = (m == nullptr) || remove_mode(m);
++
++	for (auto it = m_created.begin(); it != m_created.end(); ++it)
++		if (same_timings(&*it, &t))
++		{
++			if (removed)
++				m_created.erase(it);
++			break;
++		}
++
++	return removed;
+ }
+ 
+ //============================================================
+@@ -611,9 +709,42 @@ bool wayland_timing::delete_mode(modeline *mode)
+ 
+ bool wayland_timing::update_mode(modeline *mode)
+ {
++	// New timings make a new mode on the next set_timing, the previous one is
++	// collected once no longer in use
+ 	return mode != nullptr;
+ }
+ 
++//============================================================
++//  wayland_timing::process_modelist
++//============================================================
++
++bool wayland_timing::process_modelist(std::vector<modeline *> modelist)
++{
++	bool error = false;
++
++	for (auto &mode : modelist)
++	{
++		bool result = true;
++
++		if (mode->type & MODE_DELETE)
++			result = delete_mode(mode);
++		else if (mode->type & MODE_ADD)
++			result = add_mode(mode);
++		else if (mode->type & MODE_UPDATE)
++			result = update_mode(mode);
++
++		if (result)
++			mode->type &= ~MODE_ERROR;
++		else
++		{
++			mode->type |= MODE_ERROR;
++			error = true;
++		}
++	}
++
++	return !error;
++}
++
+ //============================================================
+ //  wayland_timing::set_timing
+ //============================================================
+@@ -656,6 +787,22 @@ bool wayland_timing::set_timing(modeline *mode)
+ 		return false;
+ 	}
+ 
++	if (m_manager_version >= WAYLAND_TIMINGS_VERSION)
++	{
++		wl_timings t;
++		modeline_to_timings(mode, &t);
++
++		// Keep track of the SR- mode we just created
++		wayland_mode *m = find_mode(&t, true);
++		bool known = false;
++		for (auto &c : m_created)
++			known |= same_timings(&c, &t);
++		if (m != nullptr && !known)
++			m_created.push_back(t);
++
++		collect_created();
++	}
++
+ 	return true;
+ }
+ 
+@@ -712,5 +859,8 @@ bool wayland_timing::get_timing(modeline *mode)
+ 	if (m == m_head->current_mode)
+ 		mode->type |= MODE_DESKTOP;
+ 
++	if (is_sr_mode(m))
++		log_verbose("Wayland: <%d> (get_timing) [WARNING] modeline %s detected\n", m_id, m->name.c_str());
++
+ 	return true;
+ }
+diff --git a/custom_video_wayland.h b/custom_video_wayland.h
+index 6e57afb..eca8743 100644
+--- a/custom_video_wayland.h
++++ b/custom_video_wayland.h
+@@ -45,6 +45,7 @@ typedef struct wayland_mode
+ 	bool preferred;
+ 	bool has_timings;
+ 	wl_timings timings;
++	std::string name;
+ } wayland_mode;
+ 
+ typedef struct wayland_head
+@@ -71,6 +72,7 @@ class wayland_timing : public custom_video
+ 		bool add_mode(modeline *mode);
+ 		bool delete_mode(modeline *mode);
+ 		bool update_mode(modeline *mode);
++		bool process_modelist(std::vector<modeline *>);
+ 
+ 		bool get_timing(modeline *mode);
+ 		bool set_timing(modeline *mode);
+@@ -102,10 +104,16 @@ class wayland_timing : public custom_video
+ 
+ 		size_t m_video_modes_position = 0;
+ 
++		// SR- modes created by this instance, removed once no longer used
++		std::vector<wl_timings> m_created;
++
+ 		bool sync();
+ 		wayland_head *find_head();
+ 		wayland_mode *find_mode(modeline *mode);
+ 		bool apply(modeline *mode, wayland_mode *existing);
++		wayland_mode *find_mode(const wl_timings *t, bool sr_only);
++		bool remove_mode(wayland_mode *mode);
++		void collect_created();
+ };
+ 
+ #endif
+diff --git a/protocols/wlr-output-management-unstable-v1.xml b/protocols/wlr-output-management-unstable-v1.xml
+index 1d0e59c..0d5a608 100644
+--- a/protocols/wlr-output-management-unstable-v1.xml
++++ b/protocols/wlr-output-management-unstable-v1.xml
+@@ -364,6 +364,28 @@
+       </description>
+       <arg name="state" type="uint" enum="adaptive_sync_state"/>
+     </event>
++
++    <!-- Version 5 additions -->
++
++    <enum name="error" since="5">
++      <entry name="invalid_mode" value="1" summary="mode doesn't belong to head"/>
++      <entry name="not_custom" value="2"
++        summary="mode wasn't created with set_custom_timings"/>
++    </enum>
++
++    <request name="remove_custom_mode" since="5">
++      <description summary="remove a custom mode">
++        This request removes a mode created with
++        zwlr_output_configuration_head_v1.set_custom_timings. Removing any
++        other mode raises the not_custom protocol error.
++
++        A mode in use by the head can't be removed: the request is then
++        ignored. Otherwise the compositor sends the finished event on every
++        object of the mode, followed by a done event on the manager. As the
++        serial changes, pending configurations are cancelled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
+   </interface>
+ 
+   <interface name="zwlr_output_mode_v1" version="5">
+@@ -438,6 +460,15 @@
+       <entry name="ncsync" value="0x100" summary="negative composite sync"/>
+     </enum>
+ 
++    <event name="name" since="5">
++      <description summary="mode name">
++        This event describes the name of the mode, as known by the display
++        hardware or given with set_custom_timings. It is only sent if the head
++        exposes hardware timings, along with the timings event.
++      </description>
++      <arg name="name" type="string" summary="mode name"/>
++    </event>
++
+     <event name="timings" since="5">
+       <description summary="detailed mode timings">
+         This event describes the exact timings of the mode, as they would be
+@@ -664,8 +695,9 @@
+         configuration.
+ 
+         Once applied, the compositor advertises the mode as a regular
+-        zwlr_output_mode_v1 object with matching timings. The compositor may
+-        remove such a mode once it is no longer in use.
++        zwlr_output_mode_v1 object with matching timings and name. The mode
++        stays available until it is removed with
++        zwlr_output_head_v1.remove_custom_mode.
+ 
+         It is a protocol error to combine this request with set_mode or
+         set_custom_mode.
+@@ -680,6 +712,8 @@
+       <arg name="vsync_end" type="uint" summary="vertical sync end"/>
+       <arg name="vtotal" type="uint" summary="vertical total"/>
+       <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++      <arg name="name" type="string"
++        summary="mode name, truncated by the compositor if too long"/>
+     </request>
+   </interface>
+ </protocol>
+
+From 0f202e0c97cbfe17650eded2167b7374d12aff8c Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:20:59 +0200
+Subject: [PATCH 3/7] Wayland: support KWin through kde-output-management
+
+KWin doesn't implement wlr-output-management, but version 22 of
+kde-output-management-v2 carries full timings: register the modeline
+as a custom mode (add_cvt, set_custom_modes), then select it.
+
+The custom mode list replaces all custom modes, and KWin regenerates
+all modes of the output on each list: the user's custom modes are kept,
+and our unused modes are dropped along with the new one rather than
+after the mode switch.
+
+Also track header dependencies of the Wayland backend in the makefile.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_wayland.cpp               | 351 +++++++++++--
+ custom_video_wayland.h                 |  23 +-
+ makefile                               |  14 +-
+ protocols/kde-output-device-v2.xml     | 664 +++++++++++++++++++++++++
+ protocols/kde-output-management-v2.xml | 539 ++++++++++++++++++++
+ 5 files changed, 1546 insertions(+), 45 deletions(-)
+ create mode 100644 protocols/kde-output-device-v2.xml
+ create mode 100644 protocols/kde-output-management-v2.xml
+
+diff --git a/custom_video_wayland.cpp b/custom_video_wayland.cpp
+index fe3a5a7..477a0c7 100644
+--- a/custom_video_wayland.cpp
++++ b/custom_video_wayland.cpp
+@@ -13,9 +13,11 @@
+  **************************************************************/
+ 
+ // Wayland compositors own the display: modes are set by asking the
+-// compositor through the wlr-output-management protocol. Version 5 of the
+-// protocol carries full timings (modelines), older versions only allow
+-// width x height @ refresh, leaving the timings to the compositor.
++// compositor, through wlr-output-management (wlroots compositors) or
++// kde-output-management (KWin). Version 5 of wlr-output-management and
++// version 22 of kde-output-management carry full timings (modelines). Older
++// versions only allow width x height @ refresh, leaving the timings to the
++// compositor, so only advertised modes are used then.
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -23,6 +25,8 @@
+ #include <poll.h>
+ #include <wayland-client.h>
+ #include "wlr-output-management-unstable-v1-client-protocol.h"
++#include "kde-output-device-v2-client-protocol.h"
++#include "kde-output-management-v2-client-protocol.h"
+ 
+ #include "custom_video_wayland.h"
+ #include "log.h"
+@@ -30,6 +34,11 @@
+ #define WAYLAND_TIMINGS_VERSION 5
+ #define WAYLAND_MAX_VERSION 5
+ 
++// kde-output-management: add_cvt, and the cvt event on modes
++#define KDE_TIMINGS_VERSION 22
++#define KDE_DEVICE_TIMINGS_VERSION 24
++#define KDE_DEVICE_MAX_VERSION 24
++
+ // DRM_MODE_FLAG_* values, mirrored by zwlr_output_mode_v1.timing_flags
+ #define WL_FLAG_PHSYNC    0x01
+ #define WL_FLAG_NHSYNC    0x02
+@@ -238,6 +247,39 @@ static const wl_registry_listener registry_listener =
+ 	registry_global_remove,
+ };
+ 
++// kde-output-management: generic dispatchers, by event name, so that new
++// protocol versions don't need new listeners
++
++static int kde_registry_dispatch(const void *, void *, uint32_t, const wl_message *msg, wl_argument *args)
++{
++	if (strcmp(msg->name, "output") == 0)
++		s_instance->kde_on_device((kde_output_device_v2 *)args[0].o);
++	return 0;
++}
++
++static int kde_device_dispatch(const void *, void *target, uint32_t, const wl_message *msg, wl_argument *args)
++{
++	s_instance->kde_device_event((wayland_head *)wl_proxy_get_user_data((wl_proxy *)target), msg->name, args);
++	return 0;
++}
++
++static int kde_mode_dispatch(const void *, void *target, uint32_t, const wl_message *msg, wl_argument *args)
++{
++	s_instance->kde_mode_event((wayland_mode *)wl_proxy_get_user_data((wl_proxy *)target), msg->name, args);
++	return 0;
++}
++
++static int kde_config_dispatch(const void *, void *, uint32_t, const wl_message *msg, wl_argument *args)
++{
++	if (strcmp(msg->name, "applied") == 0)
++		s_instance->on_config_result(CONFIG_SUCCEEDED);
++	else if (strcmp(msg->name, "failed") == 0)
++		s_instance->on_config_result(CONFIG_FAILED);
++	else if (strcmp(msg->name, "failure_reason") == 0)
++		log_error("Wayland: (kde) compositor failure reason: %s\n", args[0].s);
++	return 0;
++}
++
+ //============================================================
+ //  Helpers
+ //============================================================
+@@ -272,6 +314,29 @@ static bool is_sr_mode(const wayland_mode *m)
+ 	return m->name.compare(0, 3, "SR-") == 0;
+ }
+ 
++// Our own modes: named SR- (wlr), or custom modes we created (KDE has no names)
++bool wayland_timing::owned(const wayland_mode *m)
++{
++	if (m_proto == PROTO_WLR)
++		return is_sr_mode(m);
++
++	if (!m->custom || !m->has_timings)
++		return false;
++	for (auto &c : m_created)
++		if (same_timings(&c, &m->timings))
++			return true;
++	return false;
++}
++
++void wayland_timing::destroy_mode(wayland_mode *mode)
++{
++	if (mode->obj)
++		zwlr_output_mode_v1_destroy(mode->obj);
++	if (mode->kobj)
++		wl_proxy_destroy((wl_proxy *)mode->kobj);
++	delete mode;
++}
++
+ //============================================================
+ //  wayland_timing::wayland_timing
+ //============================================================
+@@ -292,17 +357,19 @@ wayland_timing::~wayland_timing()
+ 	for (auto head : m_heads)
+ 	{
+ 		for (auto mode : head->modes)
+-		{
+-			zwlr_output_mode_v1_destroy(mode->obj);
+-			delete mode;
+-		}
+-		zwlr_output_head_v1_destroy(head->obj);
++			destroy_mode(mode);
++		if (head->obj)
++			zwlr_output_head_v1_destroy(head->obj);
++		if (head->kobj)
++			wl_proxy_destroy((wl_proxy *)head->kobj);
+ 		delete head;
+ 	}
+ 	m_heads.clear();
+ 
+ 	if (m_manager)
+ 		zwlr_output_manager_v1_destroy(m_manager);
++	if (m_kde_manager)
++		kde_output_management_v2_destroy(m_kde_manager);
+ 	if (m_registry)
+ 		wl_registry_destroy(m_registry);
+ 	if (m_display)
+@@ -338,16 +405,37 @@ bool wayland_timing::init()
+ 	wl_registry_add_listener(m_registry, &registry_listener, this);
+ 	wl_display_roundtrip(m_display);
+ 
+-	if (m_manager == nullptr)
++	// Prefer the protocol which carries timings
++	if (m_manager != nullptr && m_manager_version >= WAYLAND_TIMINGS_VERSION)
++		m_proto = PROTO_WLR;
++	else if (m_kde_manager != nullptr && m_kde_version >= KDE_TIMINGS_VERSION && m_kde_device_version >= KDE_DEVICE_TIMINGS_VERSION)
++		m_proto = PROTO_KDE;
++	else if (m_manager != nullptr)
++		m_proto = PROTO_WLR;
++	else if (m_kde_manager != nullptr)
++		m_proto = PROTO_KDE;
++	else
+ 	{
+-		log_error("Wayland: <%d> (init) [ERROR] compositor doesn't support wlr-output-management\n", m_id);
++		log_error("Wayland: <%d> (init) [ERROR] compositor supports neither wlr-output-management nor kde-output-management\n", m_id);
+ 		return false;
+ 	}
++	m_custom_timings = (m_proto == PROTO_WLR && m_manager_version >= WAYLAND_TIMINGS_VERSION) ||
++		(m_proto == PROTO_KDE && m_kde_version >= KDE_TIMINGS_VERSION && m_kde_device_version >= KDE_DEVICE_TIMINGS_VERSION);
+ 
+ 	// Wait for the initial head and mode description
+-	while (!m_done)
+-		if (wl_display_dispatch(m_display) < 0)
+-			return false;
++	if (m_proto == PROTO_WLR)
++	{
++		while (!m_done)
++			if (wl_display_dispatch(m_display) < 0)
++				return false;
++	}
++	else
++	{
++		// Devices, then their modes, then the modes' properties
++		for (int i = 0; i < 3; i++)
++			if (wl_display_roundtrip(m_display) < 0)
++				return false;
++	}
+ 
+ 	if (strcmp(m_device_name, "auto") && strcmp(m_device_name, ""))
+ 		m_head_name = m_device_name;
+@@ -359,8 +447,10 @@ bool wayland_timing::init()
+ 		return false;
+ 	}
+ 
+-	log_info("Wayland: <%d> (init) output %s, protocol version %d, %s\n", m_id, m_head->name.c_str(), m_manager_version,
+-		m_manager_version >= WAYLAND_TIMINGS_VERSION ? "custom timings supported" : "custom timings not supported, only advertised modes can be used");
++	log_info("Wayland: <%d> (init) output %s, %s version %d, %s\n", m_id, m_head->name.c_str(),
++		m_proto == PROTO_WLR ? "wlr-output-management" : "kde-output-management",
++		m_proto == PROTO_WLR ? m_manager_version : m_kde_version,
++		m_custom_timings ? "custom timings supported" : "custom timings not supported, only advertised modes can be used");
+ 
+ 	return true;
+ }
+@@ -377,6 +467,78 @@ void wayland_timing::on_global(wl_registry *registry, uint32_t name, const char
+ 		m_manager = (zwlr_output_manager_v1 *)wl_registry_bind(registry, name, &zwlr_output_manager_v1_interface, m_manager_version);
+ 		zwlr_output_manager_v1_add_listener(m_manager, &manager_listener, this);
+ 	}
++	else if (strcmp(interface, kde_output_management_v2_interface.name) == 0)
++	{
++		m_kde_version = version < KDE_TIMINGS_VERSION ? version : KDE_TIMINGS_VERSION;
++		m_kde_manager = (kde_output_management_v2 *)wl_registry_bind(registry, name, &kde_output_management_v2_interface, m_kde_version);
++	}
++	// KWin 6 announces outputs through a registry, older versions as globals
++	else if (strcmp(interface, kde_output_device_registry_v2_interface.name) == 0)
++	{
++		m_kde_device_version = version < KDE_DEVICE_MAX_VERSION ? version : KDE_DEVICE_MAX_VERSION;
++		wl_proxy *r = (wl_proxy *)wl_registry_bind(registry, name, &kde_output_device_registry_v2_interface, m_kde_device_version);
++		wl_proxy_add_dispatcher(r, kde_registry_dispatch, nullptr, this);
++	}
++	else if (strcmp(interface, kde_output_device_v2_interface.name) == 0)
++	{
++		uint32_t v = version < KDE_DEVICE_MAX_VERSION ? version : KDE_DEVICE_MAX_VERSION;
++		if (m_kde_device_version == 0 || v < m_kde_device_version)
++			m_kde_device_version = v;
++		kde_on_device((kde_output_device_v2 *)wl_registry_bind(registry, name, &kde_output_device_v2_interface, v));
++	}
++}
++
++void wayland_timing::kde_on_device(kde_output_device_v2 *obj)
++{
++	wayland_head *head = new wayland_head();
++	head->kobj = obj;
++	head->scale = 1.0;
++	m_heads.push_back(head);
++	wl_proxy_add_dispatcher((wl_proxy *)obj, kde_device_dispatch, nullptr, head);
++}
++
++void wayland_timing::kde_device_event(wayland_head *head, const char *event, wl_argument *args)
++{
++	if (strcmp(event, "name") == 0)
++		head->name = args[0].s;
++	else if (strcmp(event, "enabled") == 0)
++		head->enabled = args[0].i;
++	else if (strcmp(event, "mode") == 0)
++	{
++		wayland_mode *mode = new wayland_mode();
++		mode->kobj = (kde_output_device_mode_v2 *)args[0].o;
++		mode->head = head;
++		head->modes.push_back(mode);
++		wl_proxy_add_dispatcher((wl_proxy *)mode->kobj, kde_mode_dispatch, nullptr, mode);
++	}
++	else if (strcmp(event, "current_mode") == 0 && args[0].o != nullptr)
++		head->current_mode = (wayland_mode *)wl_proxy_get_user_data((wl_proxy *)args[0].o);
++	else if (strcmp(event, "removed") == 0)
++		on_head_finished(head);
++}
++
++void wayland_timing::kde_mode_event(wayland_mode *mode, const char *event, wl_argument *args)
++{
++	if (strcmp(event, "size") == 0)
++	{
++		mode->width = args[0].i;
++		mode->height = args[1].i;
++	}
++	else if (strcmp(event, "refresh") == 0)
++		mode->refresh = args[0].i;
++	else if (strcmp(event, "preferred") == 0)
++		mode->preferred = true;
++	else if (strcmp(event, "flags") == 0)
++		mode->custom = args[0].u & KDE_OUTPUT_DEVICE_MODE_V2_FLAGS_CUSTOM;
++	else if (strcmp(event, "cvt") == 0)
++	{
++		// dot_clock, h display/sync start/sync end/total/skew, v display/sync start/sync end/total/scan, flags
++		mode->has_timings = true;
++		mode->timings = { args[0].u, args[1].u, args[2].u, args[3].u, args[4].u,
++			args[6].u, args[7].u, args[8].u, args[9].u, args[11].u };
++	}
++	else if (strcmp(event, "removed") == 0)
++		on_mode_finished(mode);
+ }
+ 
+ void wayland_timing::on_head(zwlr_output_head_v1 *obj)
+@@ -391,11 +553,11 @@ void wayland_timing::on_head(zwlr_output_head_v1 *obj)
+ void wayland_timing::on_head_finished(wayland_head *head)
+ {
+ 	for (auto mode : head->modes)
+-	{
+-		zwlr_output_mode_v1_destroy(mode->obj);
+-		delete mode;
+-	}
+-	zwlr_output_head_v1_destroy(head->obj);
++		destroy_mode(mode);
++	if (head->obj)
++		zwlr_output_head_v1_destroy(head->obj);
++	if (head->kobj)
++		wl_proxy_destroy((wl_proxy *)head->kobj);
+ 
+ 	for (auto it = m_heads.begin(); it != m_heads.end(); ++it)
+ 		if (*it == head)
+@@ -432,8 +594,7 @@ void wayland_timing::on_mode_finished(wayland_mode *mode)
+ 		}
+ 	if (head->current_mode == mode)
+ 		head->current_mode = nullptr;
+-	zwlr_output_mode_v1_destroy(mode->obj);
+-	delete mode;
++	destroy_mode(mode);
+ }
+ 
+ void wayland_timing::on_done(uint32_t serial)
+@@ -507,11 +668,14 @@ wayland_mode *wayland_timing::find_mode(modeline *mode)
+ 	if (m_head == nullptr)
+ 		return nullptr;
+ 
+-	if (m_manager_version >= WAYLAND_TIMINGS_VERSION)
++	if (m_custom_timings)
+ 	{
+ 		wl_timings t;
+ 		modeline_to_timings(mode, &t);
+-		return find_mode(&t, false);
++		wayland_mode *m = find_mode(&t, false);
++		if (m != nullptr || mode->pclock != 0)
++			return m;
++		// System mode reported without timings (KDE native modes may have none)
+ 	}
+ 
+ 	// No timings: only modes reported by get_timing can be matched, a
+@@ -521,7 +685,7 @@ wayland_mode *wayland_timing::find_mode(modeline *mode)
+ 		return nullptr;
+ 
+ 	for (auto m : m_head->modes)
+-		if (m->width == mode->width && m->height == mode->height && (m->refresh + 500) / 1000 == mode->refresh)
++		if (!m->has_timings && m->width == mode->width && m->height == mode->height && (m->refresh + 500) / 1000 == mode->refresh)
+ 			return m;
+ 
+ 	return nullptr;
+@@ -535,9 +699,9 @@ wayland_mode *wayland_timing::find_mode(const wl_timings *t, bool sr_only)
+ 	// Prefer our own modes when several share the same timings
+ 	wayland_mode *found = nullptr;
+ 	for (auto m : m_head->modes)
+-		if (m->has_timings && same_timings(&m->timings, t) && (!sr_only || is_sr_mode(m)))
++		if (m->has_timings && same_timings(&m->timings, t) && (!sr_only || owned(m)))
+ 		{
+-			if (is_sr_mode(m))
++			if (owned(m))
+ 				return m;
+ 			if (found == nullptr)
+ 				found = m;
+@@ -558,12 +722,20 @@ bool wayland_timing::remove_mode(wayland_mode *mode)
+ 		return false;
+ 	}
+ 
+-	log_verbose("Wayland: <%d> (remove_mode) removing %s\n", m_id, mode->name.c_str());
+-	std::string name = mode->name;
+-	zwlr_output_head_v1_remove_custom_mode(m_head->obj, mode->obj);
++	char label[64];
++	snprintf(label, sizeof(label), "%s %dx%d@%.3f", mode->name.c_str(), mode->width, mode->height, mode->refresh / 1000.0);
++	std::string name = label;
++	log_verbose("Wayland: <%d> (remove_mode) removing %s\n", m_id, name.c_str());
+ 
+-	// The mode object is finished by the compositor on success
+-	if (wl_display_roundtrip(m_display) < 0)
++	if (m_proto == PROTO_WLR)
++	{
++		zwlr_output_head_v1_remove_custom_mode(m_head->obj, mode->obj);
++
++		// The mode object is finished by the compositor on success
++		if (wl_display_roundtrip(m_display) < 0)
++			return false;
++	}
++	else if (!kde_set_custom_modes(nullptr, mode))
+ 		return false;
+ 
+ 	for (auto m : m_head->modes)
+@@ -600,6 +772,99 @@ void wayland_timing::collect_created()
+ //============================================================
+ 
+ bool wayland_timing::apply(modeline *mode, wayland_mode *existing)
++{
++	return m_proto == PROTO_KDE ? apply_kde(mode, existing) : apply_wlr(mode, existing);
++}
++
++//============================================================
++//  wayland_timing::kde_commit
++//============================================================
++
++bool wayland_timing::kde_commit(kde_output_configuration_v2 *config)
++{
++	wl_proxy_add_dispatcher((wl_proxy *)config, kde_config_dispatch, nullptr, this);
++	m_config_result = CONFIG_PENDING;
++	kde_output_configuration_v2_apply(config);
++
++	while (m_config_result == CONFIG_PENDING)
++		if (wl_display_dispatch(m_display) < 0)
++			break;
++
++	kde_output_configuration_v2_destroy(config);
++
++	// Pick up the new modes and current mode
++	return wl_display_roundtrip(m_display) >= 0 && m_config_result == CONFIG_SUCCEEDED;
++}
++
++//============================================================
++//  wayland_timing::kde_set_custom_modes
++//============================================================
++
++bool wayland_timing::kde_set_custom_modes(const wl_timings *add, wayland_mode *exclude)
++{
++	// The list replaces all custom modes of the output: keep the user's ones.
++	// When adding a mode, our own unused modes are dropped at the same time:
++	// KWin regenerates all modes on each list, which must not happen right
++	// after a mode switch, as it may cancel the switch
++	kde_mode_list_v2 *list = kde_output_management_v2_create_mode_list(m_kde_manager);
++	for (auto m : m_head->modes)
++	{
++		if (!m->custom || m == exclude)
++			continue;
++		if (add != nullptr && owned(m) && m != m_head->current_mode)
++			continue;
++		if (!m->has_timings)
++		{
++			log_error("Wayland: <%d> (kde) [ERROR] custom mode %dx%d has no timings, can't keep it\n", m_id, m->width, m->height);
++			kde_mode_list_v2_destroy(list);
++			return false;
++		}
++		const wl_timings *t = &m->timings;
++		kde_mode_list_v2_add_cvt(list, t->clock, t->hdisplay, t->hsync_start, t->hsync_end, t->htotal, 0,
++			t->vdisplay, t->vsync_start, t->vsync_end, t->vtotal, 0, t->flags);
++	}
++	if (add != nullptr)
++		kde_mode_list_v2_add_cvt(list, add->clock, add->hdisplay, add->hsync_start, add->hsync_end, add->htotal, 0,
++			add->vdisplay, add->vsync_start, add->vsync_end, add->vtotal, 0, add->flags);
++
++	kde_output_configuration_v2 *config = kde_output_management_v2_create_configuration(m_kde_manager);
++	kde_output_configuration_v2_set_custom_modes(config, m_head->kobj, list);
++	bool ok = kde_commit(config);
++	kde_mode_list_v2_destroy(list);
++	return ok;
++}
++
++//============================================================
++//  wayland_timing::apply_kde
++//============================================================
++
++bool wayland_timing::apply_kde(modeline *mode, wayland_mode *existing)
++{
++	if (existing == nullptr)
++	{
++		wl_timings t;
++		modeline_to_timings(mode, &t);
++		if (!kde_set_custom_modes(&t, nullptr))
++			return false;
++
++		existing = find_mode(&t, false);
++		if (existing == nullptr)
++		{
++			log_error("Wayland: <%d> (kde) [ERROR] the compositor didn't add the mode\n", m_id);
++			return false;
++		}
++	}
++
++	kde_output_configuration_v2 *config = kde_output_management_v2_create_configuration(m_kde_manager);
++	kde_output_configuration_v2_mode(config, m_head->kobj, existing->kobj);
++	return kde_commit(config);
++}
++
++//============================================================
++//  wayland_timing::apply_wlr
++//============================================================
++
++bool wayland_timing::apply_wlr(modeline *mode, wayland_mode *existing)
+ {
+ 	for (int attempt = 0; attempt < 3; attempt++)
+ 	{
+@@ -682,7 +947,7 @@ bool wayland_timing::delete_mode(modeline *mode)
+ 	if (mode == nullptr)
+ 		return false;
+ 
+-	if (m_manager_version < WAYLAND_TIMINGS_VERSION || !sync())
++	if (!m_custom_timings || !sync())
+ 		return true;
+ 
+ 	wl_timings t;
+@@ -771,7 +1036,7 @@ bool wayland_timing::set_timing(modeline *mode)
+ 	// Without timings, the compositor would pick its own timings for the size
+ 	// and refresh, possibly out of range for the monitor: only advertised modes
+ 	// are safe
+-	if (existing == nullptr && m_manager_version < WAYLAND_TIMINGS_VERSION)
++	if (existing == nullptr && !m_custom_timings)
+ 	{
+ 		log_error("Wayland: <%d> (set_timing) [ERROR] the compositor doesn't support custom timings, can't set %dx%d%s %.3fHz\n",
+ 			m_id, mode->hactive, mode->vactive, mode->interlace ? "i" : "", mode->vfreq);
+@@ -787,20 +1052,30 @@ bool wayland_timing::set_timing(modeline *mode)
+ 		return false;
+ 	}
+ 
+-	if (m_manager_version >= WAYLAND_TIMINGS_VERSION)
++	if (m_custom_timings && existing == nullptr)
+ 	{
+ 		wl_timings t;
+ 		modeline_to_timings(mode, &t);
+ 
+-		// Keep track of the SR- mode we just created
+-		wayland_mode *m = find_mode(&t, true);
++		// Keep track of the mode we just created
++		wayland_mode *m = find_mode(&t, false);
+ 		bool known = false;
+ 		for (auto &c : m_created)
+ 			known |= same_timings(&c, &t);
+-		if (m != nullptr && !known)
++		if (m != nullptr && !known && (is_sr_mode(m) || m->custom))
+ 			m_created.push_back(t);
++	}
+ 
++	if (m_custom_timings && m_proto == PROTO_WLR)
+ 		collect_created();
++	else if (m_custom_timings)
++	{
++		// KDE: unused modes were dropped along with the new one, forget them
++		for (auto it = m_created.begin(); it != m_created.end(); )
++			if (find_mode(&*it, true) == nullptr)
++				it = m_created.erase(it);
++			else
++				++it;
+ 	}
+ 
+ 	return true;
+diff --git a/custom_video_wayland.h b/custom_video_wayland.h
+index eca8743..772cb76 100644
+--- a/custom_video_wayland.h
++++ b/custom_video_wayland.h
+@@ -24,6 +24,11 @@ struct wl_registry;
+ struct zwlr_output_manager_v1;
+ struct zwlr_output_head_v1;
+ struct zwlr_output_mode_v1;
++struct kde_output_management_v2;
++struct kde_output_device_v2;
++struct kde_output_device_mode_v2;
++struct kde_output_configuration_v2;
++union wl_argument;
+ 
+ // Detailed timings as exchanged with the compositor, DRM units (kHz, DRM_MODE_FLAG_*)
+ typedef struct wl_timings
+@@ -38,7 +43,9 @@ struct wayland_head;
+ 
+ typedef struct wayland_mode
+ {
+-	zwlr_output_mode_v1 *obj;
++	zwlr_output_mode_v1 *obj;       // wlr-output-management
++	kde_output_device_mode_v2 *kobj; // kde-output-management
++	bool custom;                     // KDE custom mode
+ 	wayland_head *head;
+ 	int width, height;
+ 	int refresh; // mHz
+@@ -51,6 +58,7 @@ typedef struct wayland_mode
+ typedef struct wayland_head
+ {
+ 	zwlr_output_head_v1 *obj;
++	kde_output_device_v2 *kobj;
+ 	std::string name;
+ 	bool enabled;
+ 	int x, y;
+@@ -85,6 +93,9 @@ class wayland_timing : public custom_video
+ 		void on_mode_finished(wayland_mode *mode);
+ 		void on_done(uint32_t serial);
+ 		void on_config_result(int result);
++		void kde_on_device(kde_output_device_v2 *obj);
++		void kde_device_event(wayland_head *head, const char *event, union wl_argument *args);
++		void kde_mode_event(wayland_mode *mode, const char *event, union wl_argument *args);
+ 
+ 	private:
+ 		int m_id = 0;
+@@ -94,6 +105,10 @@ class wayland_timing : public custom_video
+ 		wl_registry *m_registry = nullptr;
+ 		zwlr_output_manager_v1 *m_manager = nullptr;
+ 		uint32_t m_manager_version = 0;
++		kde_output_management_v2 *m_kde_manager = nullptr;
++		uint32_t m_kde_version = 0, m_kde_device_version = 0;
++		enum { PROTO_NONE, PROTO_WLR, PROTO_KDE } m_proto = PROTO_NONE;
++		bool m_custom_timings = false;
+ 		uint32_t m_serial = 0;
+ 		bool m_done = false;
+ 		int m_config_result = 0;
+@@ -111,6 +126,12 @@ class wayland_timing : public custom_video
+ 		wayland_head *find_head();
+ 		wayland_mode *find_mode(modeline *mode);
+ 		bool apply(modeline *mode, wayland_mode *existing);
++		bool apply_wlr(modeline *mode, wayland_mode *existing);
++		bool apply_kde(modeline *mode, wayland_mode *existing);
++		bool kde_commit(kde_output_configuration_v2 *config);
++		bool kde_set_custom_modes(const wl_timings *add, wayland_mode *exclude);
++		bool owned(const wayland_mode *mode);
++		void destroy_mode(wayland_mode *mode);
+ 		wayland_mode *find_mode(const wl_timings *t, bool sr_only);
+ 		bool remove_mode(wayland_mode *mode);
+ 		void collect_created();
+diff --git a/makefile b/makefile
+index 32ce30b..963023f 100644
+--- a/makefile
++++ b/makefile
+@@ -74,11 +74,12 @@ ifeq ($(HAS_VALID_WAYLAND),1)
+ else
+     $(info Wayland support enabled)
+     WAYLAND_SCANNER := $(shell $(PKG_CONFIG) --variable=wayland_scanner wayland-scanner)
+-    WAYLAND_PROTOCOL = wlr-output-management-unstable-v1
++    WAYLAND_PROTOCOLS = wlr-output-management-unstable-v1 kde-output-device-v2 kde-output-management-v2
+     CPPFLAGS += -DSR_WITH_WAYLAND
+     EXTRA_LIBS += wayland-client
+     SRC += custom_video_wayland.cpp
+-    PROTOCOL_OBJS = $(WAYLAND_PROTOCOL)-protocol.o
++    PROTOCOL_OBJS = $(WAYLAND_PROTOCOLS:=-protocol.o)
++    PROTOCOL_HEADERS = $(WAYLAND_PROTOCOLS:=-client-protocol.h)
+ endif
+ 
+ # SDL2 misses a test for drm as drm.h is required
+@@ -140,16 +141,17 @@ OBJS = $(SRC:.cpp=.o) $(PROTOCOL_OBJS)
+ %.o : %.cpp
+ 	$(FINAL_CXX) -c $(CPPFLAGS) $< -o $@
+ 
+-$(WAYLAND_PROTOCOL)-client-protocol.h: protocols/$(WAYLAND_PROTOCOL).xml
++%-client-protocol.h: protocols/%.xml
+ 	$(WAYLAND_SCANNER) client-header $< $@
+ 
+-$(WAYLAND_PROTOCOL)-protocol.c: protocols/$(WAYLAND_PROTOCOL).xml
++%-protocol.c: protocols/%.xml
+ 	$(WAYLAND_SCANNER) private-code $< $@
+ 
+-$(WAYLAND_PROTOCOL)-protocol.o: $(WAYLAND_PROTOCOL)-protocol.c
++%-protocol.o: %-protocol.c
+ 	$(CROSS_COMPILE)$(CC) -c -fPIC $(shell $(PKG_CONFIG) --cflags wayland-client) $< -o $@
+ 
+-custom_video_wayland.o: $(WAYLAND_PROTOCOL)-client-protocol.h
++custom_video_wayland.o: $(PROTOCOL_HEADERS) custom_video_wayland.h
++custom_video.o: custom_video_wayland.h
+ 
+ all: $(OBJS) $(MAIN).cpp $(TARGET_LIB) prepare_pkg_config
+ 	@echo $(OSFLAG)
+diff --git a/protocols/kde-output-device-v2.xml b/protocols/kde-output-device-v2.xml
+new file mode 100644
+index 0000000..bb56090
+--- /dev/null
++++ b/protocols/kde-output-device-v2.xml
+@@ -0,0 +1,664 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="kde_output_device_v2">
++  <copyright><![CDATA[
++    SPDX-FileCopyrightText: 2008-2011 Kristian Høgsberg
++    SPDX-FileCopyrightText: 2010-2011 Intel Corporation
++    SPDX-FileCopyrightText: 2012-2013 Collabora, Ltd.
++    SPDX-FileCopyrightText: 2015 Sebastian Kügler <sebas@kde.org>
++    SPDX-FileCopyrightText: 2021 Méven Car <meven.car@enioka.com>
++
++    SPDX-License-Identifier: MIT-CMU
++    ]]></copyright>
++
++  <interface name="kde_output_device_registry_v2" version="26">
++    <description summary="output devices">
++      This interface can be used to list output devices.
++
++      If this global is bound with a version less than 21, the unsupported_version
++      protocol error will be posted.
++    </description>
++
++    <enum name="error">
++      <description summary="kde_output_device_registry_v2 error values">
++        These errors can be emitted in response to some requests.
++      </description>
++      <entry name="unsupported_version" value="0"
++             summary="the registry was bound with an unsupported version"/>
++    </enum>
++
++    <event name="finished" type="destructor" since="21">
++      <description summary="no new output announcements">
++        This event is sent in response to the stop request. The compositor will
++        immediately destroy the object after sending this event.
++      </description>
++    </event>
++
++    <request name="stop" since="21">
++      <description summary="stop receiving updates">
++        This request indicates that the client no longer wants to receive new
++        output announcements. The compositor will send the
++        kde_output_device_registry_v2.finished event in response to this request.
++        The compositor may still send new output announcements after calling this
++        request until the kde_output_device_registry_v2.finished event is sent.
++      </description>
++    </request>
++
++    <event name="output" since="21">
++      <description summary="new available output">
++        This event is sent when a new output is connected or after binding this
++        global to list all available outputs.
++      </description>
++      <arg name="output" type="new_id" interface="kde_output_device_v2"/>
++    </event>
++  </interface>
++
++  <interface name="kde_output_device_v2" version="26">
++    <description summary="output configuration representation">
++      An output device describes a display device available to the compositor.
++      output_device is similar to wl_output, but focuses on output
++      configuration management.
++
++      A client can query all global output_device objects to enlist all
++      available display devices, even those that may currently not be
++      represented by the compositor as a wl_output.
++
++      The client sends configuration changes to the server through the
++      outputconfiguration interface, and the server applies the configuration
++      changes to the hardware and signals changes to the output devices
++      accordingly.
++
++      This object is published as global during start up for every available
++      display devices, or when one later becomes available, for example by
++      being hotplugged via a physical connector.
++
++      Warning! The protocol described in this file is a desktop environment
++      implementation detail. Regular clients must not use this protocol.
++      Backward incompatible changes may be added without bumping the major
++      version of the extension.
++    </description>
++
++    <enum name="subpixel">
++      <description summary="subpixel geometry information">
++        This enumeration describes how the physical pixels on an output are
++        laid out.
++      </description>
++      <entry name="unknown" value="0"/>
++      <entry name="none" value="1"/>
++      <entry name="horizontal_rgb" value="2"/>
++      <entry name="horizontal_bgr" value="3"/>
++      <entry name="vertical_rgb" value="4"/>
++      <entry name="vertical_bgr" value="5"/>
++    </enum>
++
++    <enum name="transform">
++      <description summary="transform from framebuffer to output">
++        This describes the transform, that a compositor will apply to a
++        surface to compensate for the rotation or mirroring of an
++        output device.
++
++        The flipped values correspond to an initial flip around a
++        vertical axis followed by rotation.
++
++        The purpose is mainly to allow clients to render accordingly and
++        tell the compositor, so that for fullscreen surfaces, the
++        compositor is still able to scan out directly client surfaces.
++      </description>
++
++      <entry name="normal" value="0"/>
++      <entry name="90" value="1"/>
++      <entry name="180" value="2"/>
++      <entry name="270" value="3"/>
++      <entry name="flipped" value="4"/>
++      <entry name="flipped_90" value="5"/>
++      <entry name="flipped_180" value="6"/>
++      <entry name="flipped_270" value="7"/>
++    </enum>
++
++    <event name="geometry">
++      <description summary="geometric properties of the output">
++        The geometry event describes geometric properties of the output.
++        The event is sent when binding to the output object and whenever
++        any of the properties change.
++      </description>
++      <arg name="x" type="int"
++         summary="x position within the global compositor space"/>
++      <arg name="y" type="int"
++         summary="y position within the global compositor space"/>
++      <arg name="physical_width" type="int"
++         summary="width in millimeters of the output"/>
++      <arg name="physical_height" type="int"
++         summary="height in millimeters of the output"/>
++      <arg name="subpixel" type="int"
++         summary="subpixel orientation of the output"/>
++      <arg name="make" type="string"
++         summary="textual description of the manufacturer"/>
++      <arg name="model" type="string"
++         summary="textual description of the model"/>
++      <arg name="transform" type="int"
++         summary="transform that maps framebuffer to output"/>
++    </event>
++
++    <event name="current_mode">
++      <description summary="current mode">
++        This event describes the mode currently in use for this head. It is only
++        sent if the output is enabled.
++      </description>
++      <arg name="mode" type="object" interface="kde_output_device_mode_v2"/>
++    </event>
++
++    <event name="mode">
++      <description summary="advertise available output modes and current one">
++        The mode event describes an available mode for the output.
++
++        When the client binds to the output_device object, the server sends this
++        event once for every available mode the output_device can be operated by.
++
++        There will always be at least one event sent out on initial binding,
++        which represents the current mode.
++
++        Later if an output changes, its mode event is sent again for the
++        eventual added modes and lastly the current mode. In other words, the
++        current mode is always represented by the latest event sent with the current
++        flag set.
++
++        The size of a mode is given in physical hardware units of the output device.
++        This is not necessarily the same as the output size in the global compositor
++        space. For instance, the output may be scaled, as described in
++        kde_output_device_v2.scale, or transformed, as described in
++        kde_output_device_v2.transform.
++      </description>
++      <arg name="mode" type="new_id" interface="kde_output_device_mode_v2"/>
++    </event>
++
++    <event name="done">
++      <description summary="sent all information about output">
++        This event is sent after all other properties have been
++        sent on binding to the output object as well as after any
++        other output property change have been applied later on.
++        This allows to see changes to the output properties as atomic,
++        even if multiple events successively announce them.
++      </description>
++    </event>
++
++    <event name="scale">
++      <description summary="output scaling properties">
++        This event contains scaling geometry information
++        that is not in the geometry event. It may be sent after
++        binding the output object or if the output scale changes
++        later. If it is not sent, the client should assume a
++        scale of 1.
++
++        A scale larger than 1 means that the compositor will
++        automatically scale surface buffers by this amount
++        when rendering. This is used for high resolution
++        displays where applications rendering at the native
++        resolution would be too small to be legible.
++
++        It is intended that scaling aware clients track the
++        current output of a surface, and if it is on a scaled
++        output it should use wl_surface.set_buffer_scale with
++        the scale of the output. That way the compositor can
++        avoid scaling the surface, and the client can supply
++        a higher detail image.
++      </description>
++      <arg name="factor" type="fixed" summary="scaling factor of output"/>
++    </event>
++
++    <event name="edid">
++      <description summary="advertise EDID data for the output">
++        The edid event encapsulates the EDID data for the outputdevice.
++
++        The event is sent when binding to the output object. The EDID
++        data may be empty, in which case this event is sent anyway.
++        If the EDID information is empty, you can fall back to the name
++        et al. properties of the outputdevice.
++      </description>
++      <arg name="raw" type="string" summary="base64-encoded EDID string"/>
++    </event>
++
++    <event name="enabled">
++      <description summary="output is enabled or disabled">
++        The enabled event notifies whether this output is currently
++        enabled and used for displaying content by the server.
++        The event is sent when binding to the output object and
++        whenever later on an output changes its state by becoming
++        enabled or disabled.
++      </description>
++      <arg name="enabled" type="int" summary="output enabled state"/>
++    </event>
++
++    <event name="uuid">
++      <description summary="A unique id for this outputdevice">
++        The uuid can be used to identify the output. It's controlled by
++        the server entirely. The server should make sure the uuid is
++        persistent across restarts. An empty uuid is considered invalid.
++      </description>
++      <arg name="uuid" type="string" summary="output devices ID"/>
++    </event>
++
++    <event name="serial_number">
++      <description summary="Serial Number">
++        Serial ID of the monitor, sent on startup before the first done event.
++      </description>
++      <arg name="serialNumber" type="string"
++          summary="textual representation of serial number"/>
++    </event>
++    <event name="eisa_id">
++      <description summary="EISA ID">
++        EISA ID of the monitor, sent on startup before the first done event.
++      </description>
++      <arg name="eisaId" type="string"
++         summary="textual representation of EISA identifier"/>
++    </event>
++
++    <enum name="capability" bitfield="true">
++      <description summary="describes capabilities of the outputdevice">
++        Describes what capabilities this device has.
++      </description>
++      <entry name="overscan" value="0x1"
++           summary="if this output_device can use overscan"/>
++      <entry name="vrr" value="0x2"
++           summary="if this outputdevice supports variable refresh rate"/>
++      <entry name="rgb_range" value="0x4"
++             summary="if setting the rgb range is possible"/>
++      <entry name="high_dynamic_range" value="0x8" since="3"
++             summary="if this outputdevice supports high dynamic range"/>
++      <entry name="wide_color_gamut" value="0x10" since="3"
++             summary="if this outputdevice supports a wide color gamut"/>
++      <entry name="auto_rotate" value="0x20" since="4"
++             summary="if this outputdevice supports autorotation"/>
++      <entry name="icc_profile" value="0x40" since="5"
++             summary="if this outputdevice supports icc profiles"/>
++      <entry name="brightness" value="0x80" since="9"
++             summary="if this outputdevice supports the brightness setting"/>
++      <entry name="built_in_color" value="0x100" since="12"
++             summary="if this outputdevice supports the built-in color profile"/>
++      <entry name="ddc_ci" value="0x200" since="14"
++             summary="if this outputdevice supports DDC/CI"/>
++      <entry name="max_bits_per_color" value="0x400" since="15"
++             summary="if this outputdevice supports setting max bpc"/>
++      <entry name="edr" value="0x800" since="16"
++             summary="if this outputdevice supports EDR"/>
++      <entry name="sharpness" value="0x1000" since="17"
++             summary="if this outputdevice supports the sharpness setting"/>
++      <entry name="custom_modes" value="0x2000" since="18"
++             summary="if this outputdevice supports custom modes"/>
++      <entry name="auto_brightness" value = "0x4000" since="19"/>
++      <entry name="hdr_icc_profile" value="0x8000" since="22"
++             summary="if this outputdevice supports HDR ICC profiles"/>
++      <entry name="abm_level" value="0x10000" since="23"
++             summary="if this outputdevice supports the abm level setting"/>
++      <entry name="disable" value="0x20000" since="25"
++             summary="if this outputdevice supports being enabled/disabled"/>
++    </enum>
++
++    <event name="capabilities">
++      <description summary="capability flags">
++        What capabilities this device has, sent on startup before the first
++        done event.
++      </description>
++      <arg name="flags" type="uint" enum="capability"/>
++    </event>
++
++    <event name="overscan">
++      <description summary="overscan">
++        Overscan value of the monitor in percent, sent on startup before the
++        first done event.
++      </description>
++      <arg name="overscan" type="uint"
++         summary="amount of overscan of the monitor"/>
++    </event>
++
++    <enum name="vrr_policy">
++      <description summary="describes vrr policy">
++        Describes when the compositor may employ variable refresh rate
++      </description>
++      <entry name="never" value="0"/>
++      <entry name="always" value="1"/>
++      <entry name="automatic" value="2"/>
++    </enum>
++
++    <event name="vrr_policy">
++      <description summary="Variable Refresh Rate Policy">
++        What policy the compositor will employ regarding its use of variable
++        refresh rate.
++      </description>
++      <arg name="vrr_policy" type="uint" enum="vrr_policy"/>
++    </event>
++
++    <enum name="rgb_range">
++      <description summary="describes RGB range policy">
++        Whether full or limited color range should be used
++      </description>
++      <entry name="automatic" value="0"/>
++      <entry name="full" value="1"/>
++      <entry name="limited" value="2"/>
++    </enum>
++
++    <event name="rgb_range">
++      <description summary="RGB range">
++        What rgb range the compositor is using for this output
++      </description>
++      <arg name="rgb_range" type="uint" enum="rgb_range"/>
++    </event>
++
++    <event name="name" since="2">
++      <description summary="Output's name">
++        Name of the output, it's useful to cross-reference to an zxdg_output_v1 and ultimately QScreen
++      </description>
++      <arg name="name" type="string"/>
++    </event>
++
++    <event name="high_dynamic_range" since="3">
++      <description summary="if HDR is enabled">
++        Whether or not high dynamic range is enabled for this output
++      </description>
++      <arg name="hdr_enabled" type="uint" summary="1 if enabled, 0 if disabled"/>
++    </event>
++
++    <event name="sdr_brightness" since="3">
++      <description summary="the brightness of sdr if hdr is enabled">
++        If high dynamic range is used, this value defines the brightness in nits for content
++        that's in standard dynamic range format. Note that while the value is in nits, that
++        doesn't necessarily translate to the same brightness on the screen.
++      </description>
++      <arg name="sdr_brightness" type="uint"/>
++    </event>
++
++    <event name="wide_color_gamut" since="3">
++      <description summary="if WCG is enabled">
++        Whether or not the use of a wide color gamut is enabled for this output
++      </description>
++      <arg name="wcg_enabled" type="uint" summary="1 if enabled, 0 if disabled"/>
++    </event>
++
++    <enum name="auto_rotate_policy">
++      <description summary="describes when auto rotate should be used"/>
++      <entry name="never" value="0"/>
++      <entry name="in_tablet_mode" value="1"/>
++      <entry name="always" value="2"/>
++    </enum>
++
++    <event name="auto_rotate_policy" since="4">
++      <description summary="describes when auto rotate is used"/>
++      <arg name="policy" type="uint" enum="auto_rotate_policy"/>
++    </event>
++
++    <event name="icc_profile_path" since="5">
++      <description summary="describes the path to the ICC profile used in SDR mode"/>
++      <arg name="profile_path" type="string"/>
++    </event>
++
++    <event name="brightness_metadata" since="6">
++      <description summary="metadata about the screen's brightness limits"/>
++      <arg name="max_peak_brightness" type="uint" summary="in nits"/>
++      <arg name="max_frame_average_brightness" type="uint" summary="in nits"/>
++      <arg name="min_brightness" type="uint" summary="in 0.0001 nits"/>
++    </event>
++
++    <event name="brightness_overrides" since="6">
++      <description summary="overrides for the screen's brightness limits"/>
++      <arg name="max_peak_brightness" type="int" summary="-1 for no override, positive values are the brightness in nits"/>
++      <arg name="max_average_brightness" type="int" summary="-1 for no override, positive values are the brightness in nits"/>
++      <arg name="min_brightness" type="int" summary="-1 for no override, positive values are the brightness in 0.0001 nits"/>
++    </event>
++
++    <event name="sdr_gamut_wideness" since="6">
++      <description summary="describes which gamut is assumed for sRGB applications">
++          This can be used to provide the colors users assume sRGB applications should have based on the
++          default experience on many modern sRGB screens.
++      </description>
++      <arg name="gamut_wideness" type="uint" summary="0 means rec.709 primaries, 10000 means native primaries"/>
++    </event>
++
++    <enum name="color_profile_source" since="7">
++      <description summary="which source the compositor should use for the color profile on an output"/>
++      <entry name="sRGB" value="0"/>
++      <entry name="ICC" value="1"/>
++      <entry name="EDID" value="2"/>
++    </enum>
++
++    <event name="color_profile_source" since="7">
++      <description summary="describes which source the compositor uses for the color profile on an output in SDR mode"/>
++      <arg name="source" type="uint" enum="color_profile_source"/>
++    </event>
++
++    <event name="brightness" since="8">
++      <description summary="brightness multiplier">
++        This is the brightness modifier of the output. It doesn't specify
++        any absolute values, but is merely a multiplier on top of other
++        brightness values, like sdr_brightness and brightness_metadata.
++        0 is the minimum brightness (not completely dark) and 10000 is
++        the maximum brightness.
++        This is currently only supported / meaningful while HDR is active.
++      </description>
++      <arg name="brightness" type="uint" summary="brightness in 0-10000"/>
++    </event>
++
++    <enum name="color_power_tradeoff">
++      <description summary="tradeoff between power and accuracy">
++        The compositor can do a lot of things that trade between
++        performance, power and color accuracy. This setting describes
++        a high level preference from the user about in which direction
++        that tradeoff should be made.
++      </description>
++      <entry name="efficiency" value="0" summary="prefer efficiency and performance"/>
++      <entry name="accuracy" value="1" summary="prefer accuracy"/>
++    </enum>
++
++    <event name="color_power_tradeoff" since="10">
++      <description summary="the preferred color/power tradeoff"/>
++      <arg name="preference" type="uint" enum="color_power_tradeoff"/>
++    </event>
++
++    <event name="dimming" since="11">
++      <description summary="dimming multiplier">
++        This is the dimming multiplier of the output. This is similar to
++        the brightness setting, except it's meant to be a temporary setting
++        only, not persistent and may be implemented differently depending
++        on the display.
++        0 is the minimum dimming factor (not completely dark) and 10000
++        means the output is not dimmed.
++      </description>
++      <arg name="multiplier" type="uint" summary="multiplier in 0-10000"/>
++    </event>
++
++    <event name="replication_source" since="13">
++      <description summary="source output for mirroring"/>
++      <arg name="source" type="string" summary="uuid of the source output"/>
++    </event>
++
++    <event name="ddc_ci_allowed" since="14">
++      <description summary="if DDC/CI should be used to control brightness etc.">
++        If the ddc_ci capability is present, this determines if settings
++        such as brightness, contrast or others should be set using DDC/CI.
++      </description>
++      <arg name="allowed" type="uint" summary="1 if allowed, 0 if disabled"/>
++    </event>
++
++    <event name="max_bits_per_color" since="15">
++      <description summary="override max bpc">
++        This limits the amount of bits per color that are sent to the display.
++      </description>
++      <arg name="max_bpc" type="uint" summary="0 for the default / automatic"/>
++    </event>
++
++    <event name="max_bits_per_color_range" since="15">
++      <description summary="range of max bits per color value"/>
++      <arg name="min_value" type="uint" summary="the minimum supported by the driver"/>
++      <arg name="max_value" type="uint" summary="the maximum supported by the driver"/>
++    </event>
++
++    <event name="automatic_max_bits_per_color_limit" since="15">
++      <description summary="if and to what value automatic max bpc is limited"/>
++      <arg name="max_bpc_limit" type="uint"
++           summary="which value automatic bpc gets limited to. 0 if not limited"/>
++    </event>
++
++    <enum name="edr_policy" since="16">
++      <description summary="when the compositor may make use of EDR"/>
++      <entry name="never" value="0"/>
++      <entry name="always" value="1"/>
++    </enum>
++
++    <event name="edr_policy" since="16">
++      <description summary="when the compositor may apply EDR">
++        When EDR is enabled, the compositor may increase the backlight beyond
++        the user-specified setting, in order to present HDR content on displays
++        without native HDR support.
++        This will usually result in better visuals, but also increases battery
++        usage.
++      </description>
++      <arg name="policy" type="uint" enum="edr_policy"/>
++    </event>
++
++    <event name="sharpness" since="17">
++      <description summary="sharpness strength">
++        This is the sharpness modifier of the output.
++        0 is sharpness disabled and 10000 is the maximum sharpness
++      </description>
++      <arg name="sharpness" type="uint" summary="sharpness in 0-10000"/>
++    </event>
++
++    <event name="priority" since="18">
++      <description summary="output priority">
++        Describes the position of the output in the output order list,
++        with lower values being earlier in the list. There's no specific
++        value the list has to start at, this value is only used in sorting
++        outputs.
++
++        Note that the output order protocol is not sufficient for this,
++        as an output may not be in the output order if it's disabled or
++        mirroring another screen.
++      </description>
++      <arg name="priority" type="uint" summary="priority"/>
++    </event>
++
++    <event name="auto_brightness" since="20">
++      <description summary="whether or not automatic brightness is enabled"/>
++      <arg name="enabled" type="uint" summary="1 for enabled, 0 for disabled"/>
++    </event>
++
++    <request name="release" type="destructor" since="21">
++      <description summary="destroy the output device">
++        This notifies the compositor that the client no longer wishes to use
++        the kde_output_device_v2 object.
++      </description>
++    </request>
++
++    <event name="removed" since="21">
++      <description summary="the output has been removed">
++        This event is sent when the output device is disconnected and no new
++        updates will be sent. The client should call the kde_output_device_v2.release
++        request after receiving this event.
++      </description>
++    </event>
++
++    <event name="hdr_icc_profile_path" since="22">
++      <description summary="describes the path to the ICC profile used in HDR mode"/>
++      <arg name="profile_path" type="string"/>
++    </event>
++
++    <event name="hdr_color_profile_source" since="22">
++      <description summary="describes which source the compositor uses for the color profile on an output in HDR mode"/>
++      <arg name="source" type="uint" enum="color_profile_source"/>
++    </event>
++
++    <event name="abm_level" since="23">
++      <description summary="allowed level of adaptive backlight modulation">
++        Adaptive backlight modulation is a feature that reduces the backlight
++        and increases contrast of colors on the screen to improve power usage.
++      </description>
++      <arg name="level" type="uint" summary="0 is off, 4 is the maximum level"/>
++    </event>
++  </interface>
++
++  <interface name="kde_output_device_mode_v2" version="26">
++    <description summary="output mode">
++      This object describes an output mode.
++
++      Some heads don't support output modes, in which case modes won't be
++      advertised.
++
++      Properties sent via this interface are applied atomically via the
++      kde_output_device.done event. No guarantees are made regarding the order
++      in which properties are sent.
++    </description>
++
++    <event name="size">
++      <description summary="mode size">
++        This event describes the mode size. The size is given in physical
++        hardware units of the output device. This is not necessarily the same as
++        the output size in the global compositor space. For instance, the output
++        may be scaled or transformed.
++      </description>
++      <arg name="width" type="int" summary="width of the mode in hardware units"/>
++      <arg name="height" type="int" summary="height of the mode in hardware units"/>
++    </event>
++
++    <event name="refresh">
++      <description summary="mode refresh rate">
++        This event describes the mode's fixed vertical refresh rate. It is only
++        sent if the mode has a fixed refresh rate.
++      </description>
++      <arg name="refresh" type="int" summary="vertical refresh rate in mHz"/>
++    </event>
++
++    <event name="preferred">
++      <description summary="mode is preferred">
++        This event advertises this mode as preferred.
++      </description>
++    </event>
++
++    <event name="removed">
++      <description summary="the mode has been destroyed">
++        The compositor will destroy the object immediately after sending this
++        event, so it will become invalid and the client should release any
++        resources associated with it.
++
++        The client should call the kde_output_device_mode_v2.release request
++        after receiving this event.
++      </description>
++    </event>
++
++    <enum name="flags">
++      <description summary="mode flags"/>
++      <entry name="custom" value="0x1"/>
++      <entry name="reduced_blanking" value="0x2" deprecated-since="24"/>
++    </enum>
++
++    <event name="flags" since="19">
++      <description summary="mode flags">
++        This event describes the mode's flags.
++      </description>
++      <arg name="flags" type="uint" enum="flags"/>
++    </event>
++
++    <event name="cvt" since="24">
++      <description summary="cvt timings">
++        This event describes the CVT timings associated with the mode.
++
++        If an output mode has no CVT timings, this event will not be sent.
++      </description>
++      <arg name="dot_clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal display size"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total size"/>
++      <arg name="hskew" type="uint" summary="horizontal skew"/>
++      <arg name="vdisplay" type="uint" summary="vertical display size"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total size"/>
++      <arg name="vscan" type="uint" summary="vertical scan"/>
++      <arg name="flags" type="uint" summary="flags, see DRM_MODE_FLAG_*"/>
++    </event>
++
++    <request name="release" type="destructor" since="26">
++      <description summary="destroy mode">
++        Notifies the compositor that this mode will not be used anymore.
++      </description>
++    </request>
++  </interface>
++
++</protocol>
+diff --git a/protocols/kde-output-management-v2.xml b/protocols/kde-output-management-v2.xml
+new file mode 100644
+index 0000000..e78db44
+--- /dev/null
++++ b/protocols/kde-output-management-v2.xml
+@@ -0,0 +1,539 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="kde_output_management_v2">
++  <copyright><![CDATA[
++    SPDX-FileCopyrightText: 2008-2011 Kristian Høgsberg
++    SPDX-FileCopyrightText: 2010-2011 Intel Corporation
++    SPDX-FileCopyrightText: 2012-2013 Collabora, Ltd.
++    SPDX-FileCopyrightText: 2015 Sebastian Kügler <sebas@kde.org>
++    SPDX-FileCopyrightText: 2021 Méven Car <meven.car@enioka.com>
++    SPDX-FileCopyrightText: 2023 Xaver Hugl <xaver.hugl@kde.org>
++
++    SPDX-License-Identifier: MIT-CMU
++    ]]></copyright>
++
++<interface name="kde_output_management_v2" version="22">
++  <description summary="configuration of server outputs through clients">
++    This interface enables clients to set properties of output devices for screen
++    configuration purposes via the server. To this end output devices are referenced
++    by global kde_output_device_v2 objects.
++
++    outputmanagement (wl_global)
++    --------------------------
++    request:
++    * create_configuration -> outputconfiguration (wl_resource)
++
++    outputconfiguration (wl_resource)
++    --------------------------
++    requests:
++    * enable(outputdevice, bool)
++    * mode(outputdevice, mode)
++    * transformation(outputdevice, flag)
++    * position(outputdevice, x, y)
++    * apply
++
++    events:
++    * applied
++    * failed
++
++    The server registers one outputmanagement object as a global object. In order
++    to configure outputs a client requests create_configuration, which provides a
++    resource referencing an outputconfiguration for one-time configuration. That
++    way the server knows which requests belong together and can group them by that.
++
++    On the outputconfiguration object the client calls for each output whether the
++    output should be enabled, which mode should be set (by referencing the mode from
++    the list of announced modes) and the output's global position. Once all outputs
++    are configured that way, the client calls apply.
++    At that point and not earlier the server should try to apply the configuration.
++    If this succeeds the server emits the applied signal, otherwise the failed
++    signal, such that the configuring client is noticed about the success of its
++    configuration request.
++
++    Through this design the interface enables atomic output configuration changes if
++    internally supported by the server.
++
++    Warning! The protocol described in this file is a desktop environment implementation
++    detail. Regular clients must not use this protocol. Backward incompatible
++    changes may be added without bumping the major version of the extension.
++  </description>
++  <request name="create_configuration">
++    <description summary="provide outputconfiguration object for configuring outputs">
++      Request an outputconfiguration object through which the client can configure
++      output devices.
++    </description>
++    <arg name="id" type="new_id" interface="kde_output_configuration_v2"/>
++  </request>
++
++  <request name="create_mode_list">
++    <description summary="create a list of custom modes">
++      For details, see the description of kde_mode_list_v2 and
++      kde_output_configuration_v2.set_custom_modes.
++    </description>
++    <arg name="id" type="new_id" interface="kde_mode_list_v2"/>
++  </request>
++
++</interface>
++
++<interface name="kde_output_configuration_v2" version="22">
++  <description summary="configure single output devices">
++    outputconfiguration is a client-specific resource that can be used to ask
++    the server to apply changes to available output devices.
++
++    The client receives a list of output devices from the registry. When it wants
++    to apply new settings, it creates a configuration object from the
++    outputmanagement global, writes changes through this object's enable, scale,
++    transform and mode calls. It then asks the server to apply these settings in
++    an atomic fashion, for example through Linux' DRM interface.
++
++    The server signals back whether the new settings have applied successfully
++    or failed to apply. outputdevice objects are updated after the changes have been
++    applied to the hardware and before the server side sends the applied event.
++  </description>
++
++  <enum name="error">
++    <description summary="kde_output_configuration_v2 error values">
++      These error can be emitted in response to kde_output_configuration_v2 requests.
++    </description>
++    <entry name="already_applied" value="0" summary="the config is already applied"/>
++  </enum>
++
++  <request name="enable">
++    <description summary="enable or disable an output">
++      Mark the output as enabled or disabled.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice to be en- or disabled"/>
++    <arg name="enable" type="int" summary="1 to enable or 0 to disable this output"/>
++  </request>
++
++  <request name="mode">
++    <description summary="switch output-device to mode">
++      Sets the mode for a given output.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this mode change applies to"/>
++    <arg name="mode" type="object" interface="kde_output_device_mode_v2" summary="the mode to apply"/>
++  </request>
++
++  <request name="transform">
++    <description summary="transform output-device">
++      Sets the transformation for a given output.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this transformation change applies to"/>
++    <arg name="transform" type="int" summary="transform enum"/>
++  </request>
++
++  <request name="position">
++    <description summary="position output in global space">
++      Sets the position for this output device. (x,y) describe the top-left corner
++      of the output in global space, whereby the origin (0,0) of the global space
++      has to be aligned with the top-left corner of the most left and in case this
++      does not define a single one the top output.
++
++      There may be no gaps or overlaps between outputs, i.e. the outputs are
++      stacked horizontally, vertically, or both on each other.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this position applies to"/>
++    <arg name="x" type="int" summary="position on the x-axis"/>
++    <arg name="y" type="int" summary="position on the y-axis"/>
++  </request>
++
++  <request name="scale">
++    <description summary="set scaling factor of this output">
++      Sets the scaling factor for this output device.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this scale change applies to"/>
++    <arg name="scale" type="fixed" summary="scaling factor"/>
++  </request>
++
++  <request name="apply">
++    <description summary="apply configuration changes to all output devices">
++      Asks the server to apply property changes requested through this outputconfiguration
++      object to all outputs on the server side.
++
++      The output configuration can be applied only once. The already_applied protocol error
++      will be posted if the apply request is called the second time.
++    </description>
++  </request>
++
++  <event name="applied">
++    <description summary="configuration changes have been applied">
++      Sent after the server has successfully applied the changes.
++      .
++    </description>
++  </event>
++
++  <event name="failed">
++    <description summary="configuration changes failed to apply">
++      Sent if the server rejects the changes or failed to apply them.
++    </description>
++  </event>
++
++  <request name="destroy" type="destructor">
++    <description summary="release the outputconfiguration object"/>
++  </request>
++
++  <request name="overscan">
++    <description summary="set overscan value">
++      Set the overscan value of this output device with a value in percent.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice overscan applies to"/>
++    <arg name="overscan" type="uint" summary="overscan value"/>
++  </request>
++
++  <enum name="vrr_policy">
++    <description summary="describes vrr policy">
++      Describes when the compositor may employ variable refresh rate
++    </description>
++    <entry name="never" value="0"/>
++    <entry name="always" value="1"/>
++    <entry name="automatic" value="2"/>
++  </enum>
++
++  <request name="set_vrr_policy">
++    <description summary="set the VRR policy">
++      Set what policy the compositor should employ regarding its use of
++      variable refresh rate.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this VRR policy applies to"/>
++    <arg name="policy" type="uint" enum="vrr_policy" summary="the vrr policy to apply"/>
++  </request>
++
++  <enum name="rgb_range">
++    <description summary="describes RGB range policy">
++      Whether this output should use full or limited rgb.
++    </description>
++    <entry name="automatic" value="0"/>
++    <entry name="full" value="1"/>
++    <entry name="limited" value="2"/>
++  </enum>
++
++  <request name="set_rgb_range">
++    <description summary="RGB range">
++      Whether full or limited color range should be used
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice the rgb range applies to"/>
++    <arg name="rgb_range" type="uint" enum="rgb_range"/>
++  </request>
++
++  <request name="set_primary_output" since="2">
++    <description summary="Select which primary output to use" />
++    <arg name="output" type="object" interface="kde_output_device_v2" allow-null="false"/>
++  </request>
++
++  <request name="set_priority" since="3">
++    <description summary="Set the order of outputs">
++      Set the position of the output in the output order list, with lower values
++      being earlier in the list. There's no specific value the list has to start
++      at, this value is only used in sorting outputs.
++
++      The order of outputs can be used to assign desktop environment components
++      to a specific screen, see kde_output_order_v1 and kde-output-device-v2 for
++      details. Note that for consistent behavior, the priority value needs to be
++      unique among all enabled outputs.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice the index applies to" />
++    <arg name="priority" type="uint" summary="the priority of the output" />
++  </request>
++
++  <request name="set_high_dynamic_range" since="4">
++    <description summary="change if HDR should be enabled">
++      Sets whether or not the output should be set to HDR mode.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="enable_hdr" type="uint" summary="1 to enable, 0 to disable hdr"/>
++  </request>
++
++  <request name="set_sdr_brightness" since="4">
++    <description summary="set the brightness for sdr content">
++      Sets the brightness of standard dynamic range content in nits. Only has an effect while the output is in HDR mode.
++      Note that while the value is in nits, that doesn't necessarily translate to the same brightness on the screen.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="sdr_brightness" type="uint"/>
++  </request>
++
++  <request name="set_wide_color_gamut" since="4">
++    <description summary="change if a wide color gamut should be used">
++      Whether or not the output should use a wide color gamut
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="enable_wcg" type="uint" summary="1 to enable, 0 to disable wcg"/>
++  </request>
++
++  <enum name="auto_rotate_policy">
++    <description summary="describes when auto rotate should be used"/>
++    <entry name="never" value="0"/>
++    <entry name="in_tablet_mode" value="1"/>
++    <entry name="always" value="2"/>
++  </enum>
++
++  <request name="set_auto_rotate_policy" since="5">
++    <description summary="change when auto rotate should be used"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="policy" type="uint" enum="auto_rotate_policy"/>
++  </request>
++
++  <request name="set_icc_profile_path" since="6">
++    <description summary="change the used icc profile for SDR mode"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="profile_path" type="string"/>
++  </request>
++
++  <request name="set_brightness_overrides" since="7">
++    <description summary="override metadata about the screen's brightness limits"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="max_peak_brightness" type="int" summary="-1 for not overriding, or positive values in nits"/>
++    <arg name="max_frame_average_brightness" type="int" summary="-1 for not overriding, or positive values in nits"/>
++    <arg name="min_brightness" type="int" summary="-1 for not overriding, or positive values in 0.0001 nits"/>
++  </request>
++
++  <request name="set_sdr_gamut_wideness" since="7">
++    <description summary="describes which gamut is assumed for sRGB applications">
++      This can be used to provide the colors users assume sRGB applications should have based on the
++      default experience on many modern sRGB screens.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="gamut_wideness" type="uint" summary="0 means rec.709 primaries, 10000 means native primaries"/>
++  </request>
++
++  <enum name="color_profile_source" since="7">
++    <description summary="which source the compositor should use for the color profile on an output"/>
++    <entry name="sRGB" value="0"/>
++    <entry name="ICC" value="1"/>
++    <entry name="EDID" value="2"/>
++  </enum>
++
++  <request name="set_color_profile_source" since="8">
++    <description summary="which source the compositor should use for the color profile on an output in SDR mode"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="color_profile_source" type="uint" enum="color_profile_source" summary="the color profile source"/>
++  </request>
++
++  <request name="set_brightness" since="9">
++    <description summary="brightness multiplier">
++      Set the brightness modifier of the output. It doesn't specify
++      any absolute values, but is merely a multiplier on top of other
++      brightness values, like sdr_brightness and brightness_metadata.
++      0 is the minimum brightness (not completely dark) and 10000 is
++      the maximum brightness.
++      This is supported while HDR is active in versions 8 and below,
++      or when the device supports the "brightness" capability in
++      versions 9 and above.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="brightness" type="uint" summary="brightness in 0-10000"/>
++  </request>
++
++  <enum name="color_power_tradeoff">
++    <description summary="tradeoff between power and accuracy">
++      The compositor can do a lot of things that trade between
++      performance, power and color accuracy. This setting describes
++      a high level preference from the user about in which direction
++      that tradeoff should be made.
++    </description>
++    <entry name="efficiency" value="0" summary="prefer efficiency and performance"/>
++    <entry name="accuracy" value="1" summary="prefer accuracy"/>
++  </enum>
++
++  <request name="set_color_power_tradeoff" since="10">
++    <description summary="set the preferred color/power tradeoff"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="preference" type="uint" enum="color_power_tradeoff"/>
++  </request>
++
++  <request name="set_dimming" since="11">
++    <description summary="dimming multiplier">
++      Set the dimming multiplier of the output. This is similar to the
++      brightness setting, except it's meant to be a temporary setting
++      only, not persistent and may be implemented differently depending
++      on the display.
++      0 is the minimum dimming factor (not completely dark) and 10000
++      means the output is not dimmed.
++
++      This is supported only when the "brightness" capability is
++      also supported.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="multiplier" type="uint" summary="multiplier in 0-10000"/>
++  </request>
++
++  <event name="failure_reason" since="12">
++    <description summary="reason for failure">
++      Describes why applying the output configuration failed. Is only
++      sent before the failure event.
++    </description>
++    <arg name="reason" type="string" summary="reason for failure"/>
++  </event>
++
++  <request name="set_replication_source" since="13">
++    <description summary="source output for mirroring">
++      Set the source output that the outputdevice should mirror its
++      viewport from.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="source" type="string" summary="uuid of the source output"/>
++  </request>
++
++  <request name="set_ddc_ci_allowed" since="14">
++    <description summary="if DDC/CI should be used to control brightness etc."/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="allowed" type="uint" summary="1 if allowed, 0 if disabled"/>
++  </request>
++
++  <request name="set_max_bits_per_color" since="15">
++    <description summary="override the max bpc">
++      This limits the amount of bits per color that are sent to the display.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="max_bpc" type="uint" summary="0 for the default / automatic"/>
++  </request>
++
++  <enum name="edr_policy" since="16">
++    <description summary="when the compositor may make use of EDR"/>
++    <entry name="never" value="0"/>
++    <entry name="always" value="1"/>
++  </enum>
++
++  <request name="set_edr_policy" since="16">
++    <description summary="set when the compositor may apply EDR">
++      When EDR is enabled, the compositor may increase the backlight beyond
++      the user-specified setting, in order to present HDR content on displays
++      without native HDR support.
++      This will usually result in better visuals, but also increases battery
++      usage.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="policy" type="uint" enum="edr_policy"/>
++  </request>
++
++  <request name="set_sharpness" since="17">
++    <description summary="sharpness strength">
++        This is the sharpness modifier of the output.
++        0 is sharpness disabled and 10000 is the maximum sharpness
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="sharpness" type="uint" summary="sharpness in 0-10000"/>
++  </request>
++
++  <request name="set_custom_modes" since="18">
++    <description summary="set the custom mode list">
++      Set the list of custom modes for this output. The compositor
++      will in response generate the requested modes and add them to
++      the output (or delete ones no longer in the list).
++      This can be useful for overclocking displays, or for working
++      around broken EDIDs.
++      Note that there is no guarantee for any custom mode to
++      actually work, or even to leave the display undamaged (in the
++      case of CRTs). It's entirely the responsibility of the user
++      to ensure each added mode is the right one for their display.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="modes" type="object" interface="kde_mode_list_v2"/>
++  </request>
++
++  <request name="set_auto_brightness" since="19">
++    <description summary="whether or not automatic brightness is enabled"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="enabled" type="uint" summary="1 for enabled, 0 for disabled"/>
++  </request>
++
++  <request name="set_hdr_icc_profile_path" since="20">
++    <description summary="change the used icc profile for HDR mode"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="profile_path" type="string"/>
++  </request>
++
++  <request name="set_hdr_color_profile_source" since="20">
++    <description summary="which source the compositor should use for the color profile on an output in HDR mode"/>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="color_profile_source" type="uint" enum="color_profile_source" summary="the color profile source"/>
++  </request>
++
++  <request name="set_abm_level" since="21">
++    <description summary="set the allowed level of adaptive backlight modulation">
++      Adaptive backlight modulation is a feature that reduces the backlight
++      and increases contrast of colors on the screen to improve power usage.
++    </description>
++    <arg name="outputdevice" type="object" interface="kde_output_device_v2" summary="outputdevice this setting applies to"/>
++    <arg name="level" type="uint" summary="0 is off, 4 is the maximum level"/>
++  </request>
++</interface>
++
++<interface name="kde_mode_list_v2" version="22">
++  <description summary="a list of custom modes">
++    This list is populated by first setting each relevant property,
++    and then calling add_mode to add a mode with these properties.
++    One would for example call
++    - set_resolution
++    - set_refresh_rate
++    - set_reduced_blanking
++    - add_mode
++
++    add_mode does not reset the properties that were previously set,
++    they are valid until the object is destroyed.
++    The compositor may additionally have sensible defaults for some
++    properties like reduced_blanking, but for consistent results,
++    it's best to always set each known property every time.
++
++    One can also specify custom modes with CVT timings, for example
++    - add_cvt
++    - add_cvt
++
++    The parameters resolution and refresh rate are required, if they
++    are not set, the missing_parameters error will be emitted.
++  </description>
++
++  <enum name="error">
++    <description summary="kde_mode_list_v2 error values">
++      These errors can be emitted in response to add_mode requests.
++    </description>
++    <entry name="missing_parameters" value="0" summary="a required parameter wasn't set"/>
++  </enum>
++
++  <request name="destroy" type="destructor">
++    <description summary="destroy the mode list object"/>
++  </request>
++
++  <request name="add_mode">
++    <description summary="Add the current mode configuration to the list"/>
++  </request>
++
++  <request name="set_resolution">
++    <arg name="width" type="uint"/>
++    <arg name="height" type="uint"/>
++  </request>
++
++  <request name="set_refresh_rate">
++    <arg name="rate" type="uint" summary="in milliHz"/>
++  </request>
++
++  <request name="set_reduced_blanking">
++    <description summary="whether or not the mode should have reduced blanking">
++      Reduced blanking is an optimization that can reduce bandwidth / timing
++      requirements for a display mode by reducing the time vblank takes.
++      As not all displays support it, it may be desired to still turn it off
++      though (like with CRTs, where full blanking is required).
++    </description>
++    <arg name="reduced" type="uint"
++         summary="1 for reduced blanking, 0 for normal vblank duration"/>
++  </request>
++
++  <request name="add_cvt" since="22">
++    <description summary="new mode with CVT timings">
++      Adds a new mode with the specified CVT timings.
++    </description>
++    <arg name="dot_clock" type="uint" summary="pixel clock in kHz"/>
++    <arg name="hdisplay" type="uint" summary="horizontal display size"/>
++    <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++    <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++    <arg name="htotal" type="uint" summary="horizontal total size"/>
++    <arg name="hskew" type="uint" summary="horizontal skew"/>
++    <arg name="vdisplay" type="uint" summary="vertical display size"/>
++    <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++    <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++    <arg name="vtotal" type="uint" summary="vertical total size"/>
++    <arg name="vscan" type="uint" summary="vertical scan"/>
++    <arg name="flags" type="uint" summary="flags, see DRM_MODE_FLAG_*"/>
++  </request>
++
++</interface>
++</protocol>
+
+From 7b915d35f1ec7098ea71ee590e95d5a734e23d28 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:37:06 +0200
+Subject: [PATCH 4/7] protocol: avoid XML entities in set_custom_timings
+
+The Rust wayland-scanner rejects entities such as &lt; in descriptions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ protocols/wlr-output-management-unstable-v1.xml | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/protocols/wlr-output-management-unstable-v1.xml b/protocols/wlr-output-management-unstable-v1.xml
+index 0d5a608..7b6411e 100644
+--- a/protocols/wlr-output-management-unstable-v1.xml
++++ b/protocols/wlr-output-management-unstable-v1.xml
+@@ -687,10 +687,11 @@
+         the head, like a modeline. This allows modes which are not advertised
+         by the display, for instance for CRT monitors.
+ 
+-        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
+-        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
+-        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
+-        protocol error is raised. The compositor may still reject timings that
++        Horizontal values must not decrease from hdisplay to hsync_start,
++        hsync_end and htotal, likewise for vertical values from vdisplay to
++        vsync_start, vsync_end and vtotal, and clock, hdisplay and vdisplay
++        must be non-zero, otherwise the invalid_custom_timings protocol error
++        is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+         configuration.
+ 
+
+From 5ceb0dead41f0c1fabeba263143dc159ea2b0738 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sun, 18 Oct 2026 22:49:35 +0200
+Subject: [PATCH 5/7] Install the headers of the C++ API
+
+switchres.h needs monitor.h, modeline.h, display.h, edid.h and
+custom_video.h: install them, so that programs using switchres_manager,
+such as GroovyMAME, can be built against the installed library.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ makefile | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/makefile b/makefile
+index 963023f..0cb34fd 100644
+--- a/makefile
++++ b/makefile
+@@ -134,6 +134,9 @@ Libs: -L$${libdir} -ldl -lswitchres
+ endef
+ 
+ 
++# Headers of the C++ API (switchres_manager), installed along with the C wrapper's
++CXX_API_HEADERS = switchres.h monitor.h modeline.h display.h edid.h custom_video.h
++
+ .DEFAULT_GOAL := all
+ 
+ OBJS = $(SRC:.cpp=.o) $(PROTOCOL_OBJS)
+@@ -180,7 +183,8 @@ install:
+ 	$(INSTALL) -Dm644 $(TARGET_LIB).$(DYNAMIC_LIB_EXT) $(LIBDIR)/$(TARGET_LIB).$(DYNAMIC_LIB_EXT)
+ 	$(INSTALL) -Dm644 switchres_defines.h $(INCDIR)/switchres/switchres_defines.h
+ 	$(INSTALL) -Dm644 switchres_wrapper.h $(INCDIR)/switchres/switchres_wrapper.h
+-	$(INSTALL) -Dm644 switchres.h $(INCDIR)/switchres/switchres.h
++	# switchres.h and the headers it needs, for the C++ API
++	for h in $(CXX_API_HEADERS); do $(INSTALL) -Dm644 $$h $(INCDIR)/switchres/$$h || exit 1; done
+ 	$(INSTALL) -Dm644 switchres.pc $(PKGDIR)/switchres.pc
+ ifneq ($(SO_NAME),)
+ 	$(LN) -s -f $(REAL_SO_NAME) $(LIBDIR)/$(SO_NAME)
+@@ -190,3 +194,4 @@ endif
+ uninstall:
+ 	$(REMOVE) $(LIBDIR)/$(TARGET_LIB).*
+ 	$(REMOVE) $(PKGDIR)/switchres.pc
++	$(REMOVE) -r $(INCDIR)/switchres
+
+From a73d989b68b7e9c161431aae53d64d73a906c10c Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 15:48:37 +0200
+Subject: [PATCH 6/7] Wayland: accept screen[0-9] as output position
+
+GroovyMAME passes the screen as "screen0", as the xrandr and drmkms
+backends accept it. Positions, given as screenN or N, now count the
+enabled outputs, so screen0 is the same output as auto.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_wayland.cpp | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/custom_video_wayland.cpp b/custom_video_wayland.cpp
+index 477a0c7..a6b5b67 100644
+--- a/custom_video_wayland.cpp
++++ b/custom_video_wayland.cpp
+@@ -636,13 +636,23 @@ bool wayland_timing::sync()
+ 
+ wayland_head *wayland_timing::find_head()
+ {
+-	// Explicit output: connector name or index
++	// Explicit output: connector name, or position among the enabled outputs
++	// ("screen[0-9]" or a number, as with the other backends)
+ 	if (!m_head_name.empty())
+ 	{
++		const char *pos = m_head_name.c_str();
++		if (!strncmp(pos, "screen", 6) && pos[6] != 0)
++			pos += 6;
++
+ 		char *end;
+-		long index = strtol(m_head_name.c_str(), &end, 10);
++		long index = strtol(pos, &end, 10);
+ 		if (*end == 0)
+-			return (index >= 0 && index < (long)m_heads.size()) ? m_heads[index] : nullptr;
++		{
++			for (auto head : m_heads)
++				if (head->enabled && index-- == 0)
++					return head;
++			return nullptr;
++		}
+ 
+ 		for (auto head : m_heads)
+ 			if (head->name == m_head_name)
+
+From 0ff7e7472f591e6c768b09c068d1009bda422a54 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Tue, 20 Oct 2026 13:32:18 +0200
+Subject: [PATCH 7/7] DRM/KMS: lease the connector from the Wayland compositor
+
+Under a Wayland compositor, which is the DRM master of the device,
+opening the device gives no modesetting rights. When WAYLAND_DISPLAY is
+set, the DRM/KMS backend now leases the connector through
+wp-drm-lease-v1 (labwc leases any output, the one of its desktop
+included) and applies itself to the lease fd: it is master over the
+leased connector, its CRTC and its plane. The compositor takes the
+connector back when the backend is destroyed.
+
+The compositor disables a connector it leases, which then has no
+encoder: the leased CRTC is used, with its index on the whole device,
+which vblank requests refer to.
+
+The lease is built when both the DRM/KMS and the Wayland support are.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_drmkms.cpp    |  54 ++++++-
+ custom_video_drmkms.h      |   6 +
+ drm_lease.cpp              | 236 +++++++++++++++++++++++++++
+ drm_lease.h                |  72 +++++++++
+ makefile                   |   8 +
+ protocols/drm-lease-v1.xml | 317 +++++++++++++++++++++++++++++++++++++
+ 6 files changed, 692 insertions(+), 1 deletion(-)
+ create mode 100644 drm_lease.cpp
+ create mode 100644 drm_lease.h
+ create mode 100644 protocols/drm-lease-v1.xml
+
+diff --git a/custom_video_drmkms.cpp b/custom_video_drmkms.cpp
+index 7b8a0e5..9756414 100755
+--- a/custom_video_drmkms.cpp
++++ b/custom_video_drmkms.cpp
+@@ -309,6 +309,12 @@ drmkms_timing::~drmkms_timing()
+ 			close(m_drm_fd);
+ 	}
+ 
++#ifdef SR_WITH_DRM_LEASE
++	// The compositor takes the connector back
++	delete mp_lease;
++	mp_lease = nullptr;
++#endif
++
+ 	// Reset static data
+ 	static_id = 0;
+ 	memset(s_shared_fd, 0, sizeof(s_shared_fd));
+@@ -529,6 +535,25 @@ bool drmkms_timing::init()
+ 	else if (strlen(m_device_name) == 1 && m_device_name[0] >= '0' && m_device_name[0] <= '9')
+ 		screen_pos = m_device_name[0] - '0';
+ 
++	int lease_fd = -1;
++	struct stat lease_st = {};
++#ifdef SR_WITH_DRM_LEASE
++	// Under a Wayland compositor, which is the DRM master, lease the connector
++	if (getenv("WAYLAND_DISPLAY") != nullptr)
++	{
++		mp_lease = new drm_lease;
++		// Connector names of the compositor (e.g. DP-1) differ from ours (e.g. DisplayPort1)
++		lease_fd = mp_lease->acquire(strchr(m_device_name, '-') ? m_device_name : "auto");
++		if (lease_fd < 0 || fstat(lease_fd, &lease_st) != 0)
++		{
++			log_error("DRM/KMS: <%d> (init) [ERROR] no DRM lease from the Wayland compositor\n", m_id);
++			delete mp_lease;
++			mp_lease = nullptr;
++			return false;
++		}
++	}
++#endif
++
+ 	// Get an array of drm devices to check
+ 	drmDevicePtr devices[MAX_DRM_DEVICES];
+ 	int num_devices = drmGetDevices2(0, NULL, 0);
+@@ -560,7 +585,16 @@ bool drmkms_timing::init()
+ 			log_error("DRM/KMS: <%d> (init) [ERROR] cannot open device %s\n", m_id, drm_name);
+ 			break;
+ 		}
+-		m_drm_fd = open(drm_name, O_RDWR | O_CLOEXEC);
++		if (lease_fd >= 0)
++		{
++			// The lease fd only shows the leased objects of its device
++			struct stat st;
++			if (stat(drm_name, &st) != 0 || st.st_rdev != lease_st.st_rdev)
++				continue;
++			m_drm_fd = lease_fd;
++		}
++		else
++			m_drm_fd = open(drm_name, O_RDWR | O_CLOEXEC);
+ 
+ 		drmVersion *version = drmGetVersion(m_drm_fd);
+ 		log_verbose("DRM/KMS: <%d> (init) version %d.%d.%d type %s\n", m_id, version->version_major, version->version_minor, version->version_patchlevel, version->name);
+@@ -607,6 +641,24 @@ bool drmkms_timing::init()
+ 
+ 					drmModeEncoder *p_encoder = drmModeGetEncoder(m_drm_fd, p_connector->encoder_id);
+ 
++					// The compositor disables a connector it leases: use the leased CRTC, but
++					// with its index on the whole device, which vblank requests refer to
++					if (!p_encoder && lease_fd >= 0 && p_res->count_crtcs > 0)
++					{
++						mp_crtc_desktop = drmModeGetCrtc(m_drm_fd, p_res->crtcs[0]);
++						int device_fd = open(drm_name, O_RDWR | O_CLOEXEC);
++						drmModeRes *p_device_res = device_fd >= 0 ? drmModeGetResources(device_fd) : nullptr;
++						for (int e = 0; p_device_res && mp_crtc_desktop && e < p_device_res->count_crtcs; e++)
++							if (p_device_res->crtcs[e] == mp_crtc_desktop->crtc_id)
++								m_crtc_idx = e;
++						if (p_device_res)
++							drmModeFreeResources(p_device_res);
++						if (device_fd >= 0)
++							close(device_fd);
++						if (mp_crtc_desktop)
++							log_verbose("DRM/KMS: <%d> (init) leased crtc %d crtc_idx %d\n", m_id, mp_crtc_desktop->crtc_id, m_crtc_idx);
++					}
++
+ 					if (p_encoder)
+ 					{
+ 						for (int e = 0; e < p_res->count_crtcs; e++)
+diff --git a/custom_video_drmkms.h b/custom_video_drmkms.h
+index 59b0418..adb8c2b 100755
+--- a/custom_video_drmkms.h
++++ b/custom_video_drmkms.h
+@@ -19,6 +19,9 @@
+ #include <xf86drm.h>
+ #include <xf86drmMode.h>
+ #include "custom_video.h"
++#ifdef SR_WITH_DRM_LEASE
++#include "drm_lease.h"
++#endif
+ 
+ class drmkms_timing : public custom_video
+ {
+@@ -66,6 +69,9 @@ class drmkms_timing : public custom_video
+ 		void *mp_drm_handle = NULL;
+ 		unsigned int m_dumb_handle = 0;
+ 		unsigned int m_framebuffer_id = 0;
++#ifdef SR_WITH_DRM_LEASE
++		drm_lease *mp_lease = nullptr;
++#endif
+ 
+ 		__typeof__(drmGetVersion) *p_drmGetVersion;
+ 		__typeof__(drmFreeVersion) *p_drmFreeVersion;
+diff --git a/drm_lease.cpp b/drm_lease.cpp
+new file mode 100644
+index 0000000..c53b883
+--- /dev/null
++++ b/drm_lease.cpp
+@@ -0,0 +1,236 @@
++/**************************************************************
++
++   drm_lease.cpp - DRM lease through wp-drm-lease-v1
++
++   ---------------------------------------------------------
++
++   Switchres   Modeline generation engine for emulation
++
++   License     GPL-2.0+
++   Copyright   2010-2021 Chris Kennedy, Antonio Giner,
++                         Alexandre Wodarczyk, Gil Delescluse
++
++ **************************************************************/
++
++// Under a Wayland compositor, the compositor is the DRM master of the device:
++// opening the device gives no modesetting rights. A compositor implementing
++// wp-drm-lease-v1 can lease a connector instead (labwc leases any output, the
++// one of its desktop included), handing a DRM fd to which the DRM/KMS backend
++// is applied as is.
++
++#include <string.h>
++#include <unistd.h>
++#include <wayland-client.h>
++#include "drm-lease-v1-client-protocol.h"
++#include "drm_lease.h"
++#include "log.h"
++
++//============================================================
++//  Event sinks
++//============================================================
++
++static void connector_name(void *data, struct wp_drm_lease_connector_v1 *, const char *name)
++{
++	((drm_lease::connector *)data)->name = name;
++}
++
++static void connector_description(void *, struct wp_drm_lease_connector_v1 *, const char *) {}
++static void connector_id(void *, struct wp_drm_lease_connector_v1 *, uint32_t) {}
++static void connector_done(void *, struct wp_drm_lease_connector_v1 *) {}
++
++static void connector_withdrawn(void *data, struct wp_drm_lease_connector_v1 *)
++{
++	((drm_lease::connector *)data)->withdrawn = true;
++}
++
++static const struct wp_drm_lease_connector_v1_listener connector_listener =
++{
++	connector_name, connector_description, connector_id, connector_done, connector_withdrawn
++};
++
++static void device_drm_fd(void *, struct wp_drm_lease_device_v1 *, int fd)
++{
++	// Non-master fd of the device, not needed: the lease fd is enough
++	close(fd);
++}
++
++static void device_connector(void *data, struct wp_drm_lease_device_v1 *, struct wp_drm_lease_connector_v1 *obj)
++{
++	drm_lease::device *dev = (drm_lease::device *)data;
++	drm_lease::connector *conn = new drm_lease::connector { dev, obj, "", false };
++	dev->lease->m_connectors.push_back(conn);
++	wp_drm_lease_connector_v1_add_listener(obj, &connector_listener, conn);
++}
++
++static void device_done(void *data, struct wp_drm_lease_device_v1 *)
++{
++	((drm_lease::device *)data)->done = true;
++}
++
++static void device_released(void *, struct wp_drm_lease_device_v1 *) {}
++
++static const struct wp_drm_lease_device_v1_listener device_listener =
++{
++	device_drm_fd, device_connector, device_done, device_released
++};
++
++static void lease_fd(void *data, struct wp_drm_lease_v1 *, int fd)
++{
++	((drm_lease *)data)->m_fd = fd;
++}
++
++static void lease_finished(void *data, struct wp_drm_lease_v1 *)
++{
++	((drm_lease *)data)->m_finished = true;
++}
++
++static const struct wp_drm_lease_v1_listener lease_listener = { lease_fd, lease_finished };
++
++static void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t)
++{
++	drm_lease *lease = (drm_lease *)data;
++	if (strcmp(interface, wp_drm_lease_device_v1_interface.name))
++		return;
++
++	drm_lease::device *dev = new drm_lease::device { lease, nullptr, false };
++	dev->obj = (struct wp_drm_lease_device_v1 *)wl_registry_bind(registry, name, &wp_drm_lease_device_v1_interface, 1);
++	wp_drm_lease_device_v1_add_listener(dev->obj, &device_listener, dev);
++	lease->m_devices.push_back(dev);
++}
++
++static void registry_global_remove(void *, struct wl_registry *, uint32_t) {}
++
++static const struct wl_registry_listener registry_listener = { registry_global, registry_global_remove };
++
++//============================================================
++//  drm_lease::acquire
++//============================================================
++
++int drm_lease::acquire(const char *name)
++{
++	release();
++
++	m_display = wl_display_connect(NULL);
++	if (m_display == nullptr)
++	{
++		log_error("DRM lease: [ERROR] can't connect to the Wayland compositor\n");
++		return -1;
++	}
++
++	m_registry = wl_display_get_registry(m_display);
++	wl_registry_add_listener(m_registry, &registry_listener, this);
++
++	// Globals, then the connectors of each lease device
++	if (wl_display_roundtrip(m_display) < 0 || wl_display_roundtrip(m_display) < 0)
++	{
++		release();
++		return -1;
++	}
++
++	if (m_devices.empty())
++	{
++		log_error("DRM lease: [ERROR] the compositor doesn't support wp-drm-lease-v1\n");
++		release();
++		return -1;
++	}
++
++	connector *target = nullptr;
++	bool any = name == nullptr || !strcmp(name, "") || !strcmp(name, "auto");
++	for (auto conn : m_connectors)
++	{
++		log_verbose("DRM lease: connector %s offered%s\n", conn->name.c_str(), conn->withdrawn ? " (withdrawn)" : "");
++		if (target == nullptr && !conn->withdrawn && (any || conn->name == name))
++			target = conn;
++	}
++
++	if (target == nullptr)
++	{
++		log_error("DRM lease: [ERROR] no connector %s to lease\n", any ? "" : name);
++		release();
++		return -1;
++	}
++
++	struct wp_drm_lease_request_v1 *request = wp_drm_lease_device_v1_create_lease_request(target->dev->obj);
++	wp_drm_lease_request_v1_request_connector(request, target->obj);
++	m_lease = wp_drm_lease_request_v1_submit(request);
++	wp_drm_lease_v1_add_listener(m_lease, &lease_listener, this);
++
++	while (m_fd < 0 && !m_finished)
++		if (wl_display_dispatch(m_display) < 0)
++			break;
++
++	if (m_fd < 0)
++	{
++		log_error("DRM lease: [ERROR] the compositor refused to lease %s\n", target->name.c_str());
++		release();
++		return -1;
++	}
++
++	m_connector_name = target->name;
++	log_info("DRM lease: %s leased, fd %d\n", m_connector_name.c_str(), m_fd);
++	return m_fd;
++}
++
++//============================================================
++//  drm_lease::revoked
++//============================================================
++
++bool drm_lease::revoked()
++{
++	if (m_display != nullptr && !m_finished)
++	{
++		wl_display_dispatch_pending(m_display);
++		wl_display_flush(m_display);
++	}
++	return m_finished;
++}
++
++//============================================================
++//  drm_lease::release
++//============================================================
++
++void drm_lease::release()
++{
++	// The lease ends with the destruction of its object, the compositor takes
++	// the connector back. The fd itself belongs to the DRM backend.
++	if (m_lease != nullptr)
++		wp_drm_lease_v1_destroy(m_lease);
++	m_lease = nullptr;
++
++	// Release the devices, which may still send events until the compositor
++	// answers with released: their data must outlive the roundtrip
++	for (auto dev : m_devices)
++		wp_drm_lease_device_v1_release(dev->obj);
++
++	if (m_display != nullptr)
++		wl_display_roundtrip(m_display);
++
++	for (auto conn : m_connectors)
++	{
++		wp_drm_lease_connector_v1_destroy(conn->obj);
++		delete conn;
++	}
++	m_connectors.clear();
++
++	for (auto dev : m_devices)
++	{
++		wp_drm_lease_device_v1_destroy(dev->obj);
++		delete dev;
++	}
++	m_devices.clear();
++
++	if (m_registry != nullptr)
++		wl_registry_destroy(m_registry);
++	m_registry = nullptr;
++
++	if (m_display != nullptr)
++	{
++		wl_display_flush(m_display);
++		wl_display_disconnect(m_display);
++	}
++	m_display = nullptr;
++
++	m_fd = -1;
++	m_finished = false;
++	m_connector_name.clear();
++}
+diff --git a/drm_lease.h b/drm_lease.h
+new file mode 100644
+index 0000000..009c2a4
+--- /dev/null
++++ b/drm_lease.h
+@@ -0,0 +1,72 @@
++/**************************************************************
++
++   drm_lease.h - DRM lease through wp-drm-lease-v1
++
++   ---------------------------------------------------------
++
++   Switchres   Modeline generation engine for emulation
++
++   License     GPL-2.0+
++   Copyright   2010-2021 Chris Kennedy, Antonio Giner,
++                         Alexandre Wodarczyk, Gil Delescluse
++
++ **************************************************************/
++
++#ifndef __DRM_LEASE__
++#define __DRM_LEASE__
++
++#include <string>
++#include <vector>
++
++struct wl_display;
++struct wl_registry;
++struct wp_drm_lease_device_v1;
++struct wp_drm_lease_connector_v1;
++struct wp_drm_lease_v1;
++
++// Leases a connector from the Wayland compositor. The lease fd is a DRM fd
++// which is master over the leased connector, its CRTC and its plane only: it
++// is used like a DRM device fd opened as master, without being master of the
++// whole device. The lease lasts until release() or until the compositor
++// revokes it.
++class drm_lease
++{
++	public:
++		drm_lease() {};
++		~drm_lease() { release(); };
++
++		// Lease the connector of this name ("auto" or "": the first offered).
++		// Returns the lease fd, or -1.
++		int acquire(const char *connector_name);
++		void release();
++
++		bool revoked();
++		const char *connector_name() { return m_connector_name.c_str(); }
++
++		// Event sinks
++		struct device
++		{
++			drm_lease *lease;
++			struct wp_drm_lease_device_v1 *obj;
++			bool done;
++		};
++		struct connector
++		{
++			device *dev;
++			struct wp_drm_lease_connector_v1 *obj;
++			std::string name;
++			bool withdrawn;
++		};
++		std::vector<device *> m_devices;
++		std::vector<connector *> m_connectors;
++		int m_fd = -1;
++		bool m_finished = false;
++
++	private:
++		struct wl_display *m_display = nullptr;
++		struct wl_registry *m_registry = nullptr;
++		struct wp_drm_lease_v1 *m_lease = nullptr;
++		std::string m_connector_name;
++};
++
++#endif
+diff --git a/makefile b/makefile
+index 0cb34fd..3956dfd 100644
+--- a/makefile
++++ b/makefile
+@@ -78,6 +78,12 @@ else
+     CPPFLAGS += -DSR_WITH_WAYLAND
+     EXTRA_LIBS += wayland-client
+     SRC += custom_video_wayland.cpp
++    # DRM/KMS under a Wayland compositor, on a connector leased by it
++    ifneq ($(HAS_VALID_DRMKMS),1)
++        WAYLAND_PROTOCOLS += drm-lease-v1
++        CPPFLAGS += -DSR_WITH_DRM_LEASE
++        SRC += drm_lease.cpp
++    endif
+     PROTOCOL_OBJS = $(WAYLAND_PROTOCOLS:=-protocol.o)
+     PROTOCOL_HEADERS = $(WAYLAND_PROTOCOLS:=-client-protocol.h)
+ endif
+@@ -154,6 +160,8 @@ OBJS = $(SRC:.cpp=.o) $(PROTOCOL_OBJS)
+ 	$(CROSS_COMPILE)$(CC) -c -fPIC $(shell $(PKG_CONFIG) --cflags wayland-client) $< -o $@
+ 
+ custom_video_wayland.o: $(PROTOCOL_HEADERS) custom_video_wayland.h
++drm_lease.o: $(PROTOCOL_HEADERS) drm_lease.h
++custom_video_drmkms.o: custom_video_drmkms.h drm_lease.h
+ custom_video.o: custom_video_wayland.h
+ 
+ all: $(OBJS) $(MAIN).cpp $(TARGET_LIB) prepare_pkg_config
+diff --git a/protocols/drm-lease-v1.xml b/protocols/drm-lease-v1.xml
+new file mode 100644
+index 0000000..1fca538
+--- /dev/null
++++ b/protocols/drm-lease-v1.xml
+@@ -0,0 +1,317 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="drm_lease_v1">
++  <copyright>
++    Copyright © 2018 NXP
++    Copyright © 2019 Status Research &amp; Development GmbH.
++    Copyright © 2021 Xaver Hugl
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <interface name="wp_drm_lease_device_v1" version="1">
++    <description summary="lease device">
++      This protocol is used by Wayland compositors which act as Direct
++      Rendering Manager (DRM) masters to lease DRM resources to Wayland
++      clients.
++
++      The compositor will advertise one wp_drm_lease_device_v1 global for each
++      DRM node. Some time after a client binds to the wp_drm_lease_device_v1
++      global, the compositor will send a drm_fd event followed by zero, one or
++      more connector events. After all currently available connectors have been
++      sent, the compositor will send a wp_drm_lease_device_v1.done event.
++
++      When the list of connectors available for lease changes the compositor
++      will send wp_drm_lease_device_v1.connector events for added connectors and
++      wp_drm_lease_connector_v1.withdrawn events for removed connectors,
++      followed by a wp_drm_lease_device_v1.done event.
++
++      The compositor will indicate when a device is gone by removing the global
++      via a wl_registry.global_remove event. Upon receiving this event, the
++      client should destroy any matching wp_drm_lease_device_v1 object.
++
++      To destroy a wp_drm_lease_device_v1 object, the client must first issue
++      a release request. Upon receiving this request, the compositor will
++      immediately send a released event and destroy the object. The client must
++      continue to process and discard drm_fd and connector events until it
++      receives the released event. Upon receiving the released event, the
++      client can safely cleanup any client-side resources.
++
++      Warning! The protocol described in this file is currently in the testing
++      phase. Backward compatible changes may be added together with the
++      corresponding interface version bump. Backward incompatible changes can
++      only be done by creating a new major version of the extension.
++    </description>
++
++    <request name="create_lease_request">
++      <description summary="create a lease request object">
++        Creates a lease request object.
++
++        See the documentation for wp_drm_lease_request_v1 for details.
++      </description>
++      <arg name="id" type="new_id" interface="wp_drm_lease_request_v1" />
++    </request>
++
++    <request name="release">
++      <description summary="release this object">
++        Indicates the client no longer wishes to use this object. In response
++        the compositor will immediately send the released event and destroy
++        this object. It can however not guarantee that the client won't receive
++        connector events before the released event. The client must not send any
++        requests after this one, doing so will raise a wl_display error.
++        Existing connectors, lease request and leases will not be affected.
++      </description>
++    </request>
++
++    <event name="drm_fd">
++      <description summary="open a non-master fd for this DRM node">
++        The compositor will send this event when the wp_drm_lease_device_v1
++        global is bound, although there are no guarantees as to how long this
++        takes - the compositor might need to wait until regaining DRM master.
++        The included fd is a non-master DRM file descriptor opened for this
++        device and the compositor must not authenticate it.
++        The purpose of this event is to give the client the ability to
++        query DRM and discover information which may help them pick the
++        appropriate DRM device or select the appropriate connectors therein.
++      </description>
++      <arg name="fd" type="fd" summary="DRM file descriptor" />
++    </event>
++
++    <event name="connector">
++      <description summary="advertise connectors available for leases">
++        The compositor will use this event to advertise connectors available for
++        lease by clients. This object may be passed into a lease request to
++        indicate the client would like to lease that connector, see
++        wp_drm_lease_request_v1.request_connector for details. While the
++        compositor will make a best effort to not send disconnected connectors,
++        no guarantees can be made.
++
++        The compositor must send the drm_fd event before sending connectors.
++        After the drm_fd event it will send all available connectors but may
++        send additional connectors at any time.
++      </description>
++      <arg name="id" type="new_id" interface="wp_drm_lease_connector_v1" />
++    </event>
++
++    <event name="done">
++      <description summary="signals grouping of connectors">
++        The compositor will send this event to indicate that it has sent all
++        currently available connectors after the client binds to the global or
++        when it updates the connector list, for example on hotplug, drm master
++        change or when a leased connector becomes available again. It will
++        similarly send this event to group wp_drm_lease_connector_v1.withdrawn
++        events of connectors of this device.
++      </description>
++    </event>
++
++    <event name="released" type="destructor">
++      <description summary="the compositor has finished using the device">
++        This event is sent in response to the release request and indicates
++        that the compositor is done sending connector events.
++        The compositor will destroy this object immediately after sending the
++        event and it will become invalid. The client should release any
++        resources associated with this device after receiving this event.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="wp_drm_lease_connector_v1" version="1">
++    <description summary="a leasable DRM connector">
++      Represents a DRM connector which is available for lease. These objects are
++      created via wp_drm_lease_device_v1.connector events, and should be passed
++      to lease requests via wp_drm_lease_request_v1.request_connector.
++      Immediately after the wp_drm_lease_connector_v1 object is created the
++      compositor will send a name, a description, a connector_id and a done
++      event. When the description is updated the compositor will send a
++      description event followed by a done event.
++    </description>
++
++    <event name="name">
++      <description summary="name">
++        The compositor sends this event once the connector is created to
++        indicate the name of this connector. This will not change for the
++        duration of the Wayland session, but is not guaranteed to be consistent
++        between sessions.
++
++        If the compositor supports wl_output version 4 and this connector
++        corresponds to a wl_output, the compositor should use the same name as
++        for the wl_output.
++      </description>
++      <arg name="name" type="string" summary="connector name" />
++    </event>
++
++    <event name="description">
++      <description summary="description">
++        The compositor sends this event once the connector is created to provide
++        a human-readable description for this connector, which may be presented
++        to the user. The compositor may send this event multiple times over the
++        lifetime of this object to reflect changes in the description.
++      </description>
++      <arg name="description" type="string" summary="connector description" />
++    </event>
++
++    <event name="connector_id">
++      <description summary="connector_id">
++        The compositor sends this event once the connector is created to
++        indicate the DRM object ID which represents the underlying connector
++        that is being offered. Note that the final lease may include additional
++        object IDs, such as CRTCs and planes.
++      </description>
++      <arg name="connector_id" type="uint" summary="DRM connector ID" />
++    </event>
++
++    <event name="done">
++      <description summary="all properties have been sent">
++        This event is sent after all properties of a connector have been sent.
++        This allows changes to the properties to be seen as atomic even if they
++        happen via multiple events.
++      </description>
++    </event>
++
++    <event name="withdrawn">
++      <description summary="lease offer withdrawn">
++        Sent to indicate that the compositor will no longer honor requests for
++        DRM leases which include this connector. The client may still issue a
++        lease request including this connector, but the compositor will send
++        wp_drm_lease_v1.finished without issuing a lease fd. Compositors are
++        encouraged to send this event when they lose access to connector, for
++        example when the connector is hot-unplugged, when the connector gets
++        leased to a client or when the compositor loses DRM master.
++
++        If a client holds a lease for the connector, the status of the lease
++        remains the same. The client should destroy the object after receiving
++        this event.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy connector">
++        The client may send this request to indicate that it will not use this
++        connector. Clients are encouraged to send this after receiving the
++        "withdrawn" event so that the server can release the resources
++        associated with this connector offer. Neither existing lease requests
++        nor leases will be affected.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="wp_drm_lease_request_v1" version="1">
++    <description summary="DRM lease request">
++      A client that wishes to lease DRM resources will attach the list of
++      connectors advertised with wp_drm_lease_device_v1.connector that they
++      wish to lease, then use wp_drm_lease_request_v1.submit to submit the
++      request.
++    </description>
++
++    <enum name="error">
++      <entry name="wrong_device" value="0"
++             summary="requested a connector from a different lease device"/>
++      <entry name="duplicate_connector" value="1"
++             summary="requested a connector twice"/>
++      <entry name="empty_lease" value="2"
++             summary="requested a lease without requesting a connector"/>
++    </enum>
++
++    <request name="request_connector">
++      <description summary="request a connector for this lease">
++        Indicates that the client would like to lease the given connector.
++        This is only used as a suggestion, the compositor may choose to
++        include any resources in the lease it issues, or change the set of
++        leased resources at any time. Compositors are however encouraged to
++        include the requested connector and other resources necessary
++        to drive the connected output in the lease.
++
++        Requesting a connector that was created from a different lease device
++        than this lease request raises the wrong_device error. Requesting a
++        connector twice will raise the duplicate_connector error.
++      </description>
++      <arg name="connector" type="object"
++           interface="wp_drm_lease_connector_v1" />
++    </request>
++
++    <request name="submit" type="destructor">
++      <description summary="submit the lease request">
++        Submits the lease request and creates a new wp_drm_lease_v1 object.
++        After calling submit the compositor will immediately destroy this
++        object, issuing any more requests will cause a wl_display error.
++        The compositor doesn't make any guarantees about the events of the
++        lease object, clients cannot expect an immediate response.
++        Not requesting any connectors before submitting the lease request
++        will raise the empty_lease error.
++      </description>
++      <arg name="id" type="new_id" interface="wp_drm_lease_v1" />
++    </request>
++  </interface>
++
++  <interface name="wp_drm_lease_v1" version="1">
++    <description summary="a DRM lease">
++      A DRM lease object is used to transfer the DRM file descriptor to the
++      client and manage the lifetime of the lease.
++
++      Some time after the wp_drm_lease_v1 object is created, the compositor
++      will reply with the lease request's result. If the lease request is
++      granted, the compositor will send a lease_fd event. If the lease request
++      is denied, the compositor will send a finished event without a lease_fd
++      event.
++    </description>
++
++    <event name="lease_fd">
++      <description summary="shares the DRM file descriptor">
++        This event returns a file descriptor suitable for use with DRM-related
++        ioctls. The client should use drmModeGetLease to enumerate the DRM
++        objects which have been leased to them. The compositor guarantees it
++        will not use the leased DRM objects itself until it sends the finished
++        event. If the compositor cannot or will not grant a lease for the
++        requested connectors, it will not send this event, instead sending the
++        finished event.
++
++        The compositor will send this event at most once during this objects
++        lifetime.
++      </description>
++      <arg name="leased_fd" type="fd" summary="leased DRM file descriptor" />
++    </event>
++
++    <event name="finished">
++      <description summary="sent when the lease has been revoked">
++        The compositor uses this event to either reject a lease request, or if
++        it previously sent a lease_fd, to notify the client that the lease has
++        been revoked. If the client requires a new lease, they should destroy
++        this object and submit a new lease request. The compositor will send
++        no further events for this object after sending the finish event.
++        Compositors should revoke the lease when any of the leased resources
++        become unavailable, namely when a hot-unplug occurs or when the
++        compositor loses DRM master. Compositors may advertise the connector
++        for leasing again, if the resource is available, by sending the
++        connector event through the wp_drm_lease_device_v1 interface.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroys the lease object">
++        The client should send this to indicate that it no longer wishes to use
++        this lease. The compositor should use drmModeRevokeLease on the
++        appropriate file descriptor, if necessary.
++
++        Upon destruction, the compositor should advertise the connector for
++        leasing again by sending the connector event through the
++        wp_drm_lease_device_v1 interface.
++      </description>
++    </request>
++  </interface>
++</protocol>

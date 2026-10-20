@@ -7,3 +7,6 @@ bash
 filesystem
 sdl3
 xorg-xinit
+sway
+wlroot0.20
+cosmic-comp

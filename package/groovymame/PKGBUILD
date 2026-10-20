@@ -36,17 +36,21 @@ makedepends=(asio
              python
              qt6-base
              rapidjson
-             sdl2_ttf)
+             sdl2_ttf
+             switchres)
 source=(git+https://github.com/antonioginer/GroovyMAME#tag=gm${_mamever}sr${_switchresver}
         mame.desktop
         mame.sh
 	mame.svg
-  lua-5.5.patch)
+	lua-5.5.patch
+	libretro_driver.patch
+        groovymame.patch)
 sha256sums=(SKIP
             '0e5e93f84673c2d17a1bf7a6b256cfa54ef89a086a828df19bc054c12776d821'
             'd78e9561352cbcb814c94bad324a31efa1c6141c9e219132b0cdd3898e25f292'
             '17c442c933d764175e4ce1de50a80c0c2ddd5d733caf09c3cd5e6ba697ac43f4'
-            '714e4ae47bfb9a3d3d477a41ed86b3b9848610a3b3511c53d87bf4b73b1f877a')
+            '714e4ae47bfb9a3d3d477a41ed86b3b9848610a3b3511c53d87bf4b73b1f877a'
+             'SKIP')
 options=(!debug
          !lto) # debug build fails
 
@@ -64,7 +68,6 @@ prepare() {
 
 # Fix build with LUA 5.5
   patch -p1 -i ../lua-5.5.patch
-
 }
 
 build() {
@@ -72,13 +75,15 @@ build() {
 
   export CXXFLAGS+="  -Wp,-U_GLIBCXX_ASSERTIONS" # FS#73202
 
+#  make SOURCES=src/mame/libretro/libretro.cpp\
   make \
     NOWERROR=1 \
     OPTIMIZE=2 \
     TOOLS=1 TARGET=mame \
     QT_HOME=/usr/lib/qt6 \
     ARCHOPTS=-flifetime-dse=1 \
-    USE_WAYLAND=1
+    USE_WAYLAND=1 \
+    USE_SYSTEM_LIB_SWITCHRES=1
 }
 
 package_groovymame() {

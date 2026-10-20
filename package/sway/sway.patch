@@ -1,0 +1,115 @@
+From 50399b6ed0820d7d5a9fbc77002a70a9598bb521 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 00:33:31 +0200
+Subject: [PATCH] output: apply exact user modes, accept modeline flags
+
+Modes picked through output management were looked up by size and
+refresh, so a user mode could be replaced by another mode with the same
+values. Apply user modes with their exact timings.
+
+Also accept interlace, doublescan and composite sync flags after the
+sync polarities in the modeline command.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sway/commands/output/mode.c | 48 ++++++++++++++++++++++++++++++++-----
+ sway/desktop/output.c       | 13 ++++++++++
+ 2 files changed, 55 insertions(+), 6 deletions(-)
+
+diff --git a/sway/commands/output/mode.c b/sway/commands/output/mode.c
+index 019d625..816195e 100644
+--- a/sway/commands/output/mode.c
++++ b/sway/commands/output/mode.c
+@@ -91,12 +91,40 @@ static bool parse_modeline(char **argv, drmModeModeInfo *mode) {
+ 		return false;
+ 	}
+ 
+-	snprintf(mode->name, sizeof(mode->name), "%dx%d@%d",
+-		 mode->hdisplay, mode->vdisplay, mode->vrefresh / 1000);
++	snprintf(mode->name, sizeof(mode->name), "%dx%d%s@%d",
++		 mode->hdisplay, mode->vdisplay,
++		 (mode->flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "",
++		 mode->vrefresh / 1000);
+ 
+ 	return true;
+ }
+ 
++// Parses optional modeline flags following the sync polarities, returns the
++// number of arguments consumed
++static int parse_modeline_flags(int argc, char **argv, drmModeModeInfo *mode) {
++	int i = 0;
++	for (; i < argc; i++) {
++		if (strcasecmp(argv[i], "interlace") == 0) {
++			mode->flags |= DRM_MODE_FLAG_INTERLACE;
++		} else if (strcasecmp(argv[i], "doublescan") == 0) {
++			mode->flags |= DRM_MODE_FLAG_DBLSCAN;
++		} else if (strcasecmp(argv[i], "+csync") == 0) {
++			mode->flags |= DRM_MODE_FLAG_CSYNC | DRM_MODE_FLAG_PCSYNC;
++		} else if (strcasecmp(argv[i], "-csync") == 0) {
++			mode->flags |= DRM_MODE_FLAG_CSYNC | DRM_MODE_FLAG_NCSYNC;
++		} else {
++			break;
++		}
++	}
++	if (mode->flags & DRM_MODE_FLAG_INTERLACE) {
++		mode->vrefresh *= 2;
++	}
++	if (mode->flags & DRM_MODE_FLAG_DBLSCAN) {
++		mode->vrefresh /= 2;
++	}
++	return i;
++}
++
+ struct cmd_results *output_cmd_modeline(int argc, char **argv) {
+ 	if (!config->handler_context.output_config) {
+ 		return cmd_results_new(CMD_FAILURE, "Missing output config");
+@@ -107,12 +135,20 @@ struct cmd_results *output_cmd_modeline(int argc, char **argv) {
+ 
+ 	struct output_config *output = config->handler_context.output_config;
+ 
+-	if (argc != 11 || !parse_modeline(argv, &output->drm_mode)) {
++	drmModeModeInfo mode = {0};
++	if (argc < 11 || !parse_modeline(argv, &mode)) {
+ 		return cmd_results_new(CMD_INVALID, "Invalid modeline");
+ 	}
+-
+-	config->handler_context.leftovers.argc = argc - 12;
+-	config->handler_context.leftovers.argv = argv + 12;
++	int consumed = 11 + parse_modeline_flags(argc - 11, argv + 11, &mode);
++	// Recompute the name now that the interlace flag is known
++	snprintf(mode.name, sizeof(mode.name), "%dx%d%s@%d",
++		 mode.hdisplay, mode.vdisplay,
++		 (mode.flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "",
++		 mode.vrefresh / 1000);
++	output->drm_mode = mode;
++
++	config->handler_context.leftovers.argc = argc - consumed;
++	config->handler_context.leftovers.argv = argv + consumed;
+ 	return NULL;
+ }
+ 
+diff --git a/sway/desktop/output.c b/sway/desktop/output.c
+index 12dc9cc..34a2d6b 100644
+--- a/sway/desktop/output.c
++++ b/sway/desktop/output.c
+@@ -617,7 +617,20 @@ static struct output_config *output_config_for_config_head(
+ 		oc->width = mode->width;
+ 		oc->height = mode->height;
+ 		oc->refresh_rate = mode->refresh / 1000.f;
++		// Reset any previous modeline
++		oc->drm_mode.type = 0;
++#if WLR_HAS_DRM_BACKEND
++		// User-defined modes (modelines, custom timings) can share size and
++		// refresh rate with other modes: apply the exact timings
++		if (wlr_output_is_drm(config_head->state.output)) {
++			const drmModeModeInfo *info = wlr_drm_mode_get_info(mode);
++			if (info->type & DRM_MODE_TYPE_USERDEF) {
++				oc->drm_mode = *info;
++			}
++		}
++#endif
+ 	} else {
++		oc->drm_mode.type = 0;
+ 		oc->width = config_head->state.custom_mode.width;
+ 		oc->height = config_head->state.custom_mode.height;
+ 		oc->refresh_rate =

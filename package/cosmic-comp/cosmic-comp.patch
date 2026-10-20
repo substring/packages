@@ -1,0 +1,4253 @@
+From 6746479f30e3e676dc34a10045bf0570489185dd Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:43:13 +0200
+Subject: [PATCH 1/3] output-configuration: custom timings
+ (wlr-output-management v5)
+
+Implement version 5 of wlr-output-management: set_custom_timings sets a
+mode from exact timings (modeline), modes advertise their name and
+timings, and remove_custom_mode removes a custom mode.
+
+The timings of the modes are kept along with the output, custom modes
+survive connector probes, and the KMS backend applies custom timings as
+they are instead of looking for a kernel mode of the same size.
+
+Custom modes aren't saved, like with xrandr: the last mode which isn't
+custom is saved instead, so that a restart never picks a mode of the
+same size with other timings, which could damage a CRT monitor.
+
+The protocol comes from a vendored wayland-protocols-wlr with the v5
+XML, until it is released.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Cargo.lock                                    |   3 +-
+ Cargo.toml                                    |   3 +
+ cosmic-comp-config/src/output/comp.rs         |  65 ++
+ src/backend/kms/device.rs                     |  30 +-
+ src/backend/kms/drm_helpers.rs                |  46 ++
+ src/backend/kms/mod.rs                        |  44 +-
+ src/config/mod.rs                             |   2 +-
+ src/wayland/handlers/output_configuration.rs  |  35 +-
+ .../output_configuration/handlers/wlr.rs      | 115 ++-
+ .../protocols/output_configuration/mod.rs     |  81 +-
+ .../wayland-protocols-wlr/CHANGELOG.md        |  29 +
+ third_party/wayland-protocols-wlr/Cargo.lock  | 221 ++++++
+ third_party/wayland-protocols-wlr/Cargo.toml  |  80 ++
+ third_party/wayland-protocols-wlr/LICENSE.txt |  19 +
+ third_party/wayland-protocols-wlr/README.md   |  15 +
+ third_party/wayland-protocols-wlr/src/lib.rs  | 158 ++++
+ .../src/protocol_macro.rs                     |  49 ++
+ .../wlr-protocols/.build.yml                  |   9 +
+ .../wlr-protocols/.editorconfig               |  14 +
+ .../wlr-protocols/.gitlab-ci.yml              |   1 +
+ .../wlr-protocols/Makefile                    |  43 ++
+ .../wlr-protocols/README.md                   |  14 +
+ .../wlr-protocols/check.sh                    |  10 +
+ .../unstable/wlr-data-control-unstable-v1.xml | 281 +++++++
+ .../wlr-export-dmabuf-unstable-v1.xml         | 203 +++++
+ ...oreign-toplevel-management-unstable-v1.xml | 270 +++++++
+ .../wlr-gamma-control-unstable-v1.xml         | 126 +++
+ .../wlr-input-inhibitor-unstable-v1.xml       |  71 ++
+ .../unstable/wlr-layer-shell-unstable-v1.xml  | 407 ++++++++++
+ .../wlr-output-management-unstable-v1.xml     | 720 ++++++++++++++++++
+ ...lr-output-power-management-unstable-v1.xml | 128 ++++
+ .../unstable/wlr-screencopy-unstable-v1.xml   | 234 ++++++
+ .../wlr-virtual-pointer-unstable-v1.xml       | 152 ++++
+ .../wlr-protocols/wlr-protocols.pc.in         |   7 +
+ 34 files changed, 3656 insertions(+), 29 deletions(-)
+ create mode 100644 third_party/wayland-protocols-wlr/CHANGELOG.md
+ create mode 100644 third_party/wayland-protocols-wlr/Cargo.lock
+ create mode 100644 third_party/wayland-protocols-wlr/Cargo.toml
+ create mode 100644 third_party/wayland-protocols-wlr/LICENSE.txt
+ create mode 100644 third_party/wayland-protocols-wlr/README.md
+ create mode 100644 third_party/wayland-protocols-wlr/src/lib.rs
+ create mode 100644 third_party/wayland-protocols-wlr/src/protocol_macro.rs
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/.build.yml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/.editorconfig
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/.gitlab-ci.yml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/Makefile
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/README.md
+ create mode 100755 third_party/wayland-protocols-wlr/wlr-protocols/check.sh
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-data-control-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-export-dmabuf-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-gamma-control-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-input-inhibitor-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-layer-shell-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-power-management-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-screencopy-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml
+ create mode 100644 third_party/wayland-protocols-wlr/wlr-protocols/wlr-protocols.pc.in
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 93ad9171..1d4f6092 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -774,6 +774,7 @@ dependencies = [
+  "cosmic-settings-config",
+  "cosmic-settings-daemon-config",
+  "cosmic-text",
++ "drm-ffi 0.9.1",
+  "egui",
+  "egui_plot",
+  "futures-executor",
+@@ -5892,8 +5893,6 @@ dependencies = [
+ [[package]]
+ name = "wayland-protocols-wlr"
+ version = "0.3.12"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "eb04e52f7836d7c7976c78ca0250d61e33873c34156a2a1fc9474828ec268234"
+ dependencies = [
+  "bitflags 2.13.2",
+  "wayland-backend",
+diff --git a/Cargo.toml b/Cargo.toml
+index 288b4069..fe8ee8c1 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -10,6 +10,7 @@ rust-version = "1.93"
+ members = ["cosmic-comp-config"]
+ 
+ [dependencies]
++drm-ffi = "0.9.1"
+ anyhow = { version = "1.0.102", features = ["backtrace"] }
+ bitflags = "2.11.0"
+ calloop = { version = "0.14.4", features = ["executor", "stream"] }
+@@ -146,5 +147,7 @@ lto = "fat"
+ cosmic-protocols = { git = "https://github.com/pop-os//cosmic-protocols", branch = "main" }
+ 
+ [patch.crates-io]
++# wlr-output-management v5: custom timings (modelines)
++wayland-protocols-wlr = { path = "third_party/wayland-protocols-wlr" }
+ smithay = { git = "https://github.com/smithay/smithay.git", rev = "e3d461a" }
+ smithay-egui = { git = "https://github.com/Smithay/smithay-egui.git", rev = "6511552" }
+diff --git a/cosmic-comp-config/src/output/comp.rs b/cosmic-comp-config/src/output/comp.rs
+index 1810b9d4..723fdc75 100644
+--- a/cosmic-comp-config/src/output/comp.rs
++++ b/cosmic-comp-config/src/output/comp.rs
+@@ -51,6 +51,69 @@ pub struct OutputConfig {
+     pub max_bpc: Option<u32>,
+     #[serde(default)]
+     pub xwayland_primary: bool,
++    /// Exact timings of a custom mode, set through wlr-output-management v5.
++    /// Custom modes are not saved, like with xrandr: `fallback_mode` is saved
++    /// instead, so a restart never picks a mode of the same size with other
++    /// timings, which could be out of range for the monitor.
++    #[serde(skip)]
++    pub modeline: Option<Modeline>,
++    /// Last mode which isn't custom
++    #[serde(skip)]
++    pub fallback_mode: Option<((i32, i32), Option<u32>)>,
++}
++
++impl OutputConfig {
++    /// The configuration to save
++    pub fn saved(&self) -> OutputConfig {
++        let mut config = self.clone();
++        if config.modeline.take().is_some() {
++            config.mode = config.fallback_mode.unwrap_or(config.mode);
++        }
++        config.fallback_mode = None;
++        config
++    }
++}
++
++/// Mode timings, in DRM units (kHz, DRM_MODE_FLAG_*)
++#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
++pub struct Modeline {
++    pub name: String,
++    pub clock: u32,
++    pub hdisplay: u16,
++    pub hsync_start: u16,
++    pub hsync_end: u16,
++    pub htotal: u16,
++    pub vdisplay: u16,
++    pub vsync_start: u16,
++    pub vsync_end: u16,
++    pub vtotal: u16,
++    pub flags: u32,
++}
++
++impl Modeline {
++    const FLAG_INTERLACE: u32 = 0x10;
++    const FLAG_DBLSCAN: u32 = 0x20;
++
++    /// Refresh rate in mHz, computed like the DRM backend does
++    pub fn refresh(&self) -> u32 {
++        let (htotal, vtotal) = (self.htotal as u64, self.vtotal as u64);
++        if htotal == 0 || vtotal == 0 {
++            return 0;
++        }
++        let mut refresh = (self.clock as u64 * 1_000_000 / htotal + vtotal / 2) / vtotal;
++        if self.flags & Self::FLAG_INTERLACE != 0 {
++            refresh *= 2;
++        }
++        if self.flags & Self::FLAG_DBLSCAN != 0 {
++            refresh /= 2;
++        }
++        refresh as u32
++    }
++
++    /// Timings with the same meaning, the name aside
++    pub fn same_timings(&self, other: &Modeline) -> bool {
++        Modeline { name: String::new(), ..self.clone() } == Modeline { name: String::new(), ..other.clone() }
++    }
+ }
+ 
+ impl Default for OutputConfig {
+@@ -64,6 +127,8 @@ impl Default for OutputConfig {
+             enabled: OutputState::Enabled,
+             max_bpc: None,
+             xwayland_primary: false,
++            modeline: None,
++            fallback_mode: None,
+         }
+     }
+ }
+diff --git a/src/backend/kms/device.rs b/src/backend/kms/device.rs
+index c58450bc..937681b4 100644
+--- a/src/backend/kms/device.rs
++++ b/src/backend/kms/device.rs
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: GPL-3.0-only
+ 
++use crate::wayland::protocols::output_configuration::{ModeTimings, OutputTimings};
+ use crate::{
+     backend::{
+         kms::render::gles::GbmGlowBackend,
+@@ -1257,16 +1258,39 @@ fn populate_modes(
+         refresh: refresh_rate as i32,
+     };
+ 
++    // Keep the timings of the modes for wlr-output-management, custom modes
++    // created through it stay available across probes
++    output
++        .user_data()
++        .insert_if_missing(|| OutputTimings::new(Vec::new()));
++    let mut timings = output
++        .user_data()
++        .get::<OutputTimings>()
++        .unwrap()
++        .lock()
++        .unwrap();
++    timings.retain(|t| t.custom);
++
+     let mut modes = Vec::new();
+-    for mode in conn_info.modes() {
+-        let refresh_rate = drm_helpers::calculate_refresh_rate(*mode);
++    for drm_mode in conn_info.modes() {
++        let refresh_rate = drm_helpers::calculate_refresh_rate(*drm_mode);
+         let mode = OutputMode {
+-            size: (mode.size().0 as i32, mode.size().1 as i32).into(),
++            size: (drm_mode.size().0 as i32, drm_mode.size().1 as i32).into(),
+             refresh: refresh_rate as i32,
+         };
++        timings.push(ModeTimings {
++            mode,
++            timings: drm_helpers::mode_to_modeline(drm_mode),
++            custom: false,
++        });
+         modes.push(mode);
+         output.add_mode(mode);
+     }
++    for t in timings.iter().filter(|t| t.custom) {
++        modes.push(t.mode);
++        output.add_mode(t.mode);
++    }
++    drop(timings);
+     for mode in output
+         .modes()
+         .into_iter()
+diff --git a/src/backend/kms/drm_helpers.rs b/src/backend/kms/drm_helpers.rs
+index 46659613..aebb8277 100644
+--- a/src/backend/kms/drm_helpers.rs
++++ b/src/backend/kms/drm_helpers.rs
+@@ -352,3 +352,49 @@ pub fn panel_orientation(dev: &impl ControlDevice, conn: connector::Handle) -> R
+         _ => Err(anyhow!("panel orientation has wrong value type")),
+     }
+ }
++
++/// Builds a DRM mode from custom timings
++pub fn modeline_to_mode(timings: &cosmic_comp_config::output::comp::Modeline) -> Mode {
++    let mut name = [0 as core::ffi::c_char; 32];
++    for (dst, src) in name.iter_mut().zip(timings.name.bytes().take(31)) {
++        *dst = src as core::ffi::c_char;
++    }
++    let raw = drm_ffi::drm_mode_modeinfo {
++        clock: timings.clock,
++        hdisplay: timings.hdisplay,
++        hsync_start: timings.hsync_start,
++        hsync_end: timings.hsync_end,
++        htotal: timings.htotal,
++        hskew: 0,
++        vdisplay: timings.vdisplay,
++        vsync_start: timings.vsync_start,
++        vsync_end: timings.vsync_end,
++        vtotal: timings.vtotal,
++        vscan: 0,
++        vrefresh: (timings.refresh() + 500) / 1000,
++        flags: timings.flags,
++        type_: drm_ffi::DRM_MODE_TYPE_USERDEF,
++        name,
++    };
++    Mode::from(raw)
++}
++
++/// Timings of a DRM mode
++pub fn mode_to_modeline(mode: &Mode) -> cosmic_comp_config::output::comp::Modeline {
++    let (hdisplay, vdisplay) = mode.size();
++    let (hsync_start, hsync_end, htotal) = mode.hsync();
++    let (vsync_start, vsync_end, vtotal) = mode.vsync();
++    cosmic_comp_config::output::comp::Modeline {
++        name: mode.name().to_string_lossy().into_owned(),
++        clock: mode.clock(),
++        hdisplay,
++        hsync_start,
++        hsync_end,
++        htotal,
++        vdisplay,
++        vsync_start,
++        vsync_end,
++        vtotal,
++        flags: mode.flags().bits(),
++    }
++}
+diff --git a/src/backend/kms/mod.rs b/src/backend/kms/mod.rs
+index 4dcffc75..e84a97c5 100644
+--- a/src/backend/kms/mod.rs
++++ b/src/backend/kms/mod.rs
+@@ -1043,20 +1043,36 @@ impl KmsGuard<'_> {
+                 let drm = &mut device.drm;
+                 let conn = surface.connector;
+                 let conn_info = drm.device().get_connector(conn, false)?;
+-                let mode = conn_info
+-                    .modes()
+-                    .iter()
+-                    // match the size
+-                    .filter(|mode| {
+-                        let (x, y) = mode.size();
+-                        Size::from((x as i32, y as i32)) == output_config.mode_size()
+-                    })
+-                    // and then select the closest refresh rate (e.g. to match 59.98 as 60)
+-                    .min_by_key(|mode| {
+-                        let refresh_rate = drm_helpers::calculate_refresh_rate(**mode);
+-                        (output_config.0.mode.1.unwrap() as i32 - refresh_rate as i32).abs()
+-                    })
+-                    .ok_or(anyhow::anyhow!("Unable to find matching mode"))?;
++                let custom_mode = output_config
++                    .0
++                    .modeline
++                    .as_ref()
++                    .map(drm_helpers::modeline_to_mode);
++                if let Some(modeline) = output_config.0.modeline.as_ref() {
++                    // A custom mode from the saved configuration must be advertised too
++                    crate::wayland::protocols::output_configuration::add_custom_mode(
++                        &surface.output,
++                        modeline,
++                    );
++                }
++                let mode = &match custom_mode {
++                    // Custom timings, applied as they are
++                    Some(mode) => mode,
++                    None => *conn_info
++                        .modes()
++                        .iter()
++                        // match the size
++                        .filter(|mode| {
++                            let (x, y) = mode.size();
++                            Size::from((x as i32, y as i32)) == output_config.mode_size()
++                        })
++                        // and then select the closest refresh rate (e.g. to match 59.98 as 60)
++                        .min_by_key(|mode| {
++                            let refresh_rate = drm_helpers::calculate_refresh_rate(**mode);
++                            (output_config.0.mode.1.unwrap() as i32 - refresh_rate as i32).abs()
++                        })
++                        .ok_or(anyhow::anyhow!("Unable to find matching mode"))?,
++                };
+ 
+                 if !test_only {
+                     if !surface.is_active() {
+diff --git a/src/config/mod.rs b/src/config/mod.rs
+index 9bdef7c1..2ea8320e 100644
+--- a/src/config/mod.rs
++++ b/src/config/mod.rs
+@@ -623,7 +623,7 @@ impl Config {
+                         .get::<RefCell<OutputConfig>>()
+                         .unwrap()
+                         .borrow()
+-                        .clone(),
++                        .saved(),
+                 )
+             })
+             .collect::<Vec<(OutputInfo, OutputConfig)>>();
+diff --git a/src/wayland/handlers/output_configuration.rs b/src/wayland/handlers/output_configuration.rs
+index 4f7000fd..cf856622 100644
+--- a/src/wayland/handlers/output_configuration.rs
++++ b/src/wayland/handlers/output_configuration.rs
+@@ -9,7 +9,7 @@ use crate::{
+     utils::prelude::OutputExt,
+     wayland::protocols::output_configuration::{
+         ModeConfiguration, OutputConfiguration, OutputConfigurationHandler,
+-        OutputConfigurationState, delegate_output_configuration,
++        OutputConfigurationState, add_custom_mode, delegate_output_configuration, mode_timings,
+     },
+ };
+ 
+@@ -27,6 +27,10 @@ impl OutputConfigurationHandler for State {
+         self.output_configuration(false, conf)
+     }
+ 
++    fn refresh_heads(&mut self) {
++        self.common.output_configuration_state.update();
++    }
++
+     fn request_xwayland_primary(&mut self, primary_output: Option<Output>) {
+         for output in self.common.output_configuration_state.outputs() {
+             output.config_mut().xwayland_primary =
+@@ -109,13 +113,29 @@ impl State {
+                     adaptive_sync,
+                 } = conf
+                 {
++                    // Remember the last mode which isn't custom, which is saved instead
++                    if current_config.modeline.is_none() {
++                        current_config.fallback_mode = Some(current_config.mode);
++                    }
+                     match mode {
+                         Some(ModeConfiguration::Mode(mode)) => {
+                             current_config.mode =
+                                 ((mode.size.w, mode.size.h), Some(mode.refresh as u32));
++                            // Custom modes are applied with their exact timings
++                            current_config.modeline = mode_timings(output, mode)
++                                .filter(|t| t.custom)
++                                .map(|t| t.timings);
+                         }
+                         Some(ModeConfiguration::Custom { size, refresh }) => {
+                             current_config.mode = ((size.w, size.h), refresh.map(|x| x as u32));
++                            current_config.modeline = None;
++                        }
++                        Some(ModeConfiguration::Timings(timings)) => {
++                            current_config.mode = (
++                                (timings.hdisplay as i32, timings.vdisplay as i32),
++                                Some(timings.refresh()),
++                            );
++                            current_config.modeline = Some(timings.clone());
+                         }
+                         _ => {}
+                     }
+@@ -192,6 +212,19 @@ impl State {
+         }
+         self.common.refresh();
+ 
++        // Advertise the modes created from timings
++        if !test_only {
++            for (output, conf) in &conf {
++                if let OutputConfiguration::Enabled {
++                    mode: Some(ModeConfiguration::Timings(timings)),
++                    ..
++                } = conf
++                {
++                    add_custom_mode(output, timings);
++                }
++            }
++        }
++
+         for output in conf
+             .iter()
+             .filter(|(_, c)| {
+diff --git a/src/wayland/protocols/output_configuration/handlers/wlr.rs b/src/wayland/protocols/output_configuration/handlers/wlr.rs
+index 7ab7a718..74fda611 100644
+--- a/src/wayland/protocols/output_configuration/handlers/wlr.rs
++++ b/src/wayland/protocols/output_configuration/handlers/wlr.rs
+@@ -12,12 +12,13 @@ use smithay::{
+             zwlr_output_mode_v1::{self, ZwlrOutputModeV1},
+         },
+         wayland_server::{
+-            Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource,
++            Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource, WEnum,
+             backend::ClientId,
+         },
+     },
+     utils::{Point, Size},
+ };
++use cosmic_comp_config::output::comp::Modeline;
+ use std::convert::TryInto;
+ 
+ use crate::wayland::protocols::output_configuration::*;
+@@ -132,14 +133,56 @@ where
+         _client: &Client,
+         obj: &ZwlrOutputHeadV1,
+         request: zwlr_output_head_v1::Request,
+-        _data: &WeakOutput,
++        data: &WeakOutput,
+         _dh: &DisplayHandle,
+         _data_init: &mut DataInit<'_, D>,
+     ) {
+-        if let zwlr_output_head_v1::Request::Release = request {
+-            for instance in &mut state.output_configuration_state().instances {
+-                instance.heads.retain(|h| &h.obj != obj);
++        match request {
++            zwlr_output_head_v1::Request::Release => {
++                for instance in &mut state.output_configuration_state().instances {
++                    instance.heads.retain(|h| &h.obj != obj);
++                }
++            }
++            zwlr_output_head_v1::Request::RemoveCustomMode { mode } => {
++                // Mode objects are inert once finished
++                let (Some(output), Some(mode)) = (data.upgrade(), mode.data::<Mode>().copied())
++                else {
++                    return;
++                };
++                if !output.modes().contains(&mode) {
++                    return obj.post_error(
++                        zwlr_output_head_v1::Error::InvalidMode,
++                        "mode doesn't belong to head".to_string(),
++                    );
++                }
++                let Some(timings) = output.user_data().get::<OutputTimings>() else {
++                    return obj.post_error(
++                        zwlr_output_head_v1::Error::NotCustom,
++                        "mode wasn't created with set_custom_timings".to_string(),
++                    );
++                };
++                let mut timings = timings.lock().unwrap();
++                if !timings.iter().any(|t| t.custom && t.mode == mode) {
++                    return obj.post_error(
++                        zwlr_output_head_v1::Error::NotCustom,
++                        "mode wasn't created with set_custom_timings".to_string(),
++                    );
++                }
++                if output.current_mode() == Some(mode) {
++                    // The mode in use is kept
++                    return;
++                }
++                timings.retain(|t| !(t.custom && t.mode == mode));
++                // A native mode may share size and refresh: keep it then
++                let native = timings.iter().any(|t| t.mode == mode);
++                drop(timings);
++                if !native {
++                    output.delete_mode(mode);
++                }
++                // Sends finished for the mode, and a new serial
++                state.refresh_heads();
+             }
++            _ => {}
+         }
+     }
+ 
+@@ -415,6 +458,68 @@ where
+                     refresh: if refresh == 0 { None } else { Some(refresh) },
+                 });
+             }
++            zwlr_output_configuration_head_v1::Request::SetCustomTimings {
++                clock,
++                hdisplay,
++                hsync_start,
++                hsync_end,
++                htotal,
++                vdisplay,
++                vsync_start,
++                vsync_end,
++                vtotal,
++                flags,
++                name,
++            } => {
++                let mut pending = data.lock().unwrap();
++                if pending.mode.is_some() {
++                    obj.post_error(
++                        zwlr_output_configuration_head_v1::Error::AlreadySet,
++                        format!("{:?} already had a mode configured", obj),
++                    );
++                    return;
++                }
++                let valid = clock > 0
++                    && hdisplay > 0
++                    && vdisplay > 0
++                    && hdisplay <= hsync_start
++                    && hsync_start <= hsync_end
++                    && hsync_end <= htotal
++                    && htotal <= u16::MAX as u32
++                    && vdisplay <= vsync_start
++                    && vsync_start <= vsync_end
++                    && vsync_end <= vtotal
++                    && vtotal <= u16::MAX as u32;
++                if !valid {
++                    obj.post_error(
++                        zwlr_output_configuration_head_v1::Error::InvalidCustomTimings,
++                        "invalid custom timings".to_string(),
++                    );
++                    return;
++                }
++                let flags = match flags {
++                    WEnum::Value(flags) => flags.bits(),
++                    WEnum::Unknown(bits) => bits,
++                };
++                let name = if name.is_empty() {
++                    format!("{}x{}", hdisplay, vdisplay)
++                } else {
++                    name.chars().take(31).collect()
++                };
++                pending.mode = Some(ModeConfiguration::Timings(Modeline {
++                    name,
++                    clock,
++                    hdisplay: hdisplay as u16,
++                    hsync_start: hsync_start as u16,
++                    hsync_end: hsync_end as u16,
++                    htotal: htotal as u16,
++                    vdisplay: vdisplay as u16,
++                    vsync_start: vsync_start as u16,
++                    vsync_end: vsync_end as u16,
++                    vtotal: vtotal as u16,
++                    flags,
++                }));
++            }
+             zwlr_output_configuration_head_v1::Request::SetPosition { x, y } => {
+                 let mut pending = data.lock().unwrap();
+                 if pending.position.is_some() {
+diff --git a/src/wayland/protocols/output_configuration/mod.rs b/src/wayland/protocols/output_configuration/mod.rs
+index d413e634..3500b2f0 100644
+--- a/src/wayland/protocols/output_configuration/mod.rs
++++ b/src/wayland/protocols/output_configuration/mod.rs
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-3.0-only
+ 
+ use calloop::LoopHandle;
+-use cosmic_comp_config::output::comp::AdaptiveSync;
++use cosmic_comp_config::output::comp::{AdaptiveSync, Modeline};
+ use cosmic_protocols::output_management::v1::server::{
+     zcosmic_output_configuration_head_v1::ZcosmicOutputConfigurationHeadV1,
+     zcosmic_output_configuration_v1::ZcosmicOutputConfigurationV1,
+@@ -17,7 +17,7 @@ use smithay::{
+             zwlr_output_configuration_v1::ZwlrOutputConfigurationV1,
+             zwlr_output_head_v1::{self, ZwlrOutputHeadV1},
+             zwlr_output_manager_v1::ZwlrOutputManagerV1,
+-            zwlr_output_mode_v1::ZwlrOutputModeV1,
++            zwlr_output_mode_v1::{self, ZwlrOutputModeV1},
+         },
+         wayland_server::{
+             Client, Dispatch, DisplayHandle, GlobalDispatch, Resource, Weak, backend::GlobalId,
+@@ -31,6 +31,58 @@ use std::{convert::TryFrom, sync::Mutex};
+ 
+ mod handlers;
+ 
++/// Hardware timings of a mode of an output
++#[derive(Debug, Clone)]
++pub struct ModeTimings {
++    pub mode: Mode,
++    pub timings: Modeline,
++    /// Created through set_custom_timings, can be removed
++    pub custom: bool,
++}
++
++/// Timings of the modes of an output, kept in its user data
++pub type OutputTimings = Mutex<Vec<ModeTimings>>;
++
++/// Timings of a mode of an output, custom modes first
++pub fn mode_timings(output: &Output, mode: &Mode) -> Option<ModeTimings> {
++    let timings = output.user_data().get::<OutputTimings>()?.lock().unwrap();
++    timings
++        .iter()
++        .filter(|t| t.mode == *mode)
++        .max_by_key(|t| t.custom)
++        .cloned()
++}
++
++/// Registers a custom mode on an output, returns its mode
++pub fn add_custom_mode(output: &Output, timings: &Modeline) -> Mode {
++    let mode = Mode {
++        size: (timings.hdisplay as i32, timings.vdisplay as i32).into(),
++        refresh: timings.refresh() as i32,
++    };
++    output
++        .user_data()
++        .insert_if_missing(|| OutputTimings::new(Vec::new()));
++    let mut list = output
++        .user_data()
++        .get::<OutputTimings>()
++        .unwrap()
++        .lock()
++        .unwrap();
++    if !list
++        .iter()
++        .any(|t| t.custom && t.timings.same_timings(timings))
++    {
++        list.push(ModeTimings {
++            mode,
++            timings: timings.clone(),
++            custom: true,
++        });
++    }
++    drop(list);
++    output.add_mode(mode);
++    mode
++}
++
+ pub fn head_is_enabled(output: &Output) -> bool {
+     output
+         .user_data()
+@@ -58,6 +110,9 @@ pub trait OutputConfigurationHandler: Sized {
+     fn apply_configuration(&mut self, conf: Vec<(Output, OutputConfiguration)>) -> bool;
+ 
+     fn request_xwayland_primary(&mut self, output: Option<Output>);
++
++    /// Sends the current state of the heads, after their modes changed
++    fn refresh_heads(&mut self);
+ }
+ 
+ pub struct OutputMngrGlobalData {
+@@ -96,6 +151,7 @@ pub enum ModeConfiguration<M: Clone> {
+         size: Size<i32, Physical>,
+         refresh: Option<i32>,
+     },
++    Timings(Modeline),
+ }
+ 
+ #[derive(Debug, Default, Clone)]
+@@ -137,6 +193,7 @@ impl<'a> TryFrom<&'a mut PendingOutputConfigurationInner> for OutputConfiguratio
+             Some(ModeConfiguration::Custom { size, refresh }) => {
+                 Some(ModeConfiguration::Custom { size, refresh })
+             }
++            Some(ModeConfiguration::Timings(timings)) => Some(ModeConfiguration::Timings(timings)),
+             None => None,
+         };
+         Ok(OutputConfiguration::Enabled {
+@@ -182,7 +239,7 @@ where
+         F: for<'a> Fn(&'a Client) -> bool + Clone + Send + Sync + 'static,
+     {
+         let global = dh.create_global::<D, ZwlrOutputManagerV1, _>(
+-            4,
++            5,
+             OutputMngrGlobalData {
+                 filter: Box::new(client_filter.clone()),
+             },
+@@ -411,6 +468,24 @@ where
+                 instance.obj.mode(&mode);
+                 mode.size(output_mode.size.w, output_mode.size.h);
+                 mode.refresh(output_mode.refresh);
++                if mode.version() >= zwlr_output_mode_v1::EVT_TIMINGS_SINCE
++                    && let Some(t) = mode_timings(output, &output_mode)
++                {
++                    let t = &t.timings;
++                    mode.name(t.name.clone());
++                    mode.timings(
++                        t.clock,
++                        t.hdisplay as u32,
++                        t.hsync_start as u32,
++                        t.hsync_end as u32,
++                        t.htotal as u32,
++                        t.vdisplay as u32,
++                        t.vsync_start as u32,
++                        t.vsync_end as u32,
++                        t.vtotal as u32,
++                        zwlr_output_mode_v1::TimingFlags::from_bits_truncate(t.flags),
++                    );
++                }
+                 if output
+                     .preferred_mode()
+                     .map(|p| p == output_mode)
+diff --git a/third_party/wayland-protocols-wlr/CHANGELOG.md b/third_party/wayland-protocols-wlr/CHANGELOG.md
+new file mode 100644
+index 00000000..6fa1b1f8
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/CHANGELOG.md
+@@ -0,0 +1,29 @@
++# CHANGELOG: wayland-protocols-wlr
++
++## Unreleased
++
++## 0.3.4 -- 2024-09-04
++
++- Update wlr-protocols
++  - `wlr-layer-shell-unstable-v1` is now version 5, with option to set exclusion edge
++
++## 0.3.0 -- 2024-05-30
++
++### Breaking changes
++- Updated wayland-protocols to 0.3
++
++## 0.2.0 -- 2023-09-02
++
++### Breaking changes
++
++- Bump bitflags to 2.0
++- Updated wayland-backend to 0.3
++
++## 0.1.0 -- 27/12/2022
++
++## 0.1.0-beta.14
++
++### Additions
++
++- Update wlr-protocols
++  - `wlr-output-management-unstable-v1` is now version 4, allowing to change the adaptive sync state
+diff --git a/third_party/wayland-protocols-wlr/Cargo.lock b/third_party/wayland-protocols-wlr/Cargo.lock
+new file mode 100644
+index 00000000..48e21db5
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/Cargo.lock
+@@ -0,0 +1,221 @@
++# This file is automatically @generated by Cargo.
++# It is not intended for manual editing.
++version = 3
++
++[[package]]
++name = "bitflags"
++version = "2.11.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
++
++[[package]]
++name = "cc"
++version = "1.2.58"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e1e928d4b69e3077709075a938a05ffbedfa53a84c8f766efbf8220bb1ff60e1"
++dependencies = [
++ "find-msvc-tools",
++ "shlex",
++]
++
++[[package]]
++name = "downcast-rs"
++version = "1.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
++
++[[package]]
++name = "errno"
++version = "0.3.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
++dependencies = [
++ "libc",
++ "windows-sys",
++]
++
++[[package]]
++name = "find-msvc-tools"
++version = "0.1.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
++
++[[package]]
++name = "libc"
++version = "0.2.183"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
++
++[[package]]
++name = "linux-raw-sys"
++version = "0.12.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
++
++[[package]]
++name = "memchr"
++version = "2.8.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
++
++[[package]]
++name = "pkg-config"
++version = "0.3.32"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
++
++[[package]]
++name = "proc-macro2"
++version = "1.0.106"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
++dependencies = [
++ "unicode-ident",
++]
++
++[[package]]
++name = "quick-xml"
++version = "0.39.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
++dependencies = [
++ "memchr",
++]
++
++[[package]]
++name = "quote"
++version = "1.0.45"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
++dependencies = [
++ "proc-macro2",
++]
++
++[[package]]
++name = "rustix"
++version = "1.1.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
++dependencies = [
++ "bitflags",
++ "errno",
++ "libc",
++ "linux-raw-sys",
++ "windows-sys",
++]
++
++[[package]]
++name = "shlex"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
++
++[[package]]
++name = "smallvec"
++version = "1.15.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
++
++[[package]]
++name = "unicode-ident"
++version = "1.0.24"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
++
++[[package]]
++name = "wayland-backend"
++version = "0.3.15"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2857dd20b54e916ec7253b3d6b4d5c4d7d4ca2c33c2e11c6c76a99bd8744755d"
++dependencies = [
++ "cc",
++ "downcast-rs",
++ "rustix",
++ "smallvec",
++ "wayland-sys",
++]
++
++[[package]]
++name = "wayland-client"
++version = "0.31.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "645c7c96bb74690c3189b5c9cb4ca1627062bb23693a4fad9d8c3de958260144"
++dependencies = [
++ "bitflags",
++ "rustix",
++ "wayland-backend",
++ "wayland-scanner",
++]
++
++[[package]]
++name = "wayland-protocols"
++version = "0.32.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "563a85523cade2429938e790815fd7319062103b9f4a2dc806e9b53b95982d8f"
++dependencies = [
++ "bitflags",
++ "wayland-backend",
++ "wayland-client",
++ "wayland-scanner",
++ "wayland-server",
++]
++
++[[package]]
++name = "wayland-protocols-wlr"
++version = "0.3.12"
++dependencies = [
++ "bitflags",
++ "wayland-backend",
++ "wayland-client",
++ "wayland-protocols",
++ "wayland-scanner",
++ "wayland-server",
++]
++
++[[package]]
++name = "wayland-scanner"
++version = "0.31.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9c324a910fd86ebdc364a3e61ec1f11737d3b1d6c273c0239ee8ff4bc0d24b4a"
++dependencies = [
++ "proc-macro2",
++ "quick-xml",
++ "quote",
++]
++
++[[package]]
++name = "wayland-server"
++version = "0.31.13"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cc1846eb04c49182e04f4a099e2a830a2b745610bbc1d61246e206f29c7000a0"
++dependencies = [
++ "bitflags",
++ "downcast-rs",
++ "rustix",
++ "wayland-backend",
++ "wayland-scanner",
++]
++
++[[package]]
++name = "wayland-sys"
++version = "0.31.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d8eab23fefc9e41f8e841df4a9c707e8a8c4ed26e944ef69297184de2785e3be"
++dependencies = [
++ "pkg-config",
++]
++
++[[package]]
++name = "windows-link"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
++
++[[package]]
++name = "windows-sys"
++version = "0.61.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
++dependencies = [
++ "windows-link",
++]
+diff --git a/third_party/wayland-protocols-wlr/Cargo.toml b/third_party/wayland-protocols-wlr/Cargo.toml
+new file mode 100644
+index 00000000..e561d4d4
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/Cargo.toml
+@@ -0,0 +1,80 @@
++# THIS FILE IS AUTOMATICALLY GENERATED BY CARGO
++#
++# When uploading crates to the registry Cargo will automatically
++# "normalize" Cargo.toml files for maximal compatibility
++# with all versions of Cargo and also rewrite `path` dependencies
++# to registry (e.g., crates.io) dependencies.
++#
++# If you are reading this file be aware that the original Cargo.toml
++# will likely look very different (and much more reasonable).
++# See Cargo.toml.orig for the original contents.
++
++[package]
++edition = "2021"
++rust-version = "1.71"
++name = "wayland-protocols-wlr"
++version = "0.3.12"
++authors = ["Elinor Berger <elinor@safaradeg.net>"]
++build = false
++autolib = false
++autobins = false
++autoexamples = false
++autotests = false
++autobenches = false
++description = "Generated API for the WLR wayland protocol extensions"
++documentation = "https://docs.rs/wayland-protocols-wlr/"
++readme = "README.md"
++keywords = [
++    "wayland",
++    "client",
++    "server",
++    "protocol",
++    "extension",
++]
++categories = [
++    "gui",
++    "api-bindings",
++]
++license = "MIT"
++repository = "https://github.com/smithay/wayland-rs"
++
++[package.metadata.docs.rs]
++all-features = true
++rustdoc-args = [
++    "--cfg",
++    "docsrs",
++]
++
++[features]
++client = [
++    "wayland-client",
++    "wayland-protocols/client",
++]
++server = [
++    "wayland-server",
++    "wayland-protocols/server",
++]
++
++[lib]
++name = "wayland_protocols_wlr"
++path = "src/lib.rs"
++
++[dependencies.bitflags]
++version = "2"
++
++[dependencies.wayland-backend]
++version = "0.3.15"
++
++[dependencies.wayland-client]
++version = "0.31.14"
++optional = true
++
++[dependencies.wayland-protocols]
++version = "0.32.12"
++
++[dependencies.wayland-scanner]
++version = "0.31.10"
++
++[dependencies.wayland-server]
++version = "0.31.13"
++optional = true
+diff --git a/third_party/wayland-protocols-wlr/LICENSE.txt b/third_party/wayland-protocols-wlr/LICENSE.txt
+new file mode 100644
+index 00000000..0ee19572
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/LICENSE.txt
+@@ -0,0 +1,19 @@
++Copyright (c) 2015 Elinor Berger
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++THE SOFTWARE.
+diff --git a/third_party/wayland-protocols-wlr/README.md b/third_party/wayland-protocols-wlr/README.md
+new file mode 100644
+index 00000000..768e0a12
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/README.md
+@@ -0,0 +1,15 @@
++[![crates.io](https://img.shields.io/crates/v/wayland-protocols-wlr.svg)](https://crates.io/crates/wayland-protocols-wlr)
++[![docs.rs](https://docs.rs/wayland-protocols-wlr/badge.svg)](https://docs.rs/wayland-protocols-wlr)
++[![Continuous Integration](https://github.com/Smithay/wayland-rs/workflows/Continuous%20Integration/badge.svg)](https://github.com/Smithay/wayland-rs/actions?query=workflow%3A%22Continuous+Integration%22)
++[![codecov](https://codecov.io/gh/Smithay/wayland-rs/branch/master/graph/badge.svg)](https://codecov.io/gh/Smithay/wayland-rs)
++
++# wayland-protocols-wlr
++
++This crate provides Wayland object definitions for the WLR Wayland protocol extensions.
++It is meant to be used in addition to `wayland-client` or `wayland-server`.
++
++This crate provides bindings for the ["wlr-protocols"](https://gitlab.freedesktop.org/wlroots/wlr-protocols)
++extensions repository.
++
++The provided objects are controlled by the `client` and `server` cargo features, which respectively enable
++the generation of client-side and server-side objects
+\ No newline at end of file
+diff --git a/third_party/wayland-protocols-wlr/src/lib.rs b/third_party/wayland-protocols-wlr/src/lib.rs
+new file mode 100644
+index 00000000..0c67db2a
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/src/lib.rs
+@@ -0,0 +1,158 @@
++//! This crate provides bindings to the wlroots wayland protocol extensions
++//! provided in <https://gitlab.freedesktop.org/wlroots/wlr-protocols>
++//!
++//! These bindings are built on top of the crates wayland-client and wayland-server.
++//!
++//! Each protocol module contains a `client` and a `server` submodules, for each side of the
++//! protocol. The creation of these modules (and the dependency on the associated crate) is
++//! controlled by the two cargo features `client` and `server`.
++
++#![warn(missing_docs)]
++#![forbid(improper_ctypes, unsafe_op_in_unsafe_fn)]
++#![cfg_attr(docsrs, feature(doc_cfg))]
++#![cfg_attr(rustfmt, rustfmt_skip)]
++
++#[macro_use]
++mod protocol_macro;
++
++pub mod data_control {
++    //! Control data devices, particularly the clipboard.
++    //!
++    //! An interface to control data devices, particularly to manage the current selection and
++    //! take the role of a clipboard manager.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-data-control-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod export_dmabuf {
++    //! A protocol for low overhead screen content capturing
++    //!
++    //! An interface to capture surfaces in an efficient way by exporting DMA-BUFs.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-export-dmabuf-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod foreign_toplevel {
++    //! List and control opened apps
++    //!
++    //! Use for creating taskbars and docks.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod gamma_control {
++    //! Manage gamma tables of outputs.
++    //!
++    //! This protocol allows a privileged client to set the gamma tables for outputs.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-gamma-control-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod input_inhibitor {
++    //! Inhibits input events to other clients
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-input-inhibitor-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod layer_shell {
++    //! Layered shell protocol
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-layer-shell-unstable-v1.xml",
++            [wayland_protocols::xdg::shell]
++        );
++    }
++}
++
++pub mod output_management {
++    //! Output management protocol
++    //!
++    //! This protocol exposes interfaces to obtain and modify output device configuration.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-output-management-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod output_power_management {
++    //! Output power management protocol
++    //!
++    //! This protocol allows clients to control power management modes
++    //! of outputs that are currently part of the compositor space. The
++    //! intent is to allow special clients like desktop shells to power
++    //! down outputs when the system is idle.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-output-power-management-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod screencopy {
++    //! Screen content capturing on client buffers
++    //!
++    //! This protocol allows clients to ask the compositor to copy part of the
++    //! screen content to a client buffer.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-screencopy-unstable-v1.xml",
++            []
++        );
++    }
++}
++
++pub mod virtual_pointer {
++    //! Virtual pointer protocol
++    //!
++    //! This protocol allows clients to emulate a physical pointer device. The
++    //! requests are mostly mirror opposites of those specified in wl_pointer.
++
++    #[allow(missing_docs)]
++    pub mod v1 {
++        wayland_protocol!(
++            "./wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml",
++            []
++        );
++    }
++}
+\ No newline at end of file
+diff --git a/third_party/wayland-protocols-wlr/src/protocol_macro.rs b/third_party/wayland-protocols-wlr/src/protocol_macro.rs
+new file mode 100644
+index 00000000..1f2ce94c
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/src/protocol_macro.rs
+@@ -0,0 +1,49 @@
++macro_rules! wayland_protocol(
++    ($path:expr, [$($imports:path),*]) => {
++        #[cfg(feature = "client")]
++        pub use self::generated::client;
++
++        #[cfg(feature = "server")]
++        pub use self::generated::server;
++
++        mod generated {
++            #![allow(dead_code,non_camel_case_types,unused_unsafe,unused_variables)]
++            #![allow(non_upper_case_globals,non_snake_case,unused_imports)]
++            #![allow(missing_docs, clippy::all)]
++
++            #[cfg(feature = "client")]
++            pub mod client {
++                //! Client-side API of this protocol
++                use wayland_client;
++                use wayland_client::protocol::*;
++                $(use $imports::{client::*};)*
++
++                pub mod __interfaces {
++                    use wayland_client::protocol::__interfaces::*;
++                    $(use $imports::{client::__interfaces::*};)*
++                    wayland_scanner::generate_interfaces!($path);
++                }
++                use self::__interfaces::*;
++
++                wayland_scanner::generate_client_code!($path);
++            }
++
++            #[cfg(feature = "server")]
++            pub mod server {
++                //! Server-side API of this protocol
++                use wayland_server;
++                use wayland_server::protocol::*;
++                $(use $imports::{server::*};)*
++
++                pub mod __interfaces {
++                    use wayland_server::protocol::__interfaces::*;
++                    $(use $imports::{server::__interfaces::*};)*
++                    wayland_scanner::generate_interfaces!($path);
++                }
++                use self::__interfaces::*;
++
++                wayland_scanner::generate_server_code!($path);
++            }
++        }
++    }
++);
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/.build.yml b/third_party/wayland-protocols-wlr/wlr-protocols/.build.yml
+new file mode 100644
+index 00000000..7cd424f6
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/.build.yml
+@@ -0,0 +1,9 @@
++image: archlinux
++packages:
++  - wayland
++sources:
++  - https://gitlab.freedesktop.org/wlroots/wlr-protocols.git
++tasks:
++  - protocols: |
++      cd wlr-protocols
++      make check
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/.editorconfig b/third_party/wayland-protocols-wlr/wlr-protocols/.editorconfig
+new file mode 100644
+index 00000000..b6b6a367
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/.editorconfig
+@@ -0,0 +1,14 @@
++root = true
++
++[*]
++end_of_line = lf
++insert_final_newline = true
++charset = utf-8
++indent_style = tab
++indent_size = 4
++trim_trailing_whitespace = true
++
++[*.xml]
++indent_style = space
++indent_size = 2
++tab_width = 8
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/.gitlab-ci.yml b/third_party/wayland-protocols-wlr/wlr-protocols/.gitlab-ci.yml
+new file mode 100644
+index 00000000..02861b8e
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/.gitlab-ci.yml
+@@ -0,0 +1 @@
++include: https://git.sr.ht/~emersion/dalligi/blob/master/templates/single.yml
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/Makefile b/third_party/wayland-protocols-wlr/wlr-protocols/Makefile
+new file mode 100644
+index 00000000..0d465aed
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/Makefile
+@@ -0,0 +1,43 @@
++PREFIX=/usr
++DATADIR=$${datarootdir}
++DATAROOTDIR=$${prefix}/share
++
++unstable_protocols = \
++	unstable/wlr-data-control-unstable-v1.xml \
++	unstable/wlr-export-dmabuf-unstable-v1.xml \
++	unstable/wlr-foreign-toplevel-management-unstable-v1.xml \
++	unstable/wlr-gamma-control-unstable-v1.xml \
++	unstable/wlr-input-inhibitor-unstable-v1.xml \
++	unstable/wlr-layer-shell-unstable-v1.xml \
++	unstable/wlr-output-management-unstable-v1.xml \
++	unstable/wlr-output-power-management-unstable-v1.xml \
++	unstable/wlr-screencopy-unstable-v1.xml \
++	unstable/wlr-virtual-pointer-unstable-v1.xml
++
++check: $(unstable_protocols)
++	./check.sh $(unstable_protocols)
++
++clean:
++	rm -f wlr-protocols.pc
++
++wlr-protocols.pc: wlr-protocols.pc.in
++	sed \
++		-e 's:@prefix@:$(PREFIX):g' \
++		-e 's:@datadir@:$(DATADIR):g' \
++		-e 's:@datarootdir@:$(DATAROOTDIR):g' \
++		<$< >$@
++
++install-unstable: $(unstable_protocols)
++	mkdir -p $(DESTDIR)$(PREFIX)/share/wlr-protocols/unstable
++	for protocol in $^ ; \
++	do \
++		install -Dm644 $$protocol \
++			$(DESTDIR)$(PREFIX)/share/wlr-protocols/$$protocol ; \
++	done
++
++install-pc: wlr-protocols.pc
++	mkdir -p $(DESTDIR)$(PREFIX)/share/pkgconfig/
++	install -Dm644 wlr-protocols.pc \
++		$(DESTDIR)$(PREFIX)/share/pkgconfig/wlr-protocols.pc
++
++install: install-unstable install-pc
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/README.md b/third_party/wayland-protocols-wlr/wlr-protocols/README.md
+new file mode 100644
+index 00000000..412bb6a4
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/README.md
+@@ -0,0 +1,14 @@
++# wlr-protocols
++
++Wayland protocols designed for use in wlroots (and other compositors).
++
++## Submitting changes to existing protocols
++
++Please submit a merge request on GitLab.
++
++## Submitting new protocols
++
++New protocols should not be submitted to wlr-protocols. Instead, submit them to
++[wayland-protocols].
++
++[wayland-protocols]: https://gitlab.freedesktop.org/wayland/wayland-protocols
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/check.sh b/third_party/wayland-protocols-wlr/wlr-protocols/check.sh
+new file mode 100755
+index 00000000..f0f0bdd8
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/check.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh -eu
++
++for f in "$@"
++do
++	echo >&2 "Checking $f"
++	wayland-scanner -s client-header "$f" /dev/null
++	wayland-scanner -s server-header "$f" /dev/null
++	wayland-scanner -s public-code "$f" /dev/null
++	wayland-scanner -s private-code "$f" /dev/null
++done
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-data-control-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-data-control-unstable-v1.xml
+new file mode 100644
+index 00000000..567a09e5
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-data-control-unstable-v1.xml
+@@ -0,0 +1,281 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_data_control_unstable_v1">
++  <copyright>
++    Copyright © 2018 Simon Ser
++    Copyright © 2019 Ivan Molodetskikh
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <description summary="control data devices">
++    This protocol allows a privileged client to control data devices. In
++    particular, the client will be able to manage the current selection and take
++    the role of a clipboard manager.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++
++    Note! This protocol is deprecated and not intended for production use.
++    For clipboard management, use the ext-data-control-v1 protocol.
++  </description>
++
++  <interface name="zwlr_data_control_manager_v1" version="2">
++    <description summary="manager to control data devices">
++      This interface is a manager that allows creating per-seat data device
++      controls.
++    </description>
++
++    <request name="create_data_source">
++      <description summary="create a new data source">
++        Create a new data source.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_data_control_source_v1"
++        summary="data source to create"/>
++    </request>
++
++    <request name="get_data_device">
++      <description summary="get a data device for a seat">
++        Create a data device that can be used to manage a seat's selection.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_data_control_device_v1"/>
++      <arg name="seat" type="object" interface="wl_seat"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_data_control_device_v1" version="2">
++    <description summary="manage a data device for a seat">
++      This interface allows a client to manage a seat's selection.
++
++      When the seat is destroyed, this object becomes inert.
++    </description>
++
++    <request name="set_selection">
++      <description summary="copy data to the selection">
++        This request asks the compositor to set the selection to the data from
++        the source on behalf of the client.
++
++        The given source may not be used in any further set_selection or
++        set_primary_selection requests. Attempting to use a previously used
++        source is a protocol error.
++
++        To unset the selection, set the source to NULL.
++      </description>
++      <arg name="source" type="object" interface="zwlr_data_control_source_v1"
++        allow-null="true"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this data device">
++        Destroys the data device object.
++      </description>
++    </request>
++
++    <event name="data_offer">
++      <description summary="introduce a new wlr_data_control_offer">
++        The data_offer event introduces a new wlr_data_control_offer object,
++        which will subsequently be used in either the
++        wlr_data_control_device.selection event (for the regular clipboard
++        selections) or the wlr_data_control_device.primary_selection event (for
++        the primary clipboard selections). Immediately following the
++        wlr_data_control_device.data_offer event, the new data_offer object
++        will send out wlr_data_control_offer.offer events to describe the MIME
++        types it offers.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_data_control_offer_v1"/>
++    </event>
++
++    <event name="selection">
++      <description summary="advertise new selection">
++        The selection event is sent out to notify the client of a new
++        wlr_data_control_offer for the selection for this device. The
++        wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
++        events are sent out immediately before this event to introduce the data
++        offer object. The selection event is sent to a client when a new
++        selection is set. The wlr_data_control_offer is valid until a new
++        wlr_data_control_offer or NULL is received. The client must destroy the
++        previous selection wlr_data_control_offer, if any, upon receiving this
++        event.
++
++        The first selection event is sent upon binding the
++        wlr_data_control_device object.
++      </description>
++      <arg name="id" type="object" interface="zwlr_data_control_offer_v1"
++        allow-null="true"/>
++    </event>
++
++    <event name="finished">
++      <description summary="this data control is no longer valid">
++        This data control object is no longer valid and should be destroyed by
++        the client.
++      </description>
++    </event>
++
++    <!-- Version 2 additions -->
++
++    <event name="primary_selection" since="2">
++      <description summary="advertise new primary selection">
++        The primary_selection event is sent out to notify the client of a new
++        wlr_data_control_offer for the primary selection for this device. The
++        wlr_data_control_device.data_offer and the wlr_data_control_offer.offer
++        events are sent out immediately before this event to introduce the data
++        offer object. The primary_selection event is sent to a client when a
++        new primary selection is set. The wlr_data_control_offer is valid until
++        a new wlr_data_control_offer or NULL is received. The client must
++        destroy the previous primary selection wlr_data_control_offer, if any,
++        upon receiving this event.
++
++        If the compositor supports primary selection, the first
++        primary_selection event is sent upon binding the
++        wlr_data_control_device object.
++      </description>
++      <arg name="id" type="object" interface="zwlr_data_control_offer_v1"
++        allow-null="true"/>
++    </event>
++
++    <request name="set_primary_selection" since="2">
++      <description summary="copy data to the primary selection">
++        This request asks the compositor to set the primary selection to the
++        data from the source on behalf of the client.
++
++        The given source may not be used in any further set_selection or
++        set_primary_selection requests. Attempting to use a previously used
++        source is a protocol error.
++
++        To unset the primary selection, set the source to NULL.
++
++        The compositor will ignore this request if it does not support primary
++        selection.
++      </description>
++      <arg name="source" type="object" interface="zwlr_data_control_source_v1"
++        allow-null="true"/>
++    </request>
++
++    <enum name="error" since="2">
++      <entry name="used_source" value="1"
++        summary="source given to set_selection or set_primary_selection was already used before"/>
++    </enum>
++  </interface>
++
++  <interface name="zwlr_data_control_source_v1" version="1">
++    <description summary="offer to transfer data">
++      The wlr_data_control_source object is the source side of a
++      wlr_data_control_offer. It is created by the source client in a data
++      transfer and provides a way to describe the offered data and a way to
++      respond to requests to transfer the data.
++    </description>
++
++    <enum name="error">
++      <entry name="invalid_offer" value="1"
++        summary="offer sent after wlr_data_control_device.set_selection"/>
++    </enum>
++
++    <request name="offer">
++      <description summary="add an offered MIME type">
++        This request adds a MIME type to the set of MIME types advertised to
++        targets. Can be called several times to offer multiple types.
++
++        Calling this after wlr_data_control_device.set_selection is a protocol
++        error.
++      </description>
++      <arg name="mime_type" type="string"
++        summary="MIME type offered by the data source"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this source">
++        Destroys the data source object.
++      </description>
++    </request>
++
++    <event name="send">
++      <description summary="send the data">
++        Request for data from the client. Send the data as the specified MIME
++        type over the passed file descriptor, then close it.
++      </description>
++      <arg name="mime_type" type="string" summary="MIME type for the data"/>
++      <arg name="fd" type="fd" summary="file descriptor for the data"/>
++    </event>
++
++    <event name="cancelled">
++      <description summary="selection was cancelled">
++        This data source is no longer valid. The data source has been replaced
++        by another data source.
++
++        The client should clean up and destroy this data source.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="zwlr_data_control_offer_v1" version="1">
++    <description summary="offer to transfer data">
++      A wlr_data_control_offer represents a piece of data offered for transfer
++      by another client (the source client). The offer describes the different
++      MIME types that the data can be converted to and provides the mechanism
++      for transferring the data directly from the source client.
++    </description>
++
++    <request name="receive">
++      <description summary="request that the data is transferred">
++        To transfer the offered data, the client issues this request and
++        indicates the MIME type it wants to receive. The transfer happens
++        through the passed file descriptor (typically created with the pipe
++        system call). The source client writes the data in the MIME type
++        representation requested and then closes the file descriptor.
++
++        The receiving client reads from the read end of the pipe until EOF and
++        then closes its end, at which point the transfer is complete.
++
++        This request may happen multiple times for different MIME types.
++      </description>
++      <arg name="mime_type" type="string"
++        summary="MIME type desired by receiver"/>
++      <arg name="fd" type="fd" summary="file descriptor for data transfer"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this offer">
++        Destroys the data offer object.
++      </description>
++    </request>
++
++    <event name="offer">
++      <description summary="advertise offered MIME type">
++        Sent immediately after creating the wlr_data_control_offer object.
++        One event per offered MIME type.
++      </description>
++      <arg name="mime_type" type="string" summary="offered MIME type"/>
++    </event>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-export-dmabuf-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-export-dmabuf-unstable-v1.xml
+new file mode 100644
+index 00000000..80ea012f
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-export-dmabuf-unstable-v1.xml
+@@ -0,0 +1,203 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_export_dmabuf_unstable_v1">
++  <copyright>
++    Copyright © 2018 Rostislav Pehlivanov
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <description summary="a protocol for low overhead screen content capturing">
++    An interface to capture surfaces in an efficient way by exporting DMA-BUFs.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_export_dmabuf_manager_v1" version="1">
++    <description summary="manager to inform clients and begin capturing">
++      This object is a manager with which to start capturing from sources.
++    </description>
++
++    <request name="capture_output">
++      <description summary="capture a frame from an output">
++        Capture the next frame of an entire output.
++      </description>
++      <arg name="frame" type="new_id" interface="zwlr_export_dmabuf_frame_v1"/>
++      <arg name="overlay_cursor" type="int"
++           summary="include custom client hardware cursor on top of the frame"/>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_export_dmabuf_frame_v1" version="1">
++    <description summary="a DMA-BUF frame">
++      This object represents a single DMA-BUF frame.
++
++      If the capture is successful, the compositor will first send a "frame"
++      event, followed by one or several "object". When the frame is available
++      for readout, the "ready" event is sent.
++
++      If the capture failed, the "cancel" event is sent. This can happen anytime
++      before the "ready" event.
++
++      Once either a "ready" or a "cancel" event is received, the client should
++      destroy the frame. Once an "object" event is received, the client is
++      responsible for closing the associated file descriptor.
++
++      All frames are read-only and may not be written into or altered.
++    </description>
++
++    <enum name="flags">
++      <description summary="frame flags">
++        Special flags that should be respected by the client.
++      </description>
++      <entry name="transient" value="0x1"
++             summary="clients should copy frame before processing"/>
++    </enum>
++
++    <event name="frame">
++      <description summary="a frame description">
++        Main event supplying the client with information about the frame. If the
++        capture didn't fail, this event is always emitted first before any other
++        events.
++
++        This event is followed by a number of "object" as specified by the
++        "num_objects" argument.
++      </description>
++      <arg name="width" type="uint"
++           summary="frame width in pixels"/>
++      <arg name="height" type="uint"
++           summary="frame height in pixels"/>
++      <arg name="offset_x" type="uint"
++           summary="crop offset for the x axis"/>
++      <arg name="offset_y" type="uint"
++           summary="crop offset for the y axis"/>
++      <arg name="buffer_flags" type="uint"
++           summary="flags which indicate properties (invert, interlacing),
++                    has the same values as zwp_linux_buffer_params_v1:flags"/>
++      <arg name="flags" type="uint" enum="flags"
++           summary="indicates special frame features"/>
++      <arg name="format" type="uint"
++           summary="format of the frame (DRM_FORMAT_*)"/>
++      <arg name="mod_high" type="uint"
++           summary="drm format modifier, high"/>
++      <arg name="mod_low" type="uint"
++           summary="drm format modifier, low"/>
++      <arg name="num_objects" type="uint"
++           summary="indicates how many objects (FDs) the frame has (max 4)"/>
++    </event>
++
++    <event name="object">
++      <description summary="an object description">
++        Event which serves to supply the client with the file descriptors
++        containing the data for each object.
++
++        After receiving this event, the client must always close the file
++        descriptor as soon as they're done with it and even if the frame fails.
++      </description>
++      <arg name="index" type="uint"
++           summary="index of the current object"/>
++      <arg name="fd" type="fd"
++           summary="fd of the current object"/>
++      <arg name="size" type="uint"
++           summary="size in bytes for the current object"/>
++      <arg name="offset" type="uint"
++           summary="starting point for the data in the object's fd"/>
++      <arg name="stride" type="uint"
++           summary="line size in bytes"/>
++      <arg name="plane_index" type="uint"
++           summary="index of the plane the data in the object applies to"/>
++    </event>
++
++    <event name="ready">
++      <description summary="indicates frame is available for reading">
++        This event is sent as soon as the frame is presented, indicating it is
++        available for reading. This event includes the time at which
++        presentation happened at.
++
++        The timestamp is expressed as tv_sec_hi, tv_sec_lo, tv_nsec triples,
++        each component being an unsigned 32-bit value. Whole seconds are in
++        tv_sec which is a 64-bit value combined from tv_sec_hi and tv_sec_lo,
++        and the additional fractional part in tv_nsec as nanoseconds. Hence,
++        for valid timestamps tv_nsec must be in [0, 999999999]. The seconds part
++        may have an arbitrary offset at start.
++
++        After receiving this event, the client should destroy this object.
++      </description>
++      <arg name="tv_sec_hi" type="uint"
++           summary="high 32 bits of the seconds part of the timestamp"/>
++      <arg name="tv_sec_lo" type="uint"
++           summary="low 32 bits of the seconds part of the timestamp"/>
++      <arg name="tv_nsec" type="uint"
++           summary="nanoseconds part of the timestamp"/>
++    </event>
++
++    <enum name="cancel_reason">
++      <description summary="cancel reason">
++        Indicates reason for cancelling the frame.
++      </description>
++      <entry name="temporary" value="0"
++             summary="temporary error, source will produce more frames"/>
++      <entry name="permanent" value="1"
++             summary="fatal error, source will not produce frames"/>
++      <entry name="resizing" value="2"
++             summary="temporary error, source will produce more frames"/>
++    </enum>
++
++    <event name="cancel">
++      <description summary="indicates the frame is no longer valid">
++        If the capture failed or if the frame is no longer valid after the
++        "frame" event has been emitted, this event will be used to inform the
++        client to scrap the frame.
++
++        If the failure is temporary, the client may capture again the same
++        source. If the failure is permanent, any further attempts to capture the
++        same source will fail again.
++
++        After receiving this event, the client should destroy this object.
++      </description>
++      <arg name="reason" type="uint" enum="cancel_reason"
++           summary="indicates a reason for cancelling this frame capture"/>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="delete this object, used or not">
++        Unreferences the frame. This request must be called as soon as its no
++        longer used.
++
++        It can be called at any time by the client. The client will still have
++        to close any FDs it has been given.
++      </description>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml
+new file mode 100644
+index 00000000..44505bbb
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml
+@@ -0,0 +1,270 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_foreign_toplevel_management_unstable_v1">
++  <copyright>
++    Copyright © 2018 Ilia Bozhinov
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <interface name="zwlr_foreign_toplevel_manager_v1" version="3">
++    <description summary="list and control opened apps">
++      The purpose of this protocol is to enable the creation of taskbars
++      and docks by providing them with a list of opened applications and
++      letting them request certain actions on them, like maximizing, etc.
++
++      After a client binds the zwlr_foreign_toplevel_manager_v1, each opened
++      toplevel window will be sent via the toplevel event
++    </description>
++
++    <event name="toplevel">
++      <description summary="a toplevel has been created">
++        This event is emitted whenever a new toplevel window is created. It
++        is emitted for all toplevels, regardless of the app that has created
++        them.
++
++        All initial details of the toplevel(title, app_id, states, etc.) will
++        be sent immediately after this event via the corresponding events in
++        zwlr_foreign_toplevel_handle_v1.
++      </description>
++      <arg name="toplevel" type="new_id" interface="zwlr_foreign_toplevel_handle_v1"/>
++    </event>
++
++    <request name="stop">
++      <description summary="stop sending events">
++        Indicates the client no longer wishes to receive events for new toplevels.
++        However the compositor may emit further toplevel_created events, until
++        the finished event is emitted.
++
++        The client must not send any more requests after this one.
++      </description>
++    </request>
++
++    <event name="finished" type="destructor">
++      <description summary="the compositor has finished with the toplevel manager">
++        This event indicates that the compositor is done sending events to the
++        zwlr_foreign_toplevel_manager_v1. The server will destroy the object
++        immediately after sending this request, so it will become invalid and
++        the client should free any resources associated with it.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="zwlr_foreign_toplevel_handle_v1" version="3">
++    <description summary="an opened toplevel">
++      A zwlr_foreign_toplevel_handle_v1 object represents an opened toplevel
++      window. Each app may have multiple opened toplevels.
++
++      Each toplevel has a list of outputs it is visible on, conveyed to the
++      client with the output_enter and output_leave events.
++    </description>
++
++    <event name="title">
++      <description summary="title change">
++        This event is emitted whenever the title of the toplevel changes.
++      </description>
++      <arg name="title" type="string"/>
++    </event>
++
++    <event name="app_id">
++      <description summary="app-id change">
++        This event is emitted whenever the app-id of the toplevel changes.
++      </description>
++      <arg name="app_id" type="string"/>
++    </event>
++
++    <event name="output_enter">
++      <description summary="toplevel entered an output">
++        This event is emitted whenever the toplevel becomes visible on
++        the given output. A toplevel may be visible on multiple outputs.
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++    </event>
++
++    <event name="output_leave">
++      <description summary="toplevel left an output">
++        This event is emitted whenever the toplevel stops being visible on
++        the given output. It is guaranteed that an entered-output event
++        with the same output has been emitted before this event.
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++    </event>
++
++    <request name="set_maximized">
++      <description summary="requests that the toplevel be maximized">
++        Requests that the toplevel be maximized. If the maximized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="unset_maximized">
++      <description summary="requests that the toplevel be unmaximized">
++        Requests that the toplevel be unmaximized. If the maximized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="set_minimized">
++      <description summary="requests that the toplevel be minimized">
++        Requests that the toplevel be minimized. If the minimized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="unset_minimized">
++      <description summary="requests that the toplevel be unminimized">
++        Requests that the toplevel be unminimized. If the minimized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="activate">
++      <description summary="activate the toplevel">
++        Request that this toplevel be activated on the given seat.
++        There is no guarantee the toplevel will be actually activated.
++      </description>
++      <arg name="seat" type="object" interface="wl_seat"/>
++    </request>
++
++    <enum name="state">
++      <description summary="types of states on the toplevel">
++        The different states that a toplevel can have. These have the same meaning
++        as the states with the same names defined in xdg-toplevel
++      </description>
++
++      <entry name="maximized"  value="0" summary="the toplevel is maximized"/>
++      <entry name="minimized"  value="1" summary="the toplevel is minimized"/>
++      <entry name="activated"  value="2" summary="the toplevel is active"/>
++      <entry name="fullscreen" value="3" summary="the toplevel is fullscreen" since="2"/>
++    </enum>
++
++    <event name="state">
++      <description summary="the toplevel state changed">
++        This event is emitted immediately after the zlw_foreign_toplevel_handle_v1
++        is created and each time the toplevel state changes, either because of a
++        compositor action or because of a request in this protocol.
++      </description>
++
++      <arg name="state" type="array"/>
++    </event>
++
++    <event name="done">
++      <description summary="all information about the toplevel has been sent">
++        This event is sent after all changes in the toplevel state have been
++        sent.
++
++        This allows changes to the zwlr_foreign_toplevel_handle_v1 properties
++        to be seen as atomic, even if they happen via multiple events.
++      </description>
++    </event>
++
++    <request name="close">
++      <description summary="request that the toplevel be closed">
++        Send a request to the toplevel to close itself. The compositor would
++        typically use a shell-specific method to carry out this request, for
++        example by sending the xdg_toplevel.close event. However, this gives
++        no guarantees the toplevel will actually be destroyed. If and when
++        this happens, the zwlr_foreign_toplevel_handle_v1.closed event will
++        be emitted.
++      </description>
++    </request>
++
++    <request name="set_rectangle">
++      <description summary="the rectangle which represents the toplevel">
++        The rectangle of the surface specified in this request corresponds to
++        the place where the app using this protocol represents the given toplevel.
++        It can be used by the compositor as a hint for some operations, e.g
++        minimizing. The client is however not required to set this, in which
++        case the compositor is free to decide some default value.
++
++        If the client specifies more than one rectangle, only the last one is
++        considered.
++
++        The dimensions are given in surface-local coordinates.
++        Setting width=height=0 removes the already-set rectangle.
++      </description>
++
++      <arg name="surface" type="object" interface="wl_surface"/>
++      <arg name="x" type="int"/>
++      <arg name="y" type="int"/>
++      <arg name="width" type="int"/>
++      <arg name="height" type="int"/>
++    </request>
++
++    <enum name="error">
++      <entry name="invalid_rectangle" value="0"
++        summary="the provided rectangle is invalid"/>
++    </enum>
++
++    <event name="closed">
++      <description summary="this toplevel has been destroyed">
++        This event means the toplevel has been destroyed. It is guaranteed there
++        won't be any more events for this zwlr_foreign_toplevel_handle_v1. The
++        toplevel itself becomes inert so any requests will be ignored except the
++        destroy request.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the zwlr_foreign_toplevel_handle_v1 object">
++        Destroys the zwlr_foreign_toplevel_handle_v1 object.
++
++        This request should be called either when the client does not want to
++        use the toplevel anymore or after the closed event to finalize the
++        destruction of the object.
++      </description>
++    </request>
++
++    <!-- Version 2 additions -->
++
++    <request name="set_fullscreen" since="2">
++      <description summary="request that the toplevel be fullscreened">
++        Requests that the toplevel be fullscreened on the given output. If the
++        fullscreen state and/or the outputs the toplevel is visible on actually
++        change, this will be indicated by the state and output_enter/leave
++        events.
++
++        The output parameter is only a hint to the compositor. Also, if output
++        is NULL, the compositor should decide which output the toplevel will be
++        fullscreened on, if at all.
++      </description>
++      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
++    </request>
++
++    <request name="unset_fullscreen" since="2">
++      <description summary="request that the toplevel be unfullscreened">
++        Requests that the toplevel be unfullscreened. If the fullscreen state
++        actually changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <!-- Version 3 additions -->
++
++    <event name="parent" since="3">
++      <description summary="parent change">
++        This event is emitted whenever the parent of the toplevel changes.
++
++        No event is emitted when the parent handle is destroyed by the client.
++      </description>
++      <arg name="parent" type="object" interface="zwlr_foreign_toplevel_handle_v1" allow-null="true"/>
++    </event>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-gamma-control-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-gamma-control-unstable-v1.xml
+new file mode 100644
+index 00000000..16e0be8b
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-gamma-control-unstable-v1.xml
+@@ -0,0 +1,126 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_gamma_control_unstable_v1">
++  <copyright>
++    Copyright © 2015 Giulio camuffo
++    Copyright © 2018 Simon Ser
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <description summary="manage gamma tables of outputs">
++    This protocol allows a privileged client to set the gamma tables for
++    outputs.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_gamma_control_manager_v1" version="1">
++    <description summary="manager to create per-output gamma controls">
++      This interface is a manager that allows creating per-output gamma
++      controls.
++    </description>
++
++    <request name="get_gamma_control">
++      <description summary="get a gamma control for an output">
++        Create a gamma control that can be used to adjust gamma tables for the
++        provided output.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_gamma_control_v1"/>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_gamma_control_v1" version="1">
++    <description summary="adjust gamma tables for an output">
++      This interface allows a client to adjust gamma tables for a particular
++      output.
++
++      The client will receive the gamma size, and will then be able to set gamma
++      tables. At any time the compositor can send a failed event indicating that
++      this object is no longer valid.
++
++      There can only be at most one gamma control object per output, which
++      has exclusive access to this particular output. When the gamma control
++      object is destroyed, the gamma table is restored to its original value.
++    </description>
++
++    <event name="gamma_size">
++      <description summary="size of gamma ramps">
++        Advertise the size of each gamma ramp.
++
++        This event is sent immediately when the gamma control object is created.
++      </description>
++      <arg name="size" type="uint" summary="number of elements in a ramp"/>
++    </event>
++
++    <enum name="error">
++      <entry name="invalid_gamma" value="1" summary="invalid gamma tables"/>
++    </enum>
++
++    <request name="set_gamma">
++      <description summary="set the gamma table">
++        Set the gamma table. The file descriptor can be memory-mapped to provide
++        the raw gamma table, which contains successive gamma ramps for the red,
++        green and blue channels. Each gamma ramp is an array of 16-byte unsigned
++        integers which has the same length as the gamma size.
++
++        The file descriptor data must have the same length as three times the
++        gamma size.
++      </description>
++      <arg name="fd" type="fd" summary="gamma table file descriptor"/>
++    </request>
++
++    <event name="failed">
++      <description summary="object no longer valid">
++        This event indicates that the gamma control is no longer valid. This
++        can happen for a number of reasons, including:
++        - The output doesn't support gamma tables
++        - Setting the gamma tables failed
++        - Another client already has exclusive gamma control for this output
++        - The compositor has transferred gamma control to another client
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this control">
++        Destroys the gamma control object. If the object is still valid, this
++        restores the original gamma tables.
++      </description>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-input-inhibitor-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-input-inhibitor-unstable-v1.xml
+new file mode 100644
+index 00000000..35ba723d
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-input-inhibitor-unstable-v1.xml
+@@ -0,0 +1,71 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_input_inhibit_unstable_v1">
++  <copyright>
++    Copyright © 2018 Drew DeVault
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <interface name="zwlr_input_inhibit_manager_v1" version="1">
++    <description summary="inhibits input events to other clients">
++      Clients can use this interface to prevent input events from being sent to
++      any surfaces but its own, which is useful for example in lock screen
++      software. It is assumed that access to this interface will be locked down
++      to whitelisted clients by the compositor.
++
++      Note! This protocol is deprecated and not intended for production use.
++      For screen lockers, use the ext-session-lock-v1 protocol.
++    </description>
++
++    <request name="get_inhibitor">
++      <description summary="inhibit input to other clients">
++        Activates the input inhibitor. As long as the inhibitor is active, the
++        compositor will not send input events to other clients.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_input_inhibitor_v1"/>
++    </request>
++
++    <enum name="error">
++      <entry name="already_inhibited" value="0" summary="an input inhibitor is already in use on the compositor"/>
++    </enum>
++  </interface>
++
++  <interface name="zwlr_input_inhibitor_v1" version="1">
++    <description summary="inhibits input to other clients">
++      While this resource exists, input to clients other than the owner of the
++      inhibitor resource will not receive input events. Any client which
++      previously had focus will receive a leave event and will not be given
++      focus again. The client that owns this resource will receive all input
++      events normally. The compositor will also disable all of its own input
++      processing (such as keyboard shortcuts) while the inhibitor is active.
++
++      The compositor may continue to send input events to selected clients,
++      such as an on-screen keyboard (via the input-method protocol).
++    </description>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the input inhibitor object">
++        Destroy the inhibitor and allow other clients to receive input.
++      </description>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-layer-shell-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-layer-shell-unstable-v1.xml
+new file mode 100644
+index 00000000..e9f27e4f
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-layer-shell-unstable-v1.xml
+@@ -0,0 +1,407 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_layer_shell_unstable_v1">
++  <copyright>
++    Copyright © 2017 Drew DeVault
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <interface name="zwlr_layer_shell_v1" version="5">
++    <description summary="create surfaces that are layers of the desktop">
++      Clients can use this interface to assign the surface_layer role to
++      wl_surfaces. Such surfaces are assigned to a "layer" of the output and
++      rendered with a defined z-depth respective to each other. They may also be
++      anchored to the edges and corners of a screen and specify input handling
++      semantics. This interface should be suitable for the implementation of
++      many desktop shell components, and a broad number of other applications
++      that interact with the desktop.
++    </description>
++
++    <request name="get_layer_surface">
++      <description summary="create a layer_surface from a surface">
++        Create a layer surface for an existing surface. This assigns the role of
++        layer_surface, or raises a protocol error if another role is already
++        assigned.
++
++        Creating a layer surface from a wl_surface which has a buffer attached
++        or committed is a client error, and any attempts by a client to attach
++        or manipulate a buffer prior to the first layer_surface.configure call
++        must also be treated as errors.
++
++        After creating a layer_surface object and setting it up, the client
++        must perform an initial commit without any buffer attached.
++        The compositor will reply with a layer_surface.configure event.
++        The client must acknowledge it and is then allowed to attach a buffer
++        to map the surface.
++
++        You may pass NULL for output to allow the compositor to decide which
++        output to use. Generally this will be the one that the user most
++        recently interacted with.
++
++        Clients can specify a namespace that defines the purpose of the layer
++        surface.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_layer_surface_v1"/>
++      <arg name="surface" type="object" interface="wl_surface"/>
++      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
++      <arg name="layer" type="uint" enum="layer" summary="layer to add this surface to"/>
++      <arg name="namespace" type="string" summary="namespace for the layer surface"/>
++    </request>
++
++    <enum name="error">
++      <entry name="role" value="0" summary="wl_surface has another role"/>
++      <entry name="invalid_layer" value="1" summary="layer value is invalid"/>
++      <entry name="already_constructed" value="2" summary="wl_surface has a buffer attached or committed"/>
++    </enum>
++
++    <enum name="layer">
++      <description summary="available layers for surfaces">
++        These values indicate which layers a surface can be rendered in. They
++        are ordered by z depth, bottom-most first. Traditional shell surfaces
++        will typically be rendered between the bottom and top layers.
++        Fullscreen shell surfaces are typically rendered at the top layer.
++        Multiple surfaces can share a single layer, and ordering within a
++        single layer is undefined.
++      </description>
++
++      <entry name="background" value="0"/>
++      <entry name="bottom" value="1"/>
++      <entry name="top" value="2"/>
++      <entry name="overlay" value="3"/>
++    </enum>
++
++    <!-- Version 3 additions -->
++
++    <request name="destroy" type="destructor" since="3">
++      <description summary="destroy the layer_shell object">
++        This request indicates that the client will not use the layer_shell
++        object any more. Objects that have been created through this instance
++        are not affected.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_layer_surface_v1" version="5">
++    <description summary="layer metadata interface">
++      An interface that may be implemented by a wl_surface, for surfaces that
++      are designed to be rendered as a layer of a stacked desktop-like
++      environment.
++
++      Layer surface state (layer, size, anchor, exclusive zone,
++      margin, interactivity) is double-buffered, and will be applied at the
++      time wl_surface.commit of the corresponding wl_surface is called.
++
++      Attaching a null buffer to a layer surface unmaps it.
++
++      Unmapping a layer_surface means that the surface cannot be shown by the
++      compositor until it is explicitly mapped again. The layer_surface
++      returns to the state it had right after layer_shell.get_layer_surface.
++      The client can re-map the surface by performing a commit without any
++      buffer attached, waiting for a configure event and handling it as usual.
++    </description>
++
++    <request name="set_size">
++      <description summary="sets the size of the surface">
++        Sets the size of the surface in surface-local coordinates. The
++        compositor will display the surface centered with respect to its
++        anchors.
++
++        If you pass 0 for either value, the compositor will assign it and
++        inform you of the assignment in the configure event. You must set your
++        anchor to opposite edges in the dimensions you omit; not doing so is a
++        protocol error. Both values are 0 by default.
++
++        Size is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="width" type="uint"/>
++      <arg name="height" type="uint"/>
++    </request>
++
++    <request name="set_anchor">
++      <description summary="configures the anchor point of the surface">
++        Requests that the compositor anchor the surface to the specified edges
++        and corners. If two orthogonal edges are specified (e.g. 'top' and
++        'left'), then the anchor point will be the intersection of the edges
++        (e.g. the top left corner of the output); otherwise the anchor point
++        will be centered on that edge, or in the center if none is specified.
++
++        Anchor is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="anchor" type="uint" enum="anchor"/>
++    </request>
++
++    <request name="set_exclusive_zone">
++      <description summary="configures the exclusive geometry of this surface">
++        Requests that the compositor avoids occluding an area with other
++        surfaces. The compositor's use of this information is
++        implementation-dependent - do not assume that this region will not
++        actually be occluded.
++
++        A positive value is only meaningful if the surface is anchored to one
++        edge or an edge and both perpendicular edges. If the surface is not
++        anchored, anchored to only two perpendicular edges (a corner), anchored
++        to only two parallel edges or anchored to all edges, a positive value
++        will be treated the same as zero.
++
++        A positive zone is the distance from the edge in surface-local
++        coordinates to consider exclusive.
++
++        Surfaces that do not wish to have an exclusive zone may instead specify
++        how they should interact with surfaces that do. If set to zero, the
++        surface indicates that it would like to be moved to avoid occluding
++        surfaces with a positive exclusive zone. If set to -1, the surface
++        indicates that it would not like to be moved to accommodate for other
++        surfaces, and the compositor should extend it all the way to the edges
++        it is anchored to.
++
++        For example, a panel might set its exclusive zone to 10, so that
++        maximized shell surfaces are not shown on top of it. A notification
++        might set its exclusive zone to 0, so that it is moved to avoid
++        occluding the panel, but shell surfaces are shown underneath it. A
++        wallpaper or lock screen might set their exclusive zone to -1, so that
++        they stretch below or over the panel.
++
++        The default value is 0.
++
++        Exclusive zone is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="zone" type="int"/>
++    </request>
++
++    <request name="set_margin">
++      <description summary="sets a margin from the anchor point">
++        Requests that the surface be placed some distance away from the anchor
++        point on the output, in surface-local coordinates. Setting this value
++        for edges you are not anchored to has no effect.
++
++        The exclusive zone includes the margin.
++
++        Margin is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="top" type="int"/>
++      <arg name="right" type="int"/>
++      <arg name="bottom" type="int"/>
++      <arg name="left" type="int"/>
++    </request>
++
++    <enum name="keyboard_interactivity">
++      <description summary="types of keyboard interaction possible for a layer shell surface">
++        Types of keyboard interaction possible for layer shell surfaces. The
++        rationale for this is twofold: (1) some applications are not interested
++        in keyboard events and not allowing them to be focused can improve the
++        desktop experience; (2) some applications will want to take exclusive
++        keyboard focus.
++      </description>
++
++      <entry name="none" value="0">
++        <description summary="no keyboard focus is possible">
++          This value indicates that this surface is not interested in keyboard
++          events and the compositor should never assign it the keyboard focus.
++
++          This is the default value, set for newly created layer shell surfaces.
++
++          This is useful for e.g. desktop widgets that display information or
++          only have interaction with non-keyboard input devices.
++        </description>
++      </entry>
++      <entry name="exclusive" value="1">
++        <description summary="request exclusive keyboard focus">
++          Request exclusive keyboard focus if this surface is above the shell surface layer.
++
++          For the top and overlay layers, the seat will always give
++          exclusive keyboard focus to the top-most layer which has keyboard
++          interactivity set to exclusive. If this layer contains multiple
++          surfaces with keyboard interactivity set to exclusive, the compositor
++          determines the one receiving keyboard events in an implementation-
++          defined manner. In this case, no guarantee is made when this surface
++          will receive keyboard focus (if ever).
++
++          For the bottom and background layers, the compositor is allowed to use
++          normal focus semantics.
++
++          This setting is mainly intended for applications that need to ensure
++          they receive all keyboard events, such as a lock screen or a password
++          prompt.
++        </description>
++      </entry>
++      <entry name="on_demand" value="2" since="4">
++        <description summary="request regular keyboard focus semantics">
++          This requests the compositor to allow this surface to be focused and
++          unfocused by the user in an implementation-defined manner. The user
++          should be able to unfocus this surface even regardless of the layer
++          it is on.
++
++          Typically, the compositor will want to use its normal mechanism to
++          manage keyboard focus between layer shell surfaces with this setting
++          and regular toplevels on the desktop layer (e.g. click to focus).
++          Nevertheless, it is possible for a compositor to require a special
++          interaction to focus or unfocus layer shell surfaces (e.g. requiring
++          a click even if focus follows the mouse normally, or providing a
++          keybinding to switch focus between layers).
++
++          This setting is mainly intended for desktop shell components (e.g.
++          panels) that allow keyboard interaction. Using this option can allow
++          implementing a desktop shell that can be fully usable without the
++          mouse.
++        </description>
++      </entry>
++    </enum>
++
++    <request name="set_keyboard_interactivity">
++      <description summary="requests keyboard events">
++        Set how keyboard events are delivered to this surface. By default,
++        layer shell surfaces do not receive keyboard events; this request can
++        be used to change this.
++
++        This setting is inherited by child surfaces set by the get_popup
++        request.
++
++        Layer surfaces receive pointer, touch, and tablet events normally. If
++        you do not want to receive them, set the input region on your surface
++        to an empty region.
++
++        Keyboard interactivity is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="keyboard_interactivity" type="uint" enum="keyboard_interactivity"/>
++    </request>
++
++    <request name="get_popup">
++      <description summary="assign this layer_surface as an xdg_popup parent">
++        This assigns an xdg_popup's parent to this layer_surface.  This popup
++        should have been created via xdg_surface::get_popup with the parent set
++        to NULL, and this request must be invoked before committing the popup's
++        initial state.
++
++        See the documentation of xdg_popup for more details about what an
++        xdg_popup is and how it is used.
++      </description>
++      <arg name="popup" type="object" interface="xdg_popup"/>
++    </request>
++
++    <request name="ack_configure">
++      <description summary="ack a configure event">
++        When a configure event is received, if a client commits the
++        surface in response to the configure event, then the client
++        must make an ack_configure request sometime before the commit
++        request, passing along the serial of the configure event.
++
++        If the client receives multiple configure events before it
++        can respond to one, it only has to ack the last configure event.
++
++        A client is not required to commit immediately after sending
++        an ack_configure request - it may even ack_configure several times
++        before its next surface commit.
++
++        A client may send multiple ack_configure requests before committing, but
++        only the last request sent before a commit indicates which configure
++        event the client really is responding to.
++      </description>
++      <arg name="serial" type="uint" summary="the serial from the configure event"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the layer_surface">
++        This request destroys the layer surface.
++      </description>
++    </request>
++
++    <event name="configure">
++      <description summary="suggest a surface change">
++        The configure event asks the client to resize its surface.
++
++        Clients should arrange their surface for the new states, and then send
++        an ack_configure request with the serial sent in this configure event at
++        some point before committing the new surface.
++
++        The client is free to dismiss all but the last configure event it
++        received.
++
++        The width and height arguments specify the size of the window in
++        surface-local coordinates.
++
++        The size is a hint, in the sense that the client is free to ignore it if
++        it doesn't resize, pick a smaller size (to satisfy aspect ratio or
++        resize in steps of NxM pixels). If the client picks a smaller size and
++        is anchored to two opposite anchors (e.g. 'top' and 'bottom'), the
++        surface will be centered on this axis.
++
++        If the width or height arguments are zero, it means the client should
++        decide its own window dimension.
++      </description>
++      <arg name="serial" type="uint"/>
++      <arg name="width" type="uint"/>
++      <arg name="height" type="uint"/>
++    </event>
++
++    <event name="closed">
++      <description summary="surface should be closed">
++        The closed event is sent by the compositor when the surface will no
++        longer be shown. The output may have been destroyed or the user may
++        have asked for it to be removed. Further changes to the surface will be
++        ignored. The client should destroy the resource after receiving this
++        event, and create a new surface if they so choose.
++      </description>
++    </event>
++
++    <enum name="error">
++      <entry name="invalid_surface_state" value="0" summary="provided surface state is invalid"/>
++      <entry name="invalid_size" value="1" summary="size is invalid"/>
++      <entry name="invalid_anchor" value="2" summary="anchor bitfield is invalid"/>
++      <entry name="invalid_keyboard_interactivity" value="3" summary="keyboard interactivity is invalid"/>
++      <entry name="invalid_exclusive_edge" value="4" summary="exclusive edge is invalid given the surface anchors"/>
++    </enum>
++
++    <enum name="anchor" bitfield="true">
++      <entry name="top" value="1" summary="the top edge of the anchor rectangle"/>
++      <entry name="bottom" value="2" summary="the bottom edge of the anchor rectangle"/>
++      <entry name="left" value="4" summary="the left edge of the anchor rectangle"/>
++      <entry name="right" value="8" summary="the right edge of the anchor rectangle"/>
++    </enum>
++
++    <!-- Version 2 additions -->
++
++    <request name="set_layer" since="2">
++      <description summary="change the layer of the surface">
++        Change the layer that the surface is rendered on.
++
++        Layer is double-buffered, see wl_surface.commit.
++      </description>
++      <arg name="layer" type="uint" enum="zwlr_layer_shell_v1.layer" summary="layer to move this surface to"/>
++    </request>
++
++    <!-- Version 5 additions -->
++
++    <request name="set_exclusive_edge" since="5">
++      <description summary="set the edge the exclusive zone will be applied to">
++        Requests an edge for the exclusive zone to apply. The exclusive
++        edge will be automatically deduced from anchor points when possible,
++        but when the surface is anchored to a corner, it will be necessary
++        to set it explicitly to disambiguate, as it is not possible to deduce
++        which one of the two corner edges should be used.
++
++        The edge must be one the surface is anchored to, otherwise the
++        invalid_exclusive_edge protocol error will be raised.
++      </description>
++      <arg name="edge" type="uint" enum="anchor"/>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
+new file mode 100644
+index 00000000..7b6411e2
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
+@@ -0,0 +1,720 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_output_management_unstable_v1">
++  <copyright>
++    Copyright © 2019 Purism SPC
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <description summary="protocol to configure output devices">
++    This protocol exposes interfaces to obtain and modify output device
++    configuration.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_output_manager_v1" version="5">
++    <description summary="output device configuration manager">
++      This interface is a manager that allows reading and writing the current
++      output device configuration.
++
++      Output devices that display pixels (e.g. a physical monitor or a virtual
++      output in a window) are represented as heads. Heads cannot be created nor
++      destroyed by the client, but they can be enabled or disabled and their
++      properties can be changed. Each head may have one or more available modes.
++
++      Whenever a head appears (e.g. a monitor is plugged in), it will be
++      advertised via the head event. Immediately after the output manager is
++      bound, all current heads are advertised.
++
++      Whenever a head's properties change, the relevant wlr_output_head events
++      will be sent. Not all head properties will be sent: only properties that
++      have changed need to.
++
++      Whenever a head disappears (e.g. a monitor is unplugged), a
++      wlr_output_head.finished event will be sent.
++
++      After one or more heads appear, change or disappear, the done event will
++      be sent. It carries a serial which can be used in a create_configuration
++      request to update heads properties.
++
++      The information obtained from this protocol should only be used for output
++      configuration purposes. This protocol is not designed to be a generic
++      output property advertisement protocol for regular clients. Instead,
++      protocols such as xdg-output should be used.
++    </description>
++
++    <event name="head">
++      <description summary="introduce a new head">
++        This event introduces a new head. This happens whenever a new head
++        appears (e.g. a monitor is plugged in) or after the output manager is
++        bound.
++      </description>
++      <arg name="head" type="new_id" interface="zwlr_output_head_v1"/>
++    </event>
++
++    <event name="done">
++      <description summary="sent all information about current configuration">
++        This event is sent after all information has been sent after binding to
++        the output manager object and after any subsequent changes. This applies
++        to child head and mode objects as well. In other words, this event is
++        sent whenever a head or mode is created or destroyed and whenever one of
++        their properties has been changed. Not all state is re-sent each time
++        the current configuration changes: only the actual changes are sent.
++
++        This allows changes to the output configuration to be seen as atomic,
++        even if they happen via multiple events.
++
++        A serial is sent to be used in a future create_configuration request.
++      </description>
++      <arg name="serial" type="uint" summary="current configuration serial"/>
++    </event>
++
++    <request name="create_configuration">
++      <description summary="create a new output configuration object">
++        Create a new output configuration object. This allows to update head
++        properties.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_configuration_v1"/>
++      <arg name="serial" type="uint"/>
++    </request>
++
++    <request name="stop">
++      <description summary="stop sending events">
++        Indicates the client no longer wishes to receive events for output
++        configuration changes. However the compositor may emit further events,
++        until the finished event is emitted.
++
++        The client must not send any more requests after this one.
++      </description>
++    </request>
++
++    <event name="finished" type="destructor">
++      <description summary="the compositor has finished with the manager">
++        This event indicates that the compositor is done sending manager events.
++        The compositor will destroy the object immediately after sending this
++        event, so it will become invalid and the client should release any
++        resources associated with it.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="zwlr_output_head_v1" version="5">
++    <description summary="output device">
++      A head is an output device. The difference between a wl_output object and
++      a head is that heads are advertised even if they are turned off. A head
++      object only advertises properties and cannot be used directly to change
++      them.
++
++      A head has some read-only properties: modes, name, description and
++      physical_size. These cannot be changed by clients.
++
++      Other properties can be updated via a wlr_output_configuration object.
++
++      Properties sent via this interface are applied atomically via the
++      wlr_output_manager.done event. No guarantees are made regarding the order
++      in which properties are sent.
++    </description>
++
++    <event name="name">
++      <description summary="head name">
++        This event describes the head name.
++
++        The naming convention is compositor defined, but limited to alphanumeric
++        characters and dashes (-). Each name is unique among all wlr_output_head
++        objects, but if a wlr_output_head object is destroyed the same name may
++        be reused later. The names will also remain consistent across sessions
++        with the same hardware and software configuration.
++
++        Examples of names include 'HDMI-A-1', 'WL-1', 'X11-1', etc. However, do
++        not assume that the name is a reflection of an underlying DRM
++        connector, X11 connection, etc.
++
++        If this head matches a wl_output, the wl_output.name event must report
++        the same name.
++
++        The name event is sent after a wlr_output_head object is created. This
++        event is only sent once per object, and the name does not change over
++        the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="name" type="string"/>
++    </event>
++
++    <event name="description">
++      <description summary="head description">
++        This event describes a human-readable description of the head.
++
++        The description is a UTF-8 string with no convention defined for its
++        contents. Examples might include 'Foocorp 11" Display' or 'Virtual X11
++        output via :1'. However, do not assume that the name is a reflection of
++        the make, model, serial of the underlying DRM connector or the display
++        name of the underlying X11 connection, etc.
++
++        If this head matches a wl_output, the wl_output.description event must
++        report the same name.
++
++        The description event is sent after a wlr_output_head object is created.
++        This event is only sent once per object, and the description does not
++        change over the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="description" type="string"/>
++    </event>
++
++    <event name="physical_size">
++      <description summary="head physical size">
++        This event describes the physical size of the head. This event is only
++        sent if the head has a physical size (e.g. is not a projector or a
++        virtual device).
++
++        The physical size event is sent after a wlr_output_head object is created. This
++        event is only sent once per object, and the physical size does not change over
++        the lifetime of the wlr_output_head object.
++      </description>
++      <arg name="width" type="int" summary="width in millimeters of the output"/>
++      <arg name="height" type="int" summary="height in millimeters of the output"/>
++    </event>
++
++    <event name="mode">
++      <description summary="introduce a mode">
++        This event introduces a mode for this head. It is sent once per
++        supported mode.
++      </description>
++      <arg name="mode" type="new_id" interface="zwlr_output_mode_v1"/>
++    </event>
++
++    <event name="enabled">
++      <description summary="head is enabled or disabled">
++        This event describes whether the head is enabled. A disabled head is not
++        mapped to a region of the global compositor space.
++
++        When a head is disabled, some properties (current_mode, position,
++        transform and scale) are irrelevant.
++      </description>
++      <arg name="enabled" type="int" summary="zero if disabled, non-zero if enabled"/>
++    </event>
++
++    <event name="current_mode">
++      <description summary="current mode">
++        This event describes the mode currently in use for this head. It is only
++        sent if the output is enabled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </event>
++
++    <event name="position">
++      <description summary="current position">
++        This events describes the position of the head in the global compositor
++        space. It is only sent if the output is enabled.
++      </description>
++      <arg name="x" type="int"
++        summary="x position within the global compositor space"/>
++      <arg name="y" type="int"
++        summary="y position within the global compositor space"/>
++    </event>
++
++    <event name="transform">
++      <description summary="current transformation">
++        This event describes the transformation currently applied to the head.
++        It is only sent if the output is enabled.
++      </description>
++      <arg name="transform" type="int" enum="wl_output.transform"/>
++    </event>
++
++    <event name="scale">
++      <description summary="current scale">
++        This events describes the scale of the head in the global compositor
++        space. It is only sent if the output is enabled.
++      </description>
++      <arg name="scale" type="fixed"/>
++    </event>
++
++    <event name="finished">
++      <description summary="the head has disappeared">
++        This event indicates that the head is no longer available. The head
++        object becomes inert. Clients should send a destroy request and release
++        any resources associated with it.
++      </description>
++    </event>
++
++    <!-- Version 2 additions -->
++
++    <event name="make" since="2">
++      <description summary="head manufacturer">
++        This event describes the manufacturer of the head.
++
++        Together with the model and serial_number events the purpose is to
++        allow clients to recognize heads from previous sessions and for example
++        load head-specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the make of
++        the head or the definition of a make is not sensible in the current
++        setup, for example in a virtual session. Clients can still try to
++        identify the head by available information from other events but should
++        be aware that there is an increased risk of false positives.
++
++        If sent, the make event is sent after a wlr_output_head object is
++        created and only sent once per object. The make does not change over
++        the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the make string in UI to users. For
++        that the string provided by the description event should be preferred.
++      </description>
++      <arg name="make" type="string"/>
++    </event>
++
++    <event name="model" since="2">
++      <description summary="head model">
++        This event describes the model of the head.
++
++        Together with the make and serial_number events the purpose is to
++        allow clients to recognize heads from previous sessions and for example
++        load head-specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the model of
++        the head or the definition of a model is not sensible in the current
++        setup, for example in a virtual session. Clients can still try to
++        identify the head by available information from other events but should
++        be aware that there is an increased risk of false positives.
++
++        If sent, the model event is sent after a wlr_output_head object is
++        created and only sent once per object. The model does not change over
++        the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the model string in UI to users. For
++        that the string provided by the description event should be preferred.
++      </description>
++      <arg name="model" type="string"/>
++    </event>
++
++    <event name="serial_number" since="2">
++      <description summary="head serial number">
++        This event describes the serial number of the head.
++
++        Together with the make and model events the purpose is to allow clients
++        to recognize heads from previous sessions and for example load head-
++        specific configurations back.
++
++        It is not guaranteed this event will be ever sent. A reason for that
++        can be that the compositor does not have information about the serial
++        number of the head or the definition of a serial number is not sensible
++        in the current setup. Clients can still try to identify the head by
++        available information from other events but should be aware that there
++        is an increased risk of false positives.
++
++        If sent, the serial number event is sent after a wlr_output_head object
++        is created and only sent once per object. The serial number does not
++        change over the lifetime of the wlr_output_head object.
++
++        It is not recommended to display the serial_number string in UI to
++        users. For that the string provided by the description event should be
++        preferred.
++      </description>
++      <arg name="serial_number" type="string"/>
++    </event>
++
++    <!-- Version 3 additions -->
++
++    <request name="release" type="destructor" since="3">
++      <description summary="destroy the head object">
++        This request indicates that the client will no longer use this head
++        object.
++      </description>
++    </request>
++
++    <!-- Version 4 additions -->
++
++    <enum name="adaptive_sync_state" since="4">
++      <entry name="disabled" value="0" summary="adaptive sync is disabled"/>
++      <entry name="enabled" value="1" summary="adaptive sync is enabled"/>
++    </enum>
++
++    <event name="adaptive_sync" since="4">
++      <description summary="current adaptive sync state">
++        This event describes whether adaptive sync is currently enabled for
++        the head or not. Adaptive sync is also known as Variable Refresh
++        Rate or VRR.
++      </description>
++      <arg name="state" type="uint" enum="adaptive_sync_state"/>
++    </event>
++
++    <!-- Version 5 additions -->
++
++    <enum name="error" since="5">
++      <entry name="invalid_mode" value="1" summary="mode doesn't belong to head"/>
++      <entry name="not_custom" value="2"
++        summary="mode wasn't created with set_custom_timings"/>
++    </enum>
++
++    <request name="remove_custom_mode" since="5">
++      <description summary="remove a custom mode">
++        This request removes a mode created with
++        zwlr_output_configuration_head_v1.set_custom_timings. Removing any
++        other mode raises the not_custom protocol error.
++
++        A mode in use by the head can't be removed: the request is then
++        ignored. Otherwise the compositor sends the finished event on every
++        object of the mode, followed by a done event on the manager. As the
++        serial changes, pending configurations are cancelled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
++  </interface>
++
++  <interface name="zwlr_output_mode_v1" version="5">
++    <description summary="output mode">
++      This object describes an output mode.
++
++      Some heads don't support output modes, in which case modes won't be
++      advertised.
++
++      Properties sent via this interface are applied atomically via the
++      wlr_output_manager.done event. No guarantees are made regarding the order
++      in which properties are sent.
++    </description>
++
++    <event name="size">
++      <description summary="mode size">
++        This event describes the mode size. The size is given in physical
++        hardware units of the output device. This is not necessarily the same as
++        the output size in the global compositor space. For instance, the output
++        may be scaled or transformed.
++      </description>
++      <arg name="width" type="int" summary="width of the mode in hardware units"/>
++      <arg name="height" type="int" summary="height of the mode in hardware units"/>
++    </event>
++
++    <event name="refresh">
++      <description summary="mode refresh rate">
++        This event describes the mode's fixed vertical refresh rate. It is only
++        sent if the mode has a fixed refresh rate.
++      </description>
++      <arg name="refresh" type="int" summary="vertical refresh rate in mHz"/>
++    </event>
++
++    <event name="preferred">
++      <description summary="mode is preferred">
++        This event advertises this mode as preferred.
++      </description>
++    </event>
++
++    <event name="finished">
++      <description summary="the mode has disappeared">
++        This event indicates that the mode is no longer available. The mode
++        object becomes inert. Clients should send a destroy request and release
++        any resources associated with it.
++      </description>
++    </event>
++
++    <!-- Version 3 additions -->
++
++    <request name="release" type="destructor" since="3">
++      <description summary="destroy the mode object">
++        This request indicates that the client will no longer use this mode
++        object.
++      </description>
++    </request>
++
++    <!-- Version 5 additions -->
++
++    <enum name="timing_flags" bitfield="true" since="5">
++      <description summary="mode timing flags">
++        Flags describing sync polarity and scan type of a mode. The values
++        match the DRM_MODE_FLAG_* values of the Linux kernel.
++      </description>
++      <entry name="phsync" value="0x1" summary="positive horizontal sync"/>
++      <entry name="nhsync" value="0x2" summary="negative horizontal sync"/>
++      <entry name="pvsync" value="0x4" summary="positive vertical sync"/>
++      <entry name="nvsync" value="0x8" summary="negative vertical sync"/>
++      <entry name="interlace" value="0x10" summary="interlaced scan"/>
++      <entry name="dblscan" value="0x20" summary="double scan"/>
++      <entry name="csync" value="0x40" summary="composite sync"/>
++      <entry name="pcsync" value="0x80" summary="positive composite sync"/>
++      <entry name="ncsync" value="0x100" summary="negative composite sync"/>
++    </enum>
++
++    <event name="name" since="5">
++      <description summary="mode name">
++        This event describes the name of the mode, as known by the display
++        hardware or given with set_custom_timings. It is only sent if the head
++        exposes hardware timings, along with the timings event.
++      </description>
++      <arg name="name" type="string" summary="mode name"/>
++    </event>
++
++    <event name="timings" since="5">
++      <description summary="detailed mode timings">
++        This event describes the exact timings of the mode, as they would be
++        programmed into the display hardware. It is only sent if the head
++        exposes hardware timings, such as a DRM connector.
++
++        For interlaced modes, vertical values describe the full frame.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </event>
++  </interface>
++
++  <interface name="zwlr_output_configuration_v1" version="5">
++    <description summary="output configuration">
++      This object is used by the client to describe a full output configuration.
++
++      First, the client needs to setup the output configuration. Each head can
++      be either enabled (and configured) or disabled. It is a protocol error to
++      send two enable_head or disable_head requests with the same head. It is a
++      protocol error to omit a head in a configuration.
++
++      Then, the client can apply or test the configuration. The compositor will
++      then reply with a succeeded, failed or cancelled event. Finally the client
++      should destroy the configuration object.
++    </description>
++
++    <enum name="error">
++      <entry name="already_configured_head" value="1"
++        summary="head has been configured twice"/>
++      <entry name="unconfigured_head" value="2"
++        summary="head has not been configured"/>
++      <entry name="already_used" value="3"
++        summary="request sent after configuration has been applied or tested"/>
++    </enum>
++
++    <request name="enable_head">
++      <description summary="enable and configure a head">
++        Enable a head. This request creates a head configuration object that can
++        be used to change the head's properties.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_configuration_head_v1"
++        summary="a new object to configure the head"/>
++      <arg name="head" type="object" interface="zwlr_output_head_v1"
++        summary="the head to be enabled"/>
++    </request>
++
++    <request name="disable_head">
++      <description summary="disable a head">
++        Disable a head.
++      </description>
++      <arg name="head" type="object" interface="zwlr_output_head_v1"
++        summary="the head to be disabled"/>
++    </request>
++
++    <request name="apply">
++      <description summary="apply the configuration">
++        Apply the new output configuration.
++
++        In case the configuration is successfully applied, there is no guarantee
++        that the new output state matches completely the requested
++        configuration. For instance, a compositor might round the scale if it
++        doesn't support fractional scaling.
++
++        After this request has been sent, the compositor must respond with an
++        succeeded, failed or cancelled event. Sending a request that isn't the
++        destructor is a protocol error.
++      </description>
++    </request>
++
++    <request name="test">
++      <description summary="test the configuration">
++        Test the new output configuration. The configuration won't be applied,
++        but will only be validated.
++
++        Even if the compositor succeeds to test a configuration, applying it may
++        fail.
++
++        After this request has been sent, the compositor must respond with an
++        succeeded, failed or cancelled event. Sending a request that isn't the
++        destructor is a protocol error.
++      </description>
++    </request>
++
++    <event name="succeeded">
++      <description summary="configuration changes succeeded">
++        Sent after the compositor has successfully applied the changes or
++        tested them.
++
++        Upon receiving this event, the client should destroy this object.
++
++        If the current configuration has changed, events to describe the changes
++        will be sent followed by a wlr_output_manager.done event.
++      </description>
++    </event>
++
++    <event name="failed">
++      <description summary="configuration changes failed">
++        Sent if the compositor rejects the changes or failed to apply them. The
++        compositor should revert any changes made by the apply request that
++        triggered this event.
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <event name="cancelled">
++      <description summary="configuration has been cancelled">
++        Sent if the compositor cancels the configuration because the state of an
++        output changed and the client has outdated information (e.g. after an
++        output has been hotplugged).
++
++        The client can create a new configuration with a newer serial and try
++        again.
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the output configuration">
++        Using this request a client can tell the compositor that it is not going
++        to use the configuration object anymore. Any changes to the outputs
++        that have not been applied will be discarded.
++
++        This request also destroys wlr_output_configuration_head objects created
++        via this object.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_output_configuration_head_v1" version="5">
++    <description summary="head configuration">
++      This object is used by the client to update a single head's configuration.
++
++      It is a protocol error to set the same property twice.
++    </description>
++
++    <enum name="error">
++      <entry name="already_set" value="1" summary="property has already been set"/>
++      <entry name="invalid_mode" value="2" summary="mode doesn't belong to head"/>
++      <entry name="invalid_custom_mode" value="3" summary="mode is invalid"/>
++      <entry name="invalid_transform" value="4" summary="transform value outside enum"/>
++      <entry name="invalid_scale" value="5" summary="scale negative or zero"/>
++      <entry name="invalid_adaptive_sync_state" value="6" since="4"
++        summary="invalid enum value used in the set_adaptive_sync request"/>
++      <entry name="invalid_custom_timings" value="7" since="5"
++        summary="timings are inconsistent"/>
++    </enum>
++
++    <request name="set_mode">
++      <description summary="set the mode">
++        This request sets the head's mode.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
++
++    <request name="set_custom_mode">
++      <description summary="set a custom mode">
++        This request assigns a custom mode to the head. The size is given in
++        physical hardware units of the output device. If set to zero, the
++        refresh rate is unspecified.
++
++        It is a protocol error to set both a mode and a custom mode.
++      </description>
++      <arg name="width" type="int" summary="width of the mode in hardware units"/>
++      <arg name="height" type="int" summary="height of the mode in hardware units"/>
++      <arg name="refresh" type="int" summary="vertical refresh rate in mHz or zero"/>
++    </request>
++
++    <request name="set_position">
++      <description summary="set the position">
++        This request sets the head's position in the global compositor space.
++      </description>
++      <arg name="x" type="int" summary="x position in the global compositor space"/>
++      <arg name="y" type="int" summary="y position in the global compositor space"/>
++    </request>
++
++    <request name="set_transform">
++      <description summary="set the transform">
++        This request sets the head's transform.
++      </description>
++      <arg name="transform" type="int" enum="wl_output.transform"/>
++    </request>
++
++    <request name="set_scale">
++      <description summary="set the scale">
++        This request sets the head's scale.
++      </description>
++      <arg name="scale" type="fixed"/>
++    </request>
++
++    <!-- Version 4 additions -->
++
++    <request name="set_adaptive_sync" since="4">
++      <description summary="enable/disable adaptive sync">
++        This request enables/disables adaptive sync. Adaptive sync is also
++        known as Variable Refresh Rate or VRR.
++      </description>
++      <arg name="state" type="uint" enum="zwlr_output_head_v1.adaptive_sync_state"/>
++    </request>
++
++    <!-- Version 5 additions -->
++
++    <request name="set_custom_timings" since="5">
++      <description summary="set a mode from detailed timings">
++        This request assigns a mode described by its exact hardware timings to
++        the head, like a modeline. This allows modes which are not advertised
++        by the display, for instance for CRT monitors.
++
++        Horizontal values must not decrease from hdisplay to hsync_start,
++        hsync_end and htotal, likewise for vertical values from vdisplay to
++        vsync_start, vsync_end and vtotal, and clock, hdisplay and vdisplay
++        must be non-zero, otherwise the invalid_custom_timings protocol error
++        is raised. The compositor may still reject timings that
++        the hardware cannot drive by sending the failed event on the
++        configuration.
++
++        Once applied, the compositor advertises the mode as a regular
++        zwlr_output_mode_v1 object with matching timings and name. The mode
++        stays available until it is removed with
++        zwlr_output_head_v1.remove_custom_mode.
++
++        It is a protocol error to combine this request with set_mode or
++        set_custom_mode.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++      <arg name="name" type="string"
++        summary="mode name, truncated by the compositor if too long"/>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-power-management-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-power-management-unstable-v1.xml
+new file mode 100644
+index 00000000..20dbb776
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-power-management-unstable-v1.xml
+@@ -0,0 +1,128 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_output_power_management_unstable_v1">
++  <copyright>
++    Copyright © 2019 Purism SPC
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <description summary="Control power management modes of outputs">
++    This protocol allows clients to control power management modes
++    of outputs that are currently part of the compositor space. The
++    intent is to allow special clients like desktop shells to power
++    down outputs when the system is idle.
++
++    To modify outputs not currently part of the compositor space see
++    wlr-output-management.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++  </description>
++
++  <interface name="zwlr_output_power_manager_v1" version="1">
++    <description summary="manager to create per-output power management">
++      This interface is a manager that allows creating per-output power
++      management mode controls.
++    </description>
++
++    <request name="get_output_power">
++      <description summary="get a power management for an output">
++        Create an output power management mode control that can be used to
++        adjust the power management mode for a given output.
++      </description>
++      <arg name="id" type="new_id" interface="zwlr_output_power_v1"/>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_output_power_v1" version="1">
++    <description summary="adjust power management mode for an output">
++      This object offers requests to set the power management mode of
++      an output.
++    </description>
++
++    <enum name="mode">
++      <entry name="off" value="0"
++             summary="Output is turned off."/>
++      <entry name="on" value="1"
++             summary="Output is turned on, no power saving"/>
++    </enum>
++
++    <enum name="error">
++      <entry name="invalid_mode" value="1" summary="nonexistent power save mode"/>
++    </enum>
++
++    <request name="set_mode">
++      <description summary="Set an outputs power save mode">
++        Set an output's power save mode to the given mode. The mode change
++        is effective immediately. If the output does not support the given
++        mode a failed event is sent.
++      </description>
++      <arg name="mode" type="uint" enum="mode" summary="the power save mode to set"/>
++    </request>
++
++    <event name="mode">
++      <description summary="Report a power management mode change">
++        Report the power management mode change of an output.
++
++        The mode event is sent after an output changed its power
++        management mode. The reason can be a client using set_mode or the
++        compositor deciding to change an output's mode.
++        This event is also sent immediately when the object is created
++        so the client is informed about the current power management mode.
++      </description>
++      <arg name="mode" type="uint" enum="mode"
++           summary="the output's new power management mode"/>
++    </event>
++
++    <event name="failed">
++      <description summary="object no longer valid">
++        This event indicates that the output power management mode control
++        is no longer valid. This can happen for a number of reasons,
++        including:
++        - The output doesn't support power management
++        - Another client already has exclusive power management mode control
++          for this output
++        - The output disappeared
++
++        Upon receiving this event, the client should destroy this object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy this power management">
++        Destroys the output power management mode control object.
++      </description>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-screencopy-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-screencopy-unstable-v1.xml
+new file mode 100644
+index 00000000..8b206612
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-screencopy-unstable-v1.xml
+@@ -0,0 +1,234 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_screencopy_unstable_v1">
++  <copyright>
++    Copyright © 2018 Simon Ser
++    Copyright © 2019 Andri Yngvason
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <description summary="screen content capturing on client buffers">
++    This protocol allows clients to ask the compositor to copy part of the
++    screen content to a client buffer.
++
++    Warning! The protocol described in this file is experimental and
++    backward incompatible changes may be made. Backward compatible changes
++    may be added together with the corresponding interface version bump.
++    Backward incompatible changes are done by bumping the version number in
++    the protocol and interface names and resetting the interface version.
++    Once the protocol is to be declared stable, the 'z' prefix and the
++    version number in the protocol and interface names are removed and the
++    interface version number is reset.
++
++    Note! This protocol is deprecated and not intended for production use.
++    The ext-image-copy-capture-v1 protocol should be used instead.
++  </description>
++
++  <interface name="zwlr_screencopy_manager_v1" version="3">
++    <description summary="manager to inform clients and begin capturing">
++      This object is a manager which offers requests to start capturing from a
++      source.
++    </description>
++
++    <request name="capture_output">
++      <description summary="capture an output">
++        Capture the next frame of an entire output.
++      </description>
++      <arg name="frame" type="new_id" interface="zwlr_screencopy_frame_v1"/>
++      <arg name="overlay_cursor" type="int"
++        summary="composite cursor onto the frame"/>
++      <arg name="output" type="object" interface="wl_output"/>
++    </request>
++
++    <request name="capture_output_region">
++      <description summary="capture an output's region">
++        Capture the next frame of an output's region.
++
++        The region is given in output logical coordinates, see
++        xdg_output.logical_size. The region will be clipped to the output's
++        extents.
++      </description>
++      <arg name="frame" type="new_id" interface="zwlr_screencopy_frame_v1"/>
++      <arg name="overlay_cursor" type="int"
++        summary="composite cursor onto the frame"/>
++      <arg name="output" type="object" interface="wl_output"/>
++      <arg name="x" type="int"/>
++      <arg name="y" type="int"/>
++      <arg name="width" type="int"/>
++      <arg name="height" type="int"/>
++    </request>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the manager">
++        All objects created by the manager will still remain valid, until their
++        appropriate destroy request has been called.
++      </description>
++    </request>
++  </interface>
++
++  <interface name="zwlr_screencopy_frame_v1" version="3">
++    <description summary="a frame ready for copy">
++      This object represents a single frame.
++
++      When created, a series of buffer events will be sent, each representing a
++      supported buffer type. The "buffer_done" event is sent afterwards to
++      indicate that all supported buffer types have been enumerated. The client
++      will then be able to send a "copy" request. If the capture is successful,
++      the compositor will send a "flags" event followed by a "ready" event.
++
++      For objects version 2 or lower, wl_shm buffers are always supported, ie.
++      the "buffer" event is guaranteed to be sent.
++
++      If the capture failed, the "failed" event is sent. This can happen anytime
++      before the "ready" event.
++
++      Once either a "ready" or a "failed" event is received, the client should
++      destroy the frame.
++    </description>
++
++    <event name="buffer">
++      <description summary="wl_shm buffer information">
++        Provides information about wl_shm buffer parameters that need to be
++        used for this frame. This event is sent once after the frame is created
++        if wl_shm buffers are supported.
++      </description>
++      <arg name="format" type="uint" enum="wl_shm.format" summary="buffer format"/>
++      <arg name="width" type="uint" summary="buffer width"/>
++      <arg name="height" type="uint" summary="buffer height"/>
++      <arg name="stride" type="uint" summary="buffer stride"/>
++    </event>
++
++    <request name="copy">
++      <description summary="copy the frame">
++        Copy the frame to the supplied buffer. The buffer must have the
++        correct size, see zwlr_screencopy_frame_v1.buffer and
++        zwlr_screencopy_frame_v1.linux_dmabuf. The buffer needs to have a
++        supported format.
++
++        If the frame is successfully copied, "flags" and "ready" events are
++        sent. Otherwise, a "failed" event is sent.
++      </description>
++      <arg name="buffer" type="object" interface="wl_buffer"/>
++    </request>
++
++    <enum name="error">
++      <entry name="already_used" value="0"
++        summary="the object has already been used to copy a wl_buffer"/>
++      <entry name="invalid_buffer" value="1"
++        summary="buffer attributes are invalid"/>
++    </enum>
++
++    <enum name="flags" bitfield="true">
++      <entry name="y_invert" value="1" summary="contents are y-inverted"/>
++    </enum>
++
++    <event name="flags">
++      <description summary="frame flags">
++        Provides flags about the frame. This event is sent once before the
++        "ready" event.
++      </description>
++      <arg name="flags" type="uint" enum="flags" summary="frame flags"/>
++    </event>
++
++    <event name="ready">
++      <description summary="indicates frame is available for reading">
++        Called as soon as the frame is copied, indicating it is available
++        for reading. This event includes the time at which the presentation took place.
++
++        The timestamp is expressed as tv_sec_hi, tv_sec_lo, tv_nsec triples,
++        each component being an unsigned 32-bit value. Whole seconds are in
++        tv_sec which is a 64-bit value combined from tv_sec_hi and tv_sec_lo,
++        and the additional fractional part in tv_nsec as nanoseconds. Hence,
++        for valid timestamps tv_nsec must be in [0, 999999999]. The seconds part
++        may have an arbitrary offset at start.
++
++        After receiving this event, the client should destroy the object.
++      </description>
++      <arg name="tv_sec_hi" type="uint"
++           summary="high 32 bits of the seconds part of the timestamp"/>
++      <arg name="tv_sec_lo" type="uint"
++           summary="low 32 bits of the seconds part of the timestamp"/>
++      <arg name="tv_nsec" type="uint"
++           summary="nanoseconds part of the timestamp"/>
++    </event>
++
++    <event name="failed">
++      <description summary="frame copy failed">
++        This event indicates that the attempted frame copy has failed.
++
++        After receiving this event, the client should destroy the object.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="delete this object, used or not">
++        Destroys the frame. This request can be sent at any time by the client.
++      </description>
++    </request>
++
++    <!-- Version 2 additions -->
++    <request name="copy_with_damage" since="2">
++      <description summary="copy the frame when it's damaged">
++        Same as copy, except it waits until there is damage to copy.
++      </description>
++      <arg name="buffer" type="object" interface="wl_buffer"/>
++    </request>
++
++    <event name="damage" since="2">
++      <description summary="carries the coordinates of the damaged region">
++        This event is sent right before the ready event when copy_with_damage is
++        requested. It may be generated multiple times for each copy_with_damage
++        request.
++
++        The arguments describe a box around an area that has changed since the
++        last copy request that was derived from the current screencopy manager
++        instance.
++
++        The union of all regions received between the call to copy_with_damage
++        and a ready event is the total damage since the prior ready event.
++      </description>
++      <arg name="x" type="uint" summary="damaged x coordinates"/>
++      <arg name="y" type="uint" summary="damaged y coordinates"/>
++      <arg name="width" type="uint" summary="current width"/>
++      <arg name="height" type="uint" summary="current height"/>
++    </event>
++
++    <!-- Version 3 additions -->
++    <event name="linux_dmabuf" since="3">
++      <description summary="linux-dmabuf buffer information">
++        Provides information about linux-dmabuf buffer parameters that need to
++        be used for this frame. This event is sent once after the frame is
++        created if linux-dmabuf buffers are supported.
++      </description>
++      <arg name="format" type="uint" summary="fourcc pixel format"/>
++      <arg name="width" type="uint" summary="buffer width"/>
++      <arg name="height" type="uint" summary="buffer height"/>
++    </event>
++
++    <event name="buffer_done" since="3">
++      <description summary="all buffer types reported">
++        This event is sent once after all buffer events have been sent.
++
++        The client should proceed to create a buffer of one of the supported
++        types, and send a "copy" request.
++      </description>
++    </event>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml
+new file mode 100644
+index 00000000..ea243e7c
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml
+@@ -0,0 +1,152 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_virtual_pointer_unstable_v1">
++  <copyright>
++    Copyright © 2019 Josef Gajdusek
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <interface name="zwlr_virtual_pointer_v1" version="2">
++    <description summary="virtual pointer">
++      This protocol allows clients to emulate a physical pointer device. The
++      requests are mostly mirror opposites of those specified in wl_pointer.
++    </description>
++
++    <enum name="error">
++      <entry name="invalid_axis" value="0"
++        summary="client sent invalid axis enumeration value" />
++      <entry name="invalid_axis_source" value="1"
++        summary="client sent invalid axis source enumeration value" />
++    </enum>
++
++    <request name="motion">
++      <description summary="pointer relative motion event">
++        The pointer has moved by a relative amount to the previous request.
++
++        Values are in the global compositor space.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="dx" type="fixed" summary="displacement on the x-axis"/>
++      <arg name="dy" type="fixed" summary="displacement on the y-axis"/>
++    </request>
++
++    <request name="motion_absolute">
++      <description summary="pointer absolute motion event">
++        The pointer has moved in an absolute coordinate frame.
++
++        Value of x can range from 0 to x_extent, value of y can range from 0
++        to y_extent.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="x" type="uint" summary="position on the x-axis"/>
++      <arg name="y" type="uint" summary="position on the y-axis"/>
++      <arg name="x_extent" type="uint" summary="extent of the x-axis"/>
++      <arg name="y_extent" type="uint" summary="extent of the y-axis"/>
++    </request>
++
++    <request name="button">
++      <description summary="button event">
++        A button was pressed or released.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="button" type="uint" summary="button that produced the event"/>
++      <arg name="state" type="uint" enum="wl_pointer.button_state" summary="physical state of the button"/>
++    </request>
++
++    <request name="axis">
++      <description summary="axis event">
++        Scroll and other axis requests.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="axis" type="uint" enum="wl_pointer.axis" summary="axis type"/>
++      <arg name="value" type="fixed" summary="length of vector in touchpad coordinates"/>
++    </request>
++
++    <request name="frame">
++      <description summary="end of a pointer event sequence">
++        Indicates the set of events that logically belong together.
++      </description>
++    </request>
++
++    <request name="axis_source">
++      <description summary="axis source event">
++        Source information for scroll and other axis.
++      </description>
++      <arg name="axis_source" type="uint" enum="wl_pointer.axis_source" summary="source of the axis event"/>
++    </request>
++
++    <request name="axis_stop">
++      <description summary="axis stop event">
++        Stop notification for scroll and other axes.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="axis" type="uint" enum="wl_pointer.axis" summary="the axis stopped with this event"/>
++    </request>
++
++    <request name="axis_discrete">
++      <description summary="axis click event">
++        Discrete step information for scroll and other axes.
++
++        This event allows the client to extend data normally sent using the axis
++        event with discrete value.
++      </description>
++      <arg name="time" type="uint" summary="timestamp with millisecond granularity"/>
++      <arg name="axis" type="uint" enum="wl_pointer.axis" summary="axis type"/>
++      <arg name="value" type="fixed" summary="length of vector in touchpad coordinates"/>
++      <arg name="discrete" type="int" summary="number of steps"/>
++    </request>
++
++    <request name="destroy" type="destructor" since="1">
++      <description summary="destroy the virtual pointer object"/>
++    </request>
++  </interface>
++
++  <interface name="zwlr_virtual_pointer_manager_v1" version="2">
++    <description summary="virtual pointer manager">
++      This object allows clients to create individual virtual pointer objects.
++    </description>
++
++    <request name="create_virtual_pointer">
++      <description summary="Create a new virtual pointer">
++        Creates a new virtual pointer. The optional seat is a suggestion to the
++        compositor.
++      </description>
++      <arg name="seat" type="object" interface="wl_seat" allow-null="true"/>
++      <arg name="id" type="new_id" interface="zwlr_virtual_pointer_v1"/>
++    </request>
++
++    <request name="destroy" type="destructor" since="1">
++      <description summary="destroy the virtual pointer manager"/>
++    </request>
++
++    <!-- Version 2 additions -->
++    <request name="create_virtual_pointer_with_output" since="2">
++      <description summary="Create a new virtual pointer">
++        Creates a new virtual pointer. The seat and the output arguments are
++        optional. If the seat argument is set, the compositor should assign the
++        input device to the requested seat. If the output argument is set, the
++        compositor should map the input device to the requested output.
++      </description>
++      <arg name="seat" type="object" interface="wl_seat" allow-null="true"/>
++      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
++      <arg name="id" type="new_id" interface="zwlr_virtual_pointer_v1"/>
++    </request>
++  </interface>
++</protocol>
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/wlr-protocols.pc.in b/third_party/wayland-protocols-wlr/wlr-protocols/wlr-protocols.pc.in
+new file mode 100644
+index 00000000..5acfbe8b
+--- /dev/null
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/wlr-protocols.pc.in
+@@ -0,0 +1,7 @@
++prefix=@prefix@
++datarootdir=@datarootdir@
++pkgdatadir=${pc_sysrootdir}@datadir@/wlr-protocols
++
++Name: wlroots Wayland protocols
++Description: Wayland protocol files
++Version: 1.0
+
+From 59e52025b214e9674fcb0d83f0d5bd7bfbcd7c26 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 21:19:27 +0200
+Subject: [PATCH 2/3] shell: resize fullscreen windows with their output
+
+Workspace::recalculate(), called after an output configuration change,
+only lays out the tiling and floating layers: a fullscreen window kept
+the size of the mode it went fullscreen on. After a mode change, an
+emulator kept drawing at the former size, cropped or misplaced in the
+new mode.
+
+Reconfigure the fullscreen windows to the output geometry as well.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/shell/workspace.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/shell/workspace.rs b/src/shell/workspace.rs
+index fd63dcb1..18b2b860 100644
+--- a/src/shell/workspace.rs
++++ b/src/shell/workspace.rs
+@@ -997,6 +997,13 @@ impl Workspace {
+     pub fn recalculate(&mut self) {
+         self.tiling_layer.recalculate();
+         self.floating_layer.recalculate();
++
++        // Fullscreen windows follow the size of the output, e.g. on a mode change
++        let geometry = self.output.geometry();
++        for fullscreen in self.fullscreen_surfaces.iter().filter(|f| f.ended_at.is_none()) {
++            fullscreen.surface.set_geometry(geometry, 0);
++            fullscreen.surface.send_configure();
++        }
+     }
+ 
+     pub fn unmaximize_request(&mut self, elem: &CosmicMapped) -> Option<Rectangle<i32, Local>> {
+
+From 3d10ba7ac3e6810f39b80f9b341ebf37cb15ac5b Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 19 Oct 2026 22:56:05 +0200
+Subject: [PATCH 3/3] kms/timings: fix the next presentation estimate on an
+ early VBlank
+
+next_presentation_time() returns the time until the next presentation.
+On an early VBlank, when the presentation timestamp of the last frame is
+still in the future, it shifts now by one refresh interval to count the
+elapsed intervals, but then subtracts that shifted now from the
+estimate: the next presentation is predicted one refresh interval too
+early.
+
+The DRM timestamp of a page flip is the end of the vblank, so the
+VBlank event is always early when it is handled within the vblank, and
+more so with long vblanks (15 kHz CRT modes). Frames were then either
+rendered right away or one interval later, depending on whether the
+client commit came before or after the timestamp: frame callbacks
+alternated between two phases and vblanks were missed, especially with
+deep CPU C-states.
+
+Subtract the actual time.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/backend/kms/surface/timings.rs | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/backend/kms/surface/timings.rs b/src/backend/kms/surface/timings.rs
+index d2bc5efa..0751697a 100644
+--- a/src/backend/kms/surface/timings.rs
++++ b/src/backend/kms/surface/timings.rs
+@@ -280,7 +280,8 @@ impl Timings {
+     }
+ 
+     pub fn next_presentation_time(&self, clock: &Clock<Monotonic>) -> Duration {
+-        let mut now = clock.now().into();
++        let orig_now: Duration = clock.now().into();
++        let mut now = orig_now;
+ 
+         let Some(refresh_interval_ns) = self.refresh_interval_ns else {
+             return Duration::ZERO;
+@@ -296,7 +297,6 @@ impl Timings {
+ 
+         if now <= last_presentation_time {
+             // Got an early VBlank.
+-            let orig_now = now;
+             now += Duration::from_nanos(refresh_interval_ns);
+ 
+             if now < last_presentation_time {
+@@ -321,7 +321,9 @@ impl Timings {
+         if self.vrr && to_next_ns > refresh_interval_ns {
+             Duration::ZERO
+         } else {
+-            last_presentation_time + Duration::from_nanos(to_next_ns) - now
++            // From the actual time: the shifted `now` of an early VBlank would put the
++            // estimate one refresh interval early
++            (last_presentation_time + Duration::from_nanos(to_next_ns)).saturating_sub(orig_now)
+         }
+     }
+ 
