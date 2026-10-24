@@ -1,6 +1,6 @@
 # The linux second argument is here to make sure it's not building a half tagged testing commit
 linux
-linux-rt linux
+linux-rt
 linux-lts
 #retroarch
 bash
