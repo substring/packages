@@ -1,0 +1,30 @@
+Subject: [PATCH] sixaxis: authorize PS3 controllers plugged over USB without asking
+
+Complete the cable pairing of CABLE_PAIRING_SIXAXIS devices right away, as
+if the agent had accepted it. DS4 controllers still go through the agent.
+
+This is a deliberate local choice (no configuration option): any USB device
+announcing 054c:0268 gets paired and trusted. Not meant for upstream as is.
+
+Tested: plug, unplug, press PS: connected over Bluetooth with no prompt.
+---
+--- a/plugins/sixaxis.c
++++ b/plugins/sixaxis.c
+@@ -380,6 +380,17 @@
+ 	closure->fd = fd;
+ 	bacpy(&closure->bdaddr, &device_bdaddr);
+ 	closure->type = cp->type;
++
++	/* A PS3 controller plugged over USB is accepted without asking the
++	 * agent: the closure is completed right away as if authorized.
++	 */
++	if (cp->type == CABLE_PAIRING_SIXAXIS) {
++		info("sixaxis: authorizing PS3 controller automatically");
++		g_hash_table_insert(pending_auths, closure->sysfs_path, closure);
++		agent_auth_cb(NULL, closure);
++		return true;
++	}
++
+ 	adapter_bdaddr = btd_adapter_get_address(adapter);
+ 	closure->auth_id = btd_request_authorization_cable_configured(
+ 					adapter_bdaddr, &device_bdaddr,

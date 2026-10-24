@@ -8,3 +8,8 @@ source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/06_linux_switchres_kms_drm_modesetting.patch
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/07_linux_15khz_fix_ddc.patch
 source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/08_linux_15khz_interlace_force_even.patch
+source+=0001-bluetooth-no-role-switch-for-peripheral-class.patch
+source+=0002-hidp-stop-waiting-for-missing-output-ack.patch
+source+=0003-hid-sony-shanwan-quirk-usb-only.patch
+source+=0004-hid-sony-gasia-detection-bt.patch
+

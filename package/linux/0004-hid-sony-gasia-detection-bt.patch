@@ -1,0 +1,198 @@
+Subject: [PATCH] HID: sony: detect Gasia clones over Bluetooth
+
+Gasia DualShock 3 clones, over Bluetooth:
+- accept the 0xf4 feature report but send no input report until they get
+  an output report on the interrupt channel;
+- ignore output reports sent with SET_REPORT on the control channel (and
+  never answer them), only applying DATA on the interrupt channel;
+- have their four LEDs shifted by one: bits 1, 2, 3, 4 light LEDs 4, 1, 2,
+  3 (quarter-circles numbered 1 top-left, 2 top-right, 3 bottom-right,
+  4 bottom-left);
+- report the genuine name "PLAYSTATION(R)3 Controller".
+
+Identify them either by name, when BlueZ reports their USB name ("Gasia
+Co.,Ltd PS(R) Gamepad", see bluez/0004), or by behaviour: if no input report
+arrives within 2 s of the controller being set operational, assume a Gasia
+and send it an output report on the interrupt channel (genuine and ShanWan
+controllers start reporting within ~50 ms). Then send all its output
+reports on the interrupt channel and remap the LEDs.
+
+The flag lives in struct sony_sc rather than in a quirk bit, so it does not
+collide with quirk bits added upstream. The detection builds its report in
+its own buffer: the state worker may still be waiting on a SET_REPORT with
+the shared one.
+
+Tested on GroovyArcade (7.2.11, BlueZ 5.87, CSR dongle): Gasia found by name
+(patched BlueZ) and by behaviour (stock BlueZ, both hidp and uhid modes):
+LED 1, crisp rumble; ShanWan unaffected (no false detection).
+---
+--- a/drivers/hid/hid-sony.c
++++ b/drivers/hid/hid-sony.c
+@@ -557,6 +557,16 @@
+ 	u8 led_delay_off[MAX_LEDS];
+ 	u8 led_count;
+ 
++	/*
++	 * Gasia clones over Bluetooth: identified by name (BlueZ may report
++	 * the USB name of cable-paired controllers) or because they send no
++	 * input report until they get an output report on the intr channel.
++	 */
++	bool gasia;
++	bool got_input;
++	bool gasia_detect_armed;
++	struct delayed_work gasia_detect;
++
+ 	/* GH Live */
+ 	struct urb *ghl_urb;
+ 	struct timer_list ghl_poke_timer;
+@@ -1158,6 +1168,8 @@
+ 		if (rd[1] == 0xff)
+ 			return -EINVAL;
+ 
++		WRITE_ONCE(sc->got_input, true);
++
+ 		swap(rd[41], rd[42]);
+ 		swap(rd[43], rd[44]);
+ 		swap(rd[45], rd[46]);
+@@ -1713,8 +1725,14 @@
+ 	return 0;
+ }
+ 
+-static void sixaxis_send_output_report(struct sony_sc *sc)
++static void sixaxis_fill_output_report(struct sony_sc *sc,
++				       struct sixaxis_output_report *report)
+ {
++	/*
++	 * Gasia controllers have their LEDs shifted by one: bits 1, 2, 3, 4
++	 * light LEDs 4, 1, 2, 3. Map LED n to the bit lighting LED n.
++	 */
++	static const u8 gasia_led_shift[4] = { 2, 3, 4, 1 };
+ 	static const union sixaxis_output_report_01 default_report = {
+ 		.buf = {
+ 			0x01,
+@@ -1727,8 +1745,7 @@
+ 			0x00, 0x00, 0x00, 0x00, 0x00
+ 		}
+ 	};
+-	struct sixaxis_output_report *report =
+-		(struct sixaxis_output_report *)sc->output_report_dmabuf;
++	bool gasia = READ_ONCE(sc->gasia);
+ 	int n;
+ 
+ 	/* Initialize the report with default values */
+@@ -1739,10 +1756,9 @@
+ 	report->rumble.left_motor_force = sc->left;
+ #endif
+ 
+-	report->leds_bitmap |= sc->led_state[0] << 1;
+-	report->leds_bitmap |= sc->led_state[1] << 2;
+-	report->leds_bitmap |= sc->led_state[2] << 3;
+-	report->leds_bitmap |= sc->led_state[3] << 4;
++	for (n = 0; n < 4; n++)
++		report->leds_bitmap |= sc->led_state[n] <<
++				(gasia ? gasia_led_shift[n] : n + 1);
+ 
+ 	/* Set flag for all leds off, required for 3rd party INTEC controller */
+ 	if ((report->leds_bitmap & 0x1E) == 0)
+@@ -1759,13 +1775,27 @@
+ 	 */
+ 	for (n = 0; n < 4; n++) {
+ 		if (sc->led_delay_on[n] || sc->led_delay_off[n]) {
+-			report->led[3 - n].duty_off = sc->led_delay_off[n];
+-			report->led[3 - n].duty_on = sc->led_delay_on[n];
++			int i = gasia ? 4 - gasia_led_shift[n] : 3 - n;
++
++			report->led[i].duty_off = sc->led_delay_off[n];
++			report->led[i].duty_on = sc->led_delay_on[n];
+ 		}
+ 	}
++}
+ 
+-	/* SHANWAN controllers require output reports via intr channel */
+-	if (sc->quirks & SHANWAN_GAMEPAD)
++static void sixaxis_send_output_report(struct sony_sc *sc)
++{
++	struct sixaxis_output_report *report =
++		(struct sixaxis_output_report *)sc->output_report_dmabuf;
++
++	sixaxis_fill_output_report(sc, report);
++
++	/*
++	 * SHANWAN controllers require output reports via intr channel over
++	 * USB, and so do Gasia controllers over Bluetooth (they ignore
++	 * SET_REPORT on ctrl and never answer it).
++	 */
++	if ((sc->quirks & SHANWAN_GAMEPAD) || READ_ONCE(sc->gasia))
+ 		hid_hw_output_report(sc->hdev, (u8 *)report,
+ 				sizeof(struct sixaxis_output_report));
+ 	else
+@@ -1774,6 +1804,34 @@
+ 				HID_OUTPUT_REPORT, HID_REQ_SET_REPORT);
+ }
+ 
++/*
++ * Over Bluetooth, genuine and ShanWan controllers start sending input
++ * reports as soon as they are set operational. Gasia clones only start once
++ * they get an output report on the intr channel: if nothing came in, treat
++ * the controller as a Gasia and send it one. Uses its own buffer, as the
++ * state worker may still be waiting on a SET_REPORT with the shared one.
++ */
++static void sixaxis_gasia_detect(struct work_struct *work)
++{
++	struct sony_sc *sc = container_of(to_delayed_work(work),
++					  struct sony_sc, gasia_detect);
++	struct sixaxis_output_report *report;
++
++	if (READ_ONCE(sc->got_input) || READ_ONCE(sc->gasia))
++		return;
++
++	hid_info(sc->hdev, "no input report after activation, assuming a Gasia controller\n");
++	WRITE_ONCE(sc->gasia, true);
++
++	report = kmalloc(sizeof(*report), GFP_KERNEL);
++	if (!report)
++		return;
++
++	sixaxis_fill_output_report(sc, report);
++	hid_hw_output_report(sc->hdev, (u8 *)report, sizeof(*report));
++	kfree(report);
++}
++
+ static void motion_send_output_report(struct sony_sc *sc)
+ {
+ 	struct hid_device *hdev = sc->hdev;
+@@ -2120,6 +2178,9 @@
+ 		}
+ 		cancel_work_sync(&sc->state_worker);
+ 	}
++
++	if (sc->gasia_detect_armed)
++		cancel_delayed_work_sync(&sc->gasia_detect);
+ }
+ 
+ static void sony_cleanup(struct sony_sc *sc)
+@@ -2255,6 +2316,12 @@
+ 		}
+ 
+ 		sony_init_output_report(sc, sixaxis_send_output_report);
++
++		if (!sc->gasia) {
++			INIT_DELAYED_WORK(&sc->gasia_detect, sixaxis_gasia_detect);
++			sc->gasia_detect_armed = true;
++			schedule_delayed_work(&sc->gasia_detect, 2 * HZ);
++		}
+ 	} else if (sc->quirks & NSG_MRXU_REMOTE) {
+ 		/*
+ 		 * The NSG-MRxU touchpad supports 2 touches and has a
+@@ -2336,6 +2403,11 @@
+ 	sc->device_id = -1;
+ 
+ 	sc->quirks = quirks;
++
++	/* BlueZ may report the USB name of cable-paired controllers over BT */
++	if ((quirks & SIXAXIS_CONTROLLER_BT) &&
++	    strnstr(hdev->name, "Gasia", sizeof(hdev->name)))
++		sc->gasia = true;
+ 	hid_set_drvdata(hdev, sc);
+ 	sc->hdev = hdev;
+ 

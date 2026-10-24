@@ -1,0 +1,26 @@
+Subject: [PATCH] sixaxis: trust controllers once cable pairing is authorized
+
+Sixaxis controllers never bond. Without the trusted flag, BlueZ asks the
+agent again on every Bluetooth connection, and removes the (unbonded) device
+as soon as one connection attempt fails, so the pad has to be paired again.
+
+Mark the device trusted once the cable pairing has been authorized.
+
+Tested: pad trusted at pairing, kept after a disconnection, reconnects with
+no prompt.
+---
+--- a/plugins/sixaxis.c
++++ b/plugins/sixaxis.c
+@@ -297,6 +297,12 @@
+ 	remove_device = false;
+ 	btd_device_set_temporary(closure->device, false);
+ 
++	/* The user authorized this controller over a cable, so trust it:
++	 * it can't bond, and an untrusted device would be asked for
++	 * authorization on every connection and removed if one fails.
++	 */
++	btd_device_set_trusted(closure->device, true);
++
+ 	if (closure->type == CABLE_PAIRING_SIXAXIS) {
+ 		btd_device_set_record(closure->device, HID_UUID,
+ 						 SIXAXIS_HID_SDP_RECORD);

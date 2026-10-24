@@ -1,0 +1,47 @@
+Subject: [PATCH] sixaxis: fall back to VID/PID matching for clone controllers
+
+Many third-party DualShock 3 clones reuse Sony's 054c:0268 IDs but report
+unusual USB product names ("ShanWan PS(R) Ga`epad", "Gasia Co.,Ltd PS(R)
+Gamepad", ...). get_pairing() only accepts the names listed in its table, so
+the sixaxis plugin ignores them and cable pairing never happens.
+
+When no entry matches by name, fall back to the first CABLE_PAIRING_SIXAXIS
+entry with the same VID/PID.
+
+Tested on BlueZ 5.85 with 3 ShanWan and 1 Gasia clones.
+---
+--- a/profiles/input/sixaxis.h
++++ b/profiles/input/sixaxis.h
+@@ -73,6 +73,7 @@
+ 			.type = CABLE_PAIRING_DS4,
+ 		},
+ 	};
++	const struct cable_pairing *fallback = NULL;
+ 	guint i;
+ 
+ 	for (i = 0; i < G_N_ELEMENTS(devices); i++) {
+@@ -81,13 +82,22 @@
+ 		if (devices[i].pid != pid)
+ 			continue;
+ 
+-		if (name && !g_str_has_suffix(name, devices[i].name))
++		if (name && !g_str_has_suffix(name, devices[i].name)) {
++			/* Many third-party Sixaxis clones reuse Sony's VID/PID
++			 * but report odd product names (e.g. "ShanWan PS(R)
++			 * Ga`epad"). They speak the same protocol, so fall
++			 * back to the first entry matching the VID/PID.
++			 */
++			if (!fallback &&
++				devices[i].type == CABLE_PAIRING_SIXAXIS)
++				fallback = &devices[i];
+ 			continue;
++		}
+ 
+ 		return &devices[i];
+ 	}
+ 
+-	return NULL;
++	return fallback;
+ }
+ 
+ #endif /* _SIXAXIS_H_ */

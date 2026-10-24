@@ -1,0 +1,70 @@
+Subject: [PATCH] input: stop waiting for missing output report handshakes (uhid)
+
+Some devices (DualShock 3 clones) apply output reports sent with SET_REPORT
+on the control channel but never answer with a HIDP handshake. In uhid mode
+(UserspaceHID=true, the default), bluetoothd waits REPORT_REQ_TIMEOUT (3 s)
+for each of them and rejects every other SET_REPORT meanwhile (EBUSY): rumble
+does not stop, LEDs do not change.
+
+When an output SET_REPORT times out, remember it for the device, reply
+success to the kernel (the report already went out), and from then on send
+output SET_REPORTs without waiting. Feature reports are unchanged.
+
+Same fix as kernel/0002 for the kernel hidp path (UserspaceHID=false).
+---
+--- a/profiles/input/device.c
++++ b/profiles/input/device.c
+@@ -84,6 +84,7 @@
+ 	uint8_t			report_req_pending;
+ 	unsigned int		report_req_timer;
+ 	uint32_t		report_rsp_id;
++	bool			no_output_ack;
+ 	bool			virtual_cable_unplug;
+ 	uint8_t			type;
+ 	unsigned int		idle_timer;
+@@ -664,6 +665,19 @@
+ 		break;
+ 	case HIDP_TRANS_SET_REPORT:
+ 		req_type_str = "SET_REPORT";
++		/* Some devices (e.g. Sixaxis clones) apply output reports
++		 * but never answer with a handshake: remember it and stop
++		 * waiting for one, the report already went out.
++		 */
++		if ((idev->report_req_pending & HIDP_HEADER_PARAM_MASK) ==
++						HIDP_DATA_RTYPE_OUTPUT) {
++			info("Device %s does not acknowledge output reports, "
++						"not waiting anymore", address);
++			idev->no_output_ack = true;
++			uhid_send_set_report_reply(idev, idev->report_rsp_id,
++									0);
++			goto done;
++		}
+ 		uhid_send_set_report_reply(idev, idev->report_rsp_id,
+ 								ETIMEDOUT);
+ 		break;
+@@ -675,6 +689,7 @@
+ 
+ 	error("Device %s HIDP %s request timed out", address, req_type_str);
+ 
++done:
+ 	idev->report_req_pending = 0;
+ 	idev->report_req_timer = 0;
+ 	idev->report_rsp_id = 0;
+@@ -719,6 +734,17 @@
+ 		return;
+ 	}
+ 
++	if (idev->no_output_ack &&
++			ev->u.set_report.rtype == UHID_OUTPUT_REPORT) {
++		sent = hidp_send_ctrl_message(idev, hdr, ev->u.set_report.data,
++						ev->u.set_report.size);
++		uhid_send_set_report_reply(idev, ev->u.set_report.id,
++							sent ? 0 : EIO);
++		if (!sent)
++			uhid_disconnect(idev, true);
++		return;
++	}
++
+ 	if (idev->report_req_pending) {
+ 		DBG("Old GET_REPORT or SET_REPORT still pending");
+ 		uhid_send_set_report_reply(idev, ev->u.set_report.id, EBUSY);

@@ -1,0 +1,105 @@
+Subject: [PATCH] sixaxis: keep the USB name of cable-paired controllers
+
+Over Bluetooth, clones report a name that hides what they are: Gasia pads
+use the genuine "PLAYSTATION(R)3 Controller", ShanWan pads
+"PLAYSTATION(R)3Conteroller-PANHAI". The kernel (hid-sony) needs the real
+name to apply per-clone quirks.
+
+- plugins/sixaxis.c: store the USB HID_NAME as the device name at pairing
+  time, and refresh it each time an already known pad is plugged in;
+- src/adapter.c: do not overwrite the name of cable-paired devices with the
+  name received when they connect over Bluetooth.
+
+This completes the intent of commit 61745d2 ("sixaxis: Fix Bluetooth PS3
+clone joypad being named like the original"), whose name was overwritten.
+
+Tested: the kernel sees "ShanWan PS(R) Ga`epad" and "Gasia Co.,Ltd PS(R)
+Gamepad" over Bluetooth.
+---
+--- a/plugins/sixaxis.c
++++ b/plugins/sixaxis.c
+@@ -332,7 +332,7 @@
+ }
+ 
+ static bool setup_device(int fd, const char *sysfs_path,
+-			const struct cable_pairing *cp,
++			const struct cable_pairing *cp, const char *hid_name,
+ 			struct btd_adapter *adapter)
+ {
+ 	bdaddr_t device_bdaddr;
+@@ -352,6 +352,8 @@
+ 			 btd_device_is_trusted(device))) {
+ 		char device_addr[18];
+ 		ba2str(&device_bdaddr, device_addr);
++		if (hid_name)
++			btd_device_device_set_name(device, hid_name);
+ 		DBG("device %s already known, skipping", device_addr);
+ 		return false;
+ 	}
+@@ -365,7 +367,10 @@
+ 
+ 	info("sixaxis: setting up new device");
+ 
+-	btd_device_device_set_name(device, cp->name);
++	/* Keep the controller's USB name (e.g. "Gasia Co.,Ltd PS(R) Gamepad")
++	 * so the kernel can tell clones apart when it connects over Bluetooth.
++	 */
++	btd_device_device_set_name(device, hid_name ? hid_name : cp->name);
+ 	btd_device_set_pnpid(device, cp->source, cp->vid, cp->pid, cp->version);
+ 	btd_device_set_temporary(device, true);
+ 
+@@ -409,7 +414,7 @@
+ 
+ static const struct cable_pairing *
+ get_pairing_type_for_device(struct udev_device *udevice, uint16_t *bus,
+-						char **sysfs_path)
++				char **sysfs_path, const char **name)
+ {
+ 	struct udev_device *hid_parent;
+ 	const char *hid_name;
+@@ -428,6 +433,7 @@
+ 		return NULL;
+ 
+ 	hid_name = udev_device_get_property_value(hid_parent, "HID_NAME");
++	*name = hid_name;
+ 
+ 	cp = get_pairing(vid, pid, hid_name);
+ 	*sysfs_path = g_strdup(udev_device_get_syspath(udevice));
+@@ -441,13 +447,14 @@
+ 	uint16_t bus;
+ 	char *sysfs_path = NULL;
+ 	const struct cable_pairing *cp;
++	const char *hid_name = NULL;
+ 	int fd;
+ 
+ 	adapter = btd_adapter_get_default();
+ 	if (!adapter)
+ 		return;
+ 
+-	cp = get_pairing_type_for_device(udevice, &bus, &sysfs_path);
++	cp = get_pairing_type_for_device(udevice, &bus, &sysfs_path, &hid_name);
+ 	if (!cp || (cp->type != CABLE_PAIRING_SIXAXIS &&
+ 				cp->type != CABLE_PAIRING_DS4)) {
+ 		g_free(sysfs_path);
+@@ -469,7 +476,7 @@
+ 	}
+ 
+ 	/* Only close the fd if an authentication is not pending */
+-	if (!setup_device(fd, sysfs_path, cp, adapter))
++	if (!setup_device(fd, sysfs_path, cp, hid_name, adapter))
+ 		close(fd);
+ 
+ 	g_free(sysfs_path);
+--- a/src/adapter.c
++++ b/src/adapter.c
+@@ -9564,7 +9564,9 @@
+ 
+ 	name_known = device_name_known(device);
+ 
+-	if (eir_data.name && (eir_data.name_complete || !name_known)) {
++	/* Cable-paired controllers keep the USB name set at pairing time */
++	if (eir_data.name && !device_is_cable_pairing(device) &&
++			(eir_data.name_complete || !name_known)) {
+ 		device_store_cached_name(device, eir_data.name);
+ 		btd_device_device_set_name(device, eir_data.name);
+ 	}
