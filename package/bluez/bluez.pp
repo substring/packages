@@ -1,3 +1,4 @@
+pkgrel++
 source+=package/bluez/0001-sixaxis-match-clones-by-vid-pid.patch
 source+=package/bluez/0002-sixaxis-trust-cable-paired-controllers.patch
 source+=package/bluez/0003-sixaxis-authorize-ps3-controllers-automatically.patch
