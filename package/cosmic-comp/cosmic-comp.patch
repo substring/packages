@@ -1,7 +1,7 @@
 From 6746479f30e3e676dc34a10045bf0570489185dd Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 18:43:13 +0200
-Subject: [PATCH 1/3] output-configuration: custom timings
+Subject: [PATCH 1/4] output-configuration: custom timings
  (wlr-output-management v5)
 
 Implement version 5 of wlr-output-management: set_custom_timings sets a
@@ -4156,7 +4156,7 @@ index 00000000..5acfbe8b
 From 59e52025b214e9674fcb0d83f0d5bd7bfbcd7c26 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Mon, 19 Oct 2026 21:19:27 +0200
-Subject: [PATCH 2/3] shell: resize fullscreen windows with their output
+Subject: [PATCH 2/4] shell: resize fullscreen windows with their output
 
 Workspace::recalculate(), called after an output configuration change,
 only lays out the tiling and floating layers: a fullscreen window kept
@@ -4193,7 +4193,7 @@ index fd63dcb1..18b2b860 100644
 From 3d10ba7ac3e6810f39b80f9b341ebf37cb15ac5b Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Mon, 19 Oct 2026 22:56:05 +0200
-Subject: [PATCH 3/3] kms/timings: fix the next presentation estimate on an
+Subject: [PATCH 3/4] kms/timings: fix the next presentation estimate on an
  early VBlank
 
 next_presentation_time() returns the time until the next presentation.
@@ -4251,3 +4251,120 @@ index d2bc5efa..0751697a 100644
          }
      }
  
+
+From 0247720bdafcf5a28a89a180b98ab11097da9615 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:45:08 +0100
+Subject: [PATCH 4/4] output-configuration: tell custom modes apart from native
+ modes
+
+Modes are identified by size and refresh rate. A custom mode with the
+same size and refresh rate, in mHz, as another mode but different
+timings, for instance a 640x480 interlaced modeline next to the native
+640x480i mode of a CRT monitor (13.013 and 13.55 MHz, both 59.998 Hz),
+was merged with it: the timings of the native mode were reported for
+the current mode, and selecting the native mode applied the custom
+timings, so a client restoring the native mode left the custom one.
+
+Shift the refresh rate of such a custom mode by a few mHz, its timings
+being applied as they are.
+
+Update the protocol copy: set_custom_timings never applies other
+timings.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/wayland/handlers/output_configuration.rs  | 10 +++---
+ .../protocols/output_configuration/mod.rs     | 34 ++++++++++++++++---
+ .../wlr-output-management-unstable-v1.xml     |  3 +-
+ 3 files changed, 37 insertions(+), 10 deletions(-)
+
+diff --git a/src/wayland/handlers/output_configuration.rs b/src/wayland/handlers/output_configuration.rs
+index cf856622..c6034fae 100644
+--- a/src/wayland/handlers/output_configuration.rs
++++ b/src/wayland/handlers/output_configuration.rs
+@@ -9,7 +9,8 @@ use crate::{
+     utils::prelude::OutputExt,
+     wayland::protocols::output_configuration::{
+         ModeConfiguration, OutputConfiguration, OutputConfigurationHandler,
+-        OutputConfigurationState, add_custom_mode, delegate_output_configuration, mode_timings,
++        OutputConfigurationState, add_custom_mode, custom_mode, delegate_output_configuration,
++        mode_timings,
+     },
+ };
+ 
+@@ -131,10 +132,9 @@ impl State {
+                             current_config.modeline = None;
+                         }
+                         Some(ModeConfiguration::Timings(timings)) => {
+-                            current_config.mode = (
+-                                (timings.hdisplay as i32, timings.vdisplay as i32),
+-                                Some(timings.refresh()),
+-                            );
++                            let mode = custom_mode(output, timings);
++                            current_config.mode =
++                                ((mode.size.w, mode.size.h), Some(mode.refresh as u32));
+                             current_config.modeline = Some(timings.clone());
+                         }
+                         _ => {}
+diff --git a/src/wayland/protocols/output_configuration/mod.rs b/src/wayland/protocols/output_configuration/mod.rs
+index 3500b2f0..b0e1d58f 100644
+--- a/src/wayland/protocols/output_configuration/mod.rs
++++ b/src/wayland/protocols/output_configuration/mod.rs
+@@ -53,12 +53,38 @@ pub fn mode_timings(output: &Output, mode: &Mode) -> Option<ModeTimings> {
+         .cloned()
+ }
+ 
++/// Mode of custom timings on an output, registered or not.
++///
++/// Modes are told apart by size and refresh: a custom mode sharing them with
++/// another mode with timings, such as a native mode with slightly different
++/// timings, gets its refresh shifted by a few mHz, its timings being applied
++/// as they are.
++pub fn custom_mode(output: &Output, timings: &Modeline) -> Mode {
++    let list = output
++        .user_data()
++        .get::<OutputTimings>()
++        .map(|t| t.lock().unwrap().clone())
++        .unwrap_or_default();
++    if let Some(t) = list
++        .iter()
++        .find(|t| t.custom && t.timings.same_timings(timings))
++    {
++        return t.mode;
++    }
++    let size = (timings.hdisplay as i32, timings.vdisplay as i32).into();
++    let refresh = timings.refresh() as i32;
++    (0..64)
++        .map(|i| Mode {
++            size,
++            refresh: refresh + if i % 2 == 0 { -(i / 2) } else { i / 2 + 1 },
++        })
++        .find(|mode| !list.iter().any(|t| t.mode == *mode))
++        .unwrap_or(Mode { size, refresh })
++}
++
+ /// Registers a custom mode on an output, returns its mode
+ pub fn add_custom_mode(output: &Output, timings: &Modeline) -> Mode {
+-    let mode = Mode {
+-        size: (timings.hdisplay as i32, timings.vdisplay as i32).into(),
+-        refresh: timings.refresh() as i32,
+-    };
++    let mode = custom_mode(output, timings);
+     output
+         .user_data()
+         .insert_if_missing(|| OutputTimings::new(Vec::new()));
+diff --git a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
+index 7b6411e2..ba5922fd 100644
+--- a/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
++++ b/third_party/wayland-protocols-wlr/wlr-protocols/unstable/wlr-output-management-unstable-v1.xml
+@@ -693,7 +693,8 @@
+         must be non-zero, otherwise the invalid_custom_timings protocol error
+         is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+-        configuration.
++        configuration. It never applies other timings instead: if the exact
++        timings can't be programmed, the configuration fails.
+ 
+         Once applied, the compositor advertises the mode as a regular
+         zwlr_output_mode_v1 object with matching timings and name. The mode

@@ -1,7 +1,7 @@
 From ae68bda6ff775231d96cf61e56f6b0d24f056b8d Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 00:33:31 +0200
-Subject: [PATCH 1/6] output-management: add custom timings (v5)
+Subject: [PATCH 1/8] output-management: add custom timings (v5)
 
 Add a timings event to zwlr_output_mode_v1 and a set_custom_timings
 request to zwlr_output_configuration_head_v1, so clients can set modes
@@ -297,7 +297,7 @@ index 83e2085..0bc31e1 100644
 From 48023f0a40af705f926242c3bd145d55e81c61db Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 14:53:02 +0200
-Subject: [PATCH 2/6] output-management: name and remove custom modes
+Subject: [PATCH 2/8] output-management: name and remove custom modes
 
 Add a name to set_custom_timings and a name event on modes, so clients
 can recognize the modes they created. Add remove_custom_mode on heads
@@ -560,7 +560,7 @@ index 0bc31e1..829ff99 100644
 From 8a41678a67995561e44321e0f5832cc4511b0135 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 18:37:06 +0200
-Subject: [PATCH 3/6] protocol: avoid XML entities in set_custom_timings
+Subject: [PATCH 3/8] protocol: avoid XML entities in set_custom_timings
 
 The Rust wayland-scanner rejects entities such as &lt; in descriptions.
 
@@ -593,7 +593,7 @@ index 0d5a608..7b6411e 100644
 From 16447a8f560e0d675c1809ffb302f8106e4652a8 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sun, 18 Oct 2026 21:58:14 +0200
-Subject: [PATCH 4/6] output: add interlaced flag to modes
+Subject: [PATCH 4/8] output: add interlaced flag to modes
 
 Width, height and refresh rate don't tell an interlaced mode from a
 progressive one with the same values, e.g. 1080i50 and 1080p50.
@@ -635,7 +635,7 @@ index c8e44b0..4f0d34f 100644
 From 3cb18f0759daa769eaec7a6c16dbe470711d295d Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sun, 18 Oct 2026 21:58:38 +0200
-Subject: [PATCH 5/6] backend/drm: keep interlaced modes
+Subject: [PATCH 5/8] backend/drm: keep interlaced modes
 
 Interlaced modes were skipped because they couldn't be told from
 progressive ones by size and refresh rate (sway#3167). Modes now have
@@ -728,7 +728,7 @@ index 79d6db8..ddf9a87 100644
 From 402700d61eb931686c374d2696aeb4835d55eff3 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sun, 18 Oct 2026 21:58:50 +0200
-Subject: [PATCH 6/6] backend/drm: keep the timings of the current mode
+Subject: [PATCH 6/8] backend/drm: keep the timings of the current mode
 
 When the mode set on the CRTC wasn't among the connector's modes, it
 was kept as a custom mode, i.e. width, height and refresh rate only,
@@ -772,3 +772,256 @@ index ddf9a87..b8f8e65 100644
  		}
  
  		uint64_t mode_id = 0;
+
+From 2791b1b5e7c423f3047bbf122b0d6cc6b74015a8 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:44:57 +0100
+Subject: [PATCH 7/8] backend/drm: only remove modes added with
+ wlr_drm_connector_add_mode
+
+wlr_drm_connector_remove_mode() and remove_custom_mode accepted any
+USERDEF mode, so a client could remove modes it didn't create, such as
+a mode given on the kernel command line with video=.
+
+Keep track of the modes added with wlr_drm_connector_add_mode(), as
+its documentation states, and expose it with wlr_drm_mode_is_added()
+for remove_custom_mode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ backend/drm/drm.c                |  9 +++++++--
+ include/backend/drm/drm.h        |  1 +
+ include/wlr/backend/drm.h        | 10 +++++++++-
+ types/wlr_output_management_v1.c |  3 +--
+ 4 files changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/backend/drm/drm.c b/backend/drm/drm.c
+index b8f8e65..acc0590 100644
+--- a/backend/drm/drm.c
++++ b/backend/drm/drm.c
+@@ -1122,6 +1122,7 @@ struct wlr_output_mode *wlr_drm_connector_add_mode(struct wlr_output *output,
+ 	if (!mode) {
+ 		return NULL;
+ 	}
++	mode->added = true;
+ 
+ 	wl_list_insert(&conn->output.modes, &mode->wlr_mode.link);
+ 
+@@ -1138,8 +1139,7 @@ bool wlr_drm_connector_remove_mode(struct wlr_output *output,
+ 	struct wlr_drm_connector *conn = get_drm_connector_from_output(output);
+ 	struct wlr_drm_mode *mode = wl_container_of(wlr_mode, mode, wlr_mode);
+ 
+-	if (mode->drm_mode.type != DRM_MODE_TYPE_USERDEF ||
+-			wlr_mode == output->current_mode) {
++	if (!mode->added || wlr_mode == output->current_mode) {
+ 		return false;
+ 	}
+ 
+@@ -1152,6 +1152,11 @@ bool wlr_drm_connector_remove_mode(struct wlr_output *output,
+ 	return true;
+ }
+ 
++bool wlr_drm_mode_is_added(struct wlr_output_mode *wlr_mode) {
++	const struct wlr_drm_mode *mode = wl_container_of(wlr_mode, mode, wlr_mode);
++	return mode->added;
++}
++
+ const drmModeModeInfo *wlr_drm_mode_get_info(struct wlr_output_mode *wlr_mode) {
+ 	const struct wlr_drm_mode *mode = wl_container_of(wlr_mode, mode, wlr_mode);
+ 	return &mode->drm_mode;
+diff --git a/include/backend/drm/drm.h b/include/backend/drm/drm.h
+index 62a44a5..4316687 100644
+--- a/include/backend/drm/drm.h
++++ b/include/backend/drm/drm.h
+@@ -135,6 +135,7 @@ struct wlr_drm_backend {
+ struct wlr_drm_mode {
+ 	struct wlr_output_mode wlr_mode;
+ 	drmModeModeInfo drm_mode;
++	bool added; // with wlr_drm_connector_add_mode()
+ };
+ 
+ struct wlr_drm_device_state {
+diff --git a/include/wlr/backend/drm.h b/include/wlr/backend/drm.h
+index 77727af..7ac4694 100644
+--- a/include/wlr/backend/drm.h
++++ b/include/wlr/backend/drm.h
+@@ -85,12 +85,20 @@ struct wlr_output_mode *wlr_drm_connector_add_mode(struct wlr_output *output,
+ /**
+  * Remove a mode added with wlr_drm_connector_add_mode().
+  *
+- * Fails if the mode is the current mode of the output. The caller must make
++ * Fails if the mode wasn't added this way, such as a mode reported by the
++ * connector, or if it is the current mode of the output. The caller must make
+  * sure nothing else references the mode, which is freed.
+  */
+ bool wlr_drm_connector_remove_mode(struct wlr_output *output,
+ 	struct wlr_output_mode *mode);
+ 
++/**
++ * Check whether a mode was added with wlr_drm_connector_add_mode().
++ *
++ * The mode passed in must belong to a DRM output.
++ */
++bool wlr_drm_mode_is_added(struct wlr_output_mode *mode);
++
+ /**
+  * Get the raw DRM mode information from a struct wlr_output_mode.
+  *
+diff --git a/types/wlr_output_management_v1.c b/types/wlr_output_management_v1.c
+index 829ff99..86172e2 100644
+--- a/types/wlr_output_management_v1.c
++++ b/types/wlr_output_management_v1.c
+@@ -966,8 +966,7 @@ static void head_handle_remove_custom_mode(struct wl_client *client,
+ 
+ 	bool custom = false;
+ #if WLR_HAS_DRM_BACKEND
+-	custom = wlr_output_is_drm(output) &&
+-		wlr_drm_mode_get_info(mode)->type == DRM_MODE_TYPE_USERDEF;
++	custom = wlr_output_is_drm(output) && wlr_drm_mode_is_added(mode);
+ #endif
+ 	if (!custom) {
+ 		wl_resource_post_error(head_resource,
+
+From f30d5bb7e35ee8159ba4433eb2c311d488f3def5 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:44:57 +0100
+Subject: [PATCH 8/8] output-management: fail custom timings instead of
+ approximating them
+
+When the timings given with set_custom_timings couldn't be programmed,
+on a backend other than DRM or if the mode couldn't be added, a custom
+mode with the same size and refresh rate was set instead, leaving the
+timings to the backend. Those can be out of range for the display, a
+CRT monitor especially, and the client isn't told.
+
+Fail the configuration instead, without passing it to the compositor,
+and say so in the protocol.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ include/wlr/types/wlr_output_management_v1.h  |  1 +
+ .../wlr-output-management-unstable-v1.xml     |  3 +-
+ types/wlr_output_management_v1.c              | 42 ++++++++++++-------
+ 3 files changed, 29 insertions(+), 17 deletions(-)
+
+diff --git a/include/wlr/types/wlr_output_management_v1.h b/include/wlr/types/wlr_output_management_v1.h
+index 2835a59..689f58f 100644
+--- a/include/wlr/types/wlr_output_management_v1.h
++++ b/include/wlr/types/wlr_output_management_v1.h
+@@ -95,6 +95,7 @@ struct wlr_output_configuration_head_v1 {
+ 
+ 	struct {
+ 		struct wl_listener output_destroy;
++		bool custom_timings_failed;
+ 	} WLR_PRIVATE;
+ };
+ 
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 7b6411e..ba5922f 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -693,7 +693,8 @@
+         must be non-zero, otherwise the invalid_custom_timings protocol error
+         is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+-        configuration.
++        configuration. It never applies other timings instead: if the exact
++        timings can't be programmed, the configuration fails.
+ 
+         Once applied, the compositor advertises the mode as a regular
+         zwlr_output_mode_v1 object with matching timings and name. The mode
+diff --git a/types/wlr_output_management_v1.c b/types/wlr_output_management_v1.c
+index 86172e2..a3057d8 100644
+--- a/types/wlr_output_management_v1.c
++++ b/types/wlr_output_management_v1.c
+@@ -215,6 +215,7 @@ static void config_head_handle_set_mode(struct wl_client *client,
+ 	}
+ 
+ 	config_head->state.mode = mode;
++	config_head->custom_timings_failed = false;
+ 	if (mode != NULL) {
+ 		config_head->state.custom_mode.width = 0;
+ 		config_head->state.custom_mode.height = 0;
+@@ -239,6 +240,7 @@ static void config_head_handle_set_custom_mode(struct wl_client *client,
+ 	}
+ 
+ 	config_head->state.mode = NULL;
++	config_head->custom_timings_failed = false;
+ 	config_head->state.custom_mode.width = width;
+ 	config_head->state.custom_mode.height = height;
+ 	config_head->state.custom_mode.refresh = refresh;
+@@ -293,6 +295,7 @@ static void config_head_handle_set_custom_timings(struct wl_client *client,
+ 		struct wlr_output_mode *mode =
+ 			wlr_drm_connector_add_mode(output, &modeinfo);
+ 		if (mode != NULL) {
++			config_head->custom_timings_failed = false;
+ 			config_head->state.mode = mode;
+ 			config_head->state.custom_mode.width = 0;
+ 			config_head->state.custom_mode.height = 0;
+@@ -302,20 +305,11 @@ static void config_head_handle_set_custom_timings(struct wl_client *client,
+ 	}
+ #endif
+ 
+-	// The backend can't program timings: fall back to a custom mode with the
+-	// same size and refresh rate
+-	uint64_t refresh = ((uint64_t)clock * 1000000 + htotal * vtotal / 2) /
+-		((uint64_t)htotal * vtotal);
+-	if (flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_INTERLACE) {
+-		refresh *= 2;
+-	}
+-	if (flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_DBLSCAN) {
+-		refresh /= 2;
+-	}
+-	config_head->state.mode = NULL;
+-	config_head->state.custom_mode.width = hdisplay;
+-	config_head->state.custom_mode.height = vdisplay;
+-	config_head->state.custom_mode.refresh = refresh;
++	// The exact timings can't be programmed: fail the configuration rather
++	// than approximate them
++	wlr_log(WLR_ERROR, "Can't set custom timings %ux%u on %s",
++		hdisplay, vdisplay, output->name);
++	config_head->custom_timings_failed = true;
+ }
+ 
+ static void config_head_handle_set_position(struct wl_client *client,
+@@ -527,6 +521,20 @@ static void config_finalize(struct wlr_output_configuration_v1 *config) {
+ 	config->finalized = true;
+ }
+ 
++// Fails and destroys the config if custom timings couldn't be set
++static bool config_validate_custom_timings(
++		struct wlr_output_configuration_v1 *config) {
++	struct wlr_output_configuration_head_v1 *config_head;
++	wl_list_for_each(config_head, &config->heads, link) {
++		if (config_head->custom_timings_failed) {
++			wlr_output_configuration_v1_send_failed(config);
++			wlr_output_configuration_v1_destroy(config);
++			return false;
++		}
++	}
++	return true;
++}
++
+ // Destroys the config if serial is invalid
+ static bool config_validate_serial(struct wlr_output_configuration_v1 *config) {
+ 	if (config->serial != config->manager->serial) {
+@@ -550,7 +558,8 @@ static void config_handle_apply(struct wl_client *client,
+ 	}
+ 
+ 	config_finalize(config);
+-	if (!config_validate_serial(config)) {
++	if (!config_validate_serial(config) ||
++			!config_validate_custom_timings(config)) {
+ 		return;
+ 	}
+ 
+@@ -569,7 +578,8 @@ static void config_handle_test(struct wl_client *client,
+ 	}
+ 
+ 	config_finalize(config);
+-	if (!config_validate_serial(config)) {
++	if (!config_validate_serial(config) ||
++			!config_validate_custom_timings(config)) {
+ 		return;
+ 	}
+ 

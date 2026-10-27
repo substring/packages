@@ -1,7 +1,7 @@
 From d6a57c141c8c6b4e7c382d2dbdad97f036141c3a Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 00:33:31 +0200
-Subject: [PATCH 1/7] Add Wayland backend
+Subject: [PATCH 1/9] Add Wayland backend
 
 Set modes through the compositor with wlr-output-management. Version 5
 of the protocol carries full timings; with older versions only modes
@@ -1711,7 +1711,7 @@ index 0000000..1d0e59c
 From 74208c991799abb6559b1053c775ca008d51f728 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 14:53:02 +0200
-Subject: [PATCH 2/7] Wayland: name modes SR- and remove them
+Subject: [PATCH 2/9] Wayland: name modes SR- and remove them
 
 Name the modes created through the compositor like the other backends
 (SR-<id>_<w>x<h>@<refresh>), and remove them: a mode no longer in use
@@ -2078,7 +2078,7 @@ index 1d0e59c..0d5a608 100644
 From 0f202e0c97cbfe17650eded2167b7374d12aff8c Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 18:20:59 +0200
-Subject: [PATCH 3/7] Wayland: support KWin through kde-output-management
+Subject: [PATCH 3/9] Wayland: support KWin through kde-output-management
 
 KWin doesn't implement wlr-output-management, but version 22 of
 kde-output-management-v2 carries full timings: register the modeline
@@ -3945,7 +3945,7 @@ index 0000000..e78db44
 From 7b915d35f1ec7098ea71ee590e95d5a734e23d28 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sat, 17 Oct 2026 18:37:06 +0200
-Subject: [PATCH 4/7] protocol: avoid XML entities in set_custom_timings
+Subject: [PATCH 4/9] protocol: avoid XML entities in set_custom_timings
 
 The Rust wayland-scanner rejects entities such as &lt; in descriptions.
 
@@ -3978,7 +3978,7 @@ index 0d5a608..7b6411e 100644
 From 5ceb0dead41f0c1fabeba263143dc159ea2b0738 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Sun, 18 Oct 2026 22:49:35 +0200
-Subject: [PATCH 5/7] Install the headers of the C++ API
+Subject: [PATCH 5/9] Install the headers of the C++ API
 
 switchres.h needs monitor.h, modeline.h, display.h, edid.h and
 custom_video.h: install them, so that programs using switchres_manager,
@@ -4022,7 +4022,7 @@ index 963023f..0cb34fd 100644
 From a73d989b68b7e9c161431aae53d64d73a906c10c Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Mon, 19 Oct 2026 15:48:37 +0200
-Subject: [PATCH 6/7] Wayland: accept screen[0-9] as output position
+Subject: [PATCH 6/9] Wayland: accept screen[0-9] as output position
 
 GroovyMAME passes the screen as "screen0", as the xrandr and drmkms
 backends accept it. Positions, given as screenN or N, now count the
@@ -4068,7 +4068,7 @@ index 477a0c7..a6b5b67 100644
 From 0ff7e7472f591e6c768b09c068d1009bda422a54 Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Tue, 20 Oct 2026 13:32:18 +0200
-Subject: [PATCH 7/7] DRM/KMS: lease the connector from the Wayland compositor
+Subject: [PATCH 7/9] DRM/KMS: lease the connector from the Wayland compositor
 
 Under a Wayland compositor, which is the DRM master of the device,
 opening the device gives no modesetting rights. When WAYLAND_DISPLAY is
@@ -4876,3 +4876,128 @@ index 0000000..1fca538
 +    </request>
 +  </interface>
 +</protocol>
+
+From 229dfb0c1efab73ed6005df77eaac3c34b04be8e Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:45:08 +0100
+Subject: [PATCH 8/9] Wayland: check the applied mode, remove stale SR- modes
+
+The compositor reports the current mode after a configuration: check
+that it has the timings which were asked for, or is the mode selected,
+rather than trusting the succeeded event. A compositor which confuses
+modes, or applies other timings, is then reported as an error.
+
+SR- modes are removed once no longer in use, but a switchres instance
+killed before its cleanup leaves its modes behind. Remove the unused
+SR- modes on init too (wlr-output-management only, KDE modes have no
+names to tell ours apart).
+
+Update the protocol copy: set_custom_timings never applies other
+timings.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_wayland.cpp                      | 34 +++++++++++++++++++
+ .../wlr-output-management-unstable-v1.xml     |  3 +-
+ 2 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/custom_video_wayland.cpp b/custom_video_wayland.cpp
+index a6b5b67..ce7abb1 100644
+--- a/custom_video_wayland.cpp
++++ b/custom_video_wayland.cpp
+@@ -452,6 +452,18 @@ bool wayland_timing::init()
+ 		m_proto == PROTO_WLR ? m_manager_version : m_kde_version,
+ 		m_custom_timings ? "custom timings supported" : "custom timings not supported, only advertised modes can be used");
+ 
++	// SR- modes left behind by an instance which didn't exit cleanly. KDE modes
++	// have no names, ours can't be told apart there.
++	if (m_proto == PROTO_WLR && m_custom_timings)
++	{
++		std::vector<wayland_mode *> stale;
++		for (auto m : m_head->modes)
++			if (is_sr_mode(m) && m != m_head->current_mode)
++				stale.push_back(m);
++		for (auto m : stale)
++			remove_mode(m);
++	}
++
+ 	return true;
+ }
+ 
+@@ -1062,6 +1074,28 @@ bool wayland_timing::set_timing(modeline *mode)
+ 		return false;
+ 	}
+ 
++	// Check the mode the compositor reports as current
++	wayland_mode *current = m_head->current_mode;
++	bool applied = current != nullptr && current == existing;
++	if (!applied && current != nullptr && current->has_timings && m_custom_timings)
++	{
++		wl_timings t;
++		modeline_to_timings(mode, &t);
++		applied = same_timings(&current->timings, &t);
++	}
++	if (!applied)
++	{
++		if (current != nullptr && current->has_timings)
++		{
++			const wl_timings *c = &current->timings;
++			log_error("Wayland: <%d> (set_timing) [ERROR] the compositor applied other timings: %.6f %d %d %d %d %d %d %d %d flags 0x%x\n", m_id,
++				c->clock / 1000.0, c->hdisplay, c->hsync_start, c->hsync_end, c->htotal, c->vdisplay, c->vsync_start, c->vsync_end, c->vtotal, c->flags);
++		}
++		else
++			log_error("Wayland: <%d> (set_timing) [ERROR] the compositor didn't apply the mode\n", m_id);
++		return false;
++	}
++
+ 	if (m_custom_timings && existing == nullptr)
+ 	{
+ 		wl_timings t;
+diff --git a/protocols/wlr-output-management-unstable-v1.xml b/protocols/wlr-output-management-unstable-v1.xml
+index 7b6411e..ba5922f 100644
+--- a/protocols/wlr-output-management-unstable-v1.xml
++++ b/protocols/wlr-output-management-unstable-v1.xml
+@@ -693,7 +693,8 @@
+         must be non-zero, otherwise the invalid_custom_timings protocol error
+         is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+-        configuration.
++        configuration. It never applies other timings instead: if the exact
++        timings can't be programmed, the configuration fails.
+ 
+         Once applied, the compositor advertises the mode as a regular
+         zwlr_output_mode_v1 object with matching timings and name. The mode
+
+From ef16211555ec06d5f06fa8d3f1f2ea33208c9bfd Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:45:08 +0100
+Subject: [PATCH 9/9] DRM/KMS: report a revoked lease
+
+The compositor may take a leased connector back at any time. Check the
+lease before setting a mode, so that the failure is reported as such.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ custom_video_drmkms.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/custom_video_drmkms.cpp b/custom_video_drmkms.cpp
+index 9756414..2c9fba8 100755
+--- a/custom_video_drmkms.cpp
++++ b/custom_video_drmkms.cpp
+@@ -1010,6 +1010,15 @@ bool drmkms_timing::set_timing(modeline *mode)
+ 		return false;
+ 	}
+ 
++#ifdef SR_WITH_DRM_LEASE
++	// The compositor may take the connector back at any time
++	if (mp_lease != nullptr && mp_lease->revoked())
++	{
++		log_error("DRM/KMS: <%d> (set_timing) [ERROR] the compositor revoked the lease of %s\n", m_id, mp_lease->connector_name());
++		return false;
++	}
++#endif
++
+ 	// If we can't be master, no need to go further
+ 	drmSetMaster(m_drm_fd);
+ 	if (!drmIsMaster(m_drm_fd))

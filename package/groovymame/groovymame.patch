@@ -270,44 +270,69 @@ index 56a8fc6e..39d18f7b 100644
  	if (stemp != nullptr)
  	{
 
-From 46e6a01309cbf1b1cf76e370b7f631ecd8584c19 Mon Sep 17 00:00:00 2001
+From 88c2cd523b4f545da26e4c54d5a11f68872cb08d Mon Sep 17 00:00:00 2001
 From: Substring <frog2wah@gmail.com>
 Date: Tue, 20 Oct 2026 13:32:18 +0200
-Subject: [PATCH 5/5] kmsraw: map the window under Wayland
+Subject: [PATCH 5/5] sdl: map the kmsraw window under Wayland
 
 kmsraw never draws into its window. Under Wayland, with the output
 leased by the compositor, a window without content is never mapped, so
 it never gets the keyboard focus and the game gets no input. Give the
-window one black frame.
+window one black frame when it is shown.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- src/osd/modules/render/drawkmsraw.cpp | 15 +++++++++++++++
- 1 file changed, 15 insertions(+)
+ src/osd/sdl/window.cpp | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
 
-diff --git a/src/osd/modules/render/drawkmsraw.cpp b/src/osd/modules/render/drawkmsraw.cpp
-index 6c41cb13..eca1932d 100644
---- a/src/osd/modules/render/drawkmsraw.cpp
-+++ b/src/osd/modules/render/drawkmsraw.cpp
-@@ -88,6 +88,21 @@ int renderer_kmsraw::create()
- 	if (window().index() == 0)
- 		m_sync.osd_init(window().monitor()->oshandle(), nullptr, nullptr);
+diff --git a/src/osd/sdl/window.cpp b/src/osd/sdl/window.cpp
+index ff215cec..107ccbd6 100644
+--- a/src/osd/sdl/window.cpp
++++ b/src/osd/sdl/window.cpp
+@@ -64,6 +64,16 @@
+ 
+ #define SDL_VERSION_EQUALS(v1, vnum2) (SDL_VERSIONNUM(v1.major, v1.minor, v1.patch) == vnum2)
+ 
++//============================================================
++//  video_driver_is_wayland
++//============================================================
++
++static bool video_driver_is_wayland()
++{
++	const char *driver = SDL_GetCurrentVideoDriver();
++	return driver != nullptr && !strcmp(driver, "wayland");
++}
++
+ //============================================================
+ //  fullscreen_flag
+ //============================================================
+@@ -74,8 +84,7 @@
+ // that the buffer follows the size of the output mode.
+ static Uint32 fullscreen_flag()
+ {
+-	const char *driver = SDL_GetCurrentVideoDriver();
+-	if (video_config.switchres && driver != nullptr && !strcmp(driver, "wayland"))
++	if (video_config.switchres && video_driver_is_wayland())
+ 		return SDL_WINDOW_FULLSCREEN_DESKTOP;
+ 	return SDL_WINDOW_FULLSCREEN;
+ }
+@@ -1023,6 +1032,19 @@ int sdl_window_info::complete_create()
+ 	//SDL_SetWindowFullscreen(window->sdl_window(), window->fullscreen());
+ 	SDL_RaiseWindow(platform_window());
  
 +	// kmsraw never draws into the window. Under Wayland, where the output is
 +	// leased by the compositor, a window without content isn't mapped, so it
 +	// never gets the keyboard focus: give it one black frame.
-+	const char *driver = SDL_GetCurrentVideoDriver();
-+	if (driver != nullptr && !strcmp(driver, "wayland"))
++	if (!strcmp(downcast<sdl_options &>(machine().options()).video(), "kmsraw") && video_driver_is_wayland())
 +	{
-+		SDL_Window *sdl_window = dynamic_cast<sdl_window_info &>(window()).platform_window();
-+		SDL_Surface *surface = SDL_GetWindowSurface(sdl_window);
++		SDL_Surface *surface = SDL_GetWindowSurface(platform_window());
 +		if (surface != nullptr)
 +		{
 +			SDL_FillRect(surface, nullptr, 0);
-+			SDL_UpdateWindowSurface(sdl_window);
++			SDL_UpdateWindowSurface(platform_window());
 +		}
 +	}
 +
- 	return 0;
- }
- 
+ #ifdef SDLMAME_WIN32
+ 	if (fullscreen())
+ 		SDL_SetWindowGrab(platform_window(), SDL_TRUE);
