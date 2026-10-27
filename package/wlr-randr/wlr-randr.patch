@@ -1,0 +1,802 @@
+From 2a71aaa61420fcb64b845c78b755cbcf27517220 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:06:33 +0200
+Subject: [PATCH 1/3] Add --modeline, --rmmode and --verbose
+
+Use version 5 of wlr-output-management to set modes from detailed
+timings, remove them, and show the name and timings of each mode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ main.c                                        | 263 +++++++++++++++++-
+ .../wlr-output-management-unstable-v1.xml     | 148 +++++++++-
+ wlr-randr.1.scd                               |  14 +
+ 3 files changed, 403 insertions(+), 22 deletions(-)
+
+diff --git a/main.c b/main.c
+index b0af8fe..7ca6527 100644
+--- a/main.c
++++ b/main.c
+@@ -7,6 +7,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <strings.h>
+ #include <wayland-client.h>
+ #include "wlr-output-management-unstable-v1-client-protocol.h"
+ 
+@@ -21,6 +22,15 @@ struct randr_mode {
+ 	int32_t width, height;
+ 	int32_t refresh; // mHz
+ 	bool preferred;
++
++	char *name;
++	bool has_timings;
++	struct randr_timings {
++		uint32_t clock; // kHz
++		uint32_t hdisplay, hsync_start, hsync_end, htotal;
++		uint32_t vdisplay, vsync_start, vsync_end, vtotal;
++		uint32_t flags; // enum zwlr_output_mode_v1_timing_flags
++	} timings;
+ };
+ 
+ enum randr_head_prop {
+@@ -48,6 +58,10 @@ struct randr_head {
+ 		int32_t width, height;
+ 		int32_t refresh;
+ 	} custom_mode;
++	bool has_custom_timings;
++	struct randr_timings custom_timings;
++	char custom_timings_name[32];
++	char *remove_mode_name;
+ 	int32_t x, y;
+ 	enum wl_output_transform transform;
+ 	double scale;
+@@ -120,7 +134,17 @@ static struct randr_head *find_head(struct randr_state *state, const char *name)
+ 	return NULL;
+ }
+ 
+-static void print_state(struct randr_state *state) {
++static void print_timings(const struct randr_timings *t) {
++	printf("%.3f MHz %u %u %u %u %u %u %u %u %chsync %cvsync%s%s",
++		t->clock / 1000.0, t->hdisplay, t->hsync_start, t->hsync_end,
++		t->htotal, t->vdisplay, t->vsync_start, t->vsync_end, t->vtotal,
++		(t->flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_PHSYNC) ? '+' : '-',
++		(t->flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_PVSYNC) ? '+' : '-',
++		(t->flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_INTERLACE) ? " interlace" : "",
++		(t->flags & ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_DBLSCAN) ? " doublescan" : "");
++}
++
++static void print_state(struct randr_state *state, bool verbose) {
+ 	struct randr_head *head;
+ 	wl_list_for_each(head, &state->heads, link) {
+ 		printf("%s \"%s\"\n", head->name, head->description);
+@@ -165,6 +189,11 @@ static void print_state(struct randr_state *state) {
+ 					printf(")");
+ 				}
+ 				printf("\n");
++				if (verbose && mode->has_timings) {
++					printf("      %s: ", mode->name != NULL ? mode->name : "");
++					print_timings(&mode->timings);
++					printf("\n");
++				}
+ 			}
+ 		}
+ 
+@@ -285,6 +314,18 @@ static void print_state_json(struct randr_state *state) {
+ 			printf("        \"height\": %d,\n", mode->height);
+ 			printf("        \"refresh\": %f,\n", (float)mode->refresh / 1000);
+ 			printf("        \"preferred\": %s,\n", mode->preferred ? "true" : "false");
++			if (mode->has_timings) {
++				const struct randr_timings *t = &mode->timings;
++				printf("        \"name\": ");
++				print_json_optional_string(mode->name);
++				printf(",\n");
++				printf("        \"timings\": {\"clock\": %u, \"hdisplay\": %u, "
++					"\"hsync_start\": %u, \"hsync_end\": %u, \"htotal\": %u, "
++					"\"vdisplay\": %u, \"vsync_start\": %u, \"vsync_end\": %u, "
++					"\"vtotal\": %u, \"flags\": %u},\n",
++					t->clock, t->hdisplay, t->hsync_start, t->hsync_end, t->htotal,
++					t->vdisplay, t->vsync_start, t->vsync_end, t->vtotal, t->flags);
++			}
+ 			printf("        \"current\": %s\n", head->mode == mode ? "true" : "false");
+ 
+ 			printf("      }");
+@@ -383,7 +424,13 @@ static void apply_state(struct randr_state *state, bool dry_run) {
+ 		struct zwlr_output_configuration_head_v1 *config_head =
+ 			zwlr_output_configuration_v1_enable_head(config, head->wlr_head);
+ 		if (head->changed & RANDR_HEAD_MODE) {
+-			if (head->mode != NULL) {
++			if (head->has_custom_timings) {
++				const struct randr_timings *t = &head->custom_timings;
++				zwlr_output_configuration_head_v1_set_custom_timings(config_head,
++					t->clock, t->hdisplay, t->hsync_start, t->hsync_end,
++					t->htotal, t->vdisplay, t->vsync_start, t->vsync_end,
++					t->vtotal, t->flags, head->custom_timings_name);
++			} else if (head->mode != NULL) {
+ 				zwlr_output_configuration_head_v1_set_mode(config_head,
+ 					head->mode->wlr_mode);
+ 			} else {
+@@ -420,6 +467,51 @@ static void apply_state(struct randr_state *state, bool dry_run) {
+ 	}
+ }
+ 
++// Removes the custom modes requested with --rmmode, returns false on error
++static bool remove_modes(struct randr_state *state, struct wl_display *display) {
++	bool ok = true;
++	struct randr_head *head;
++	wl_list_for_each(head, &state->heads, link) {
++		if (head->remove_mode_name == NULL) {
++			continue;
++		}
++
++		struct randr_mode *mode, *found = NULL;
++		wl_list_for_each(mode, &head->modes, link) {
++			if (mode->name != NULL && strcmp(mode->name, head->remove_mode_name) == 0) {
++				found = mode;
++				break;
++			}
++		}
++		if (found == NULL) {
++			fprintf(stderr, "unknown mode %s on %s\n", head->remove_mode_name, head->name);
++			ok = false;
++			continue;
++		}
++		if (found == head->mode) {
++			fprintf(stderr, "mode %s is in use on %s\n", head->remove_mode_name, head->name);
++			ok = false;
++			continue;
++		}
++
++		zwlr_output_head_v1_remove_custom_mode(head->wlr_head, found->wlr_mode);
++		if (wl_display_roundtrip(display) < 0) {
++			return false;
++		}
++
++		// The compositor finishes the mode on success
++		wl_list_for_each(mode, &head->modes, link) {
++			if (mode == found) {
++				fprintf(stderr, "the compositor kept mode %s on %s\n",
++					head->remove_mode_name, head->name);
++				ok = false;
++				break;
++			}
++		}
++	}
++	return ok;
++}
++
+ static void mode_handle_size(void *data, struct zwlr_output_mode_v1 *wlr_mode,
+ 		int32_t width, int32_t height) {
+ 	struct randr_mode *mode = data;
+@@ -439,15 +531,39 @@ static void mode_handle_preferred(void *data,
+ 	mode->preferred = true;
+ }
+ 
++static void mode_handle_name(void *data,
++		struct zwlr_output_mode_v1 *wlr_mode, const char *name) {
++	struct randr_mode *mode = data;
++	free(mode->name);
++	mode->name = strdup(name);
++}
++
++static void mode_handle_timings(void *data,
++		struct zwlr_output_mode_v1 *wlr_mode, uint32_t clock,
++		uint32_t hdisplay, uint32_t hsync_start, uint32_t hsync_end,
++		uint32_t htotal, uint32_t vdisplay, uint32_t vsync_start,
++		uint32_t vsync_end, uint32_t vtotal, uint32_t flags) {
++	struct randr_mode *mode = data;
++	mode->has_timings = true;
++	mode->timings = (struct randr_timings){
++		clock, hdisplay, hsync_start, hsync_end, htotal,
++		vdisplay, vsync_start, vsync_end, vtotal, flags,
++	};
++}
++
+ static void mode_handle_finished(void *data,
+ 		struct zwlr_output_mode_v1 *wlr_mode) {
+ 	struct randr_mode *mode = data;
++	if (mode->head->mode == mode) {
++		mode->head->mode = NULL;
++	}
+ 	wl_list_remove(&mode->link);
+ 	if (zwlr_output_mode_v1_get_version(mode->wlr_mode) >= 3) {
+ 		zwlr_output_mode_v1_release(mode->wlr_mode);
+ 	} else {
+ 		zwlr_output_mode_v1_destroy(mode->wlr_mode);
+ 	}
++	free(mode->name);
+ 	free(mode);
+ }
+ 
+@@ -456,6 +572,8 @@ static const struct zwlr_output_mode_v1_listener mode_listener = {
+ 	.refresh = mode_handle_refresh,
+ 	.preferred = mode_handle_preferred,
+ 	.finished = mode_handle_finished,
++	.name = mode_handle_name,
++	.timings = mode_handle_timings,
+ };
+ 
+ static void head_handle_name(void *data,
+@@ -626,7 +744,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
+ 	struct randr_state *state = data;
+ 
+ 	if (strcmp(interface, zwlr_output_manager_v1_interface.name) == 0) {
+-		uint32_t version_to_bind = version <= 4 ? version : 4;
++		uint32_t version_to_bind = version <= 5 ? version : 5;
+ 		state->output_manager = wl_registry_bind(registry, name,
+ 			&zwlr_output_manager_v1_interface, version_to_bind);
+ 		zwlr_output_manager_v1_add_listener(state->output_manager,
+@@ -655,6 +773,9 @@ static const struct option long_options[] = {
+ 	{"mode", required_argument, 0, 0},
+ 	{"preferred", no_argument, 0, 0},
+ 	{"custom-mode", required_argument, 0, 0},
++	{"modeline", required_argument, 0, 0},
++	{"rmmode", required_argument, 0, 0},
++	{"verbose", no_argument, 0, 0},
+ 	{"pos", required_argument, 0, 0},
+ 	{"left-of", required_argument, 0, 0},
+ 	{"right-of", required_argument, 0, 0},
+@@ -722,6 +843,85 @@ static bool parse_mode(const char *value, int *width, int *height,
+ 	return true;
+ }
+ 
++// [name] <clock MHz> <hdisplay> <hsync_start> <hsync_end> <htotal>
++// <vdisplay> <vsync_start> <vsync_end> <vtotal> [+hsync|-hsync]
++// [+vsync|-vsync] [interlace] [doublescan], like xrandr --newmode
++static bool parse_modeline(const char *value, struct randr_timings *t,
++		char *name, size_t name_size) {
++	char *copy = strdup(value);
++	char *save = NULL;
++	char *tok = strtok_r(copy, " \t", &save);
++	name[0] = '\0';
++
++	char *end = NULL;
++	if (tok != NULL) {
++		strtod(tok, &end);
++	}
++	if (tok != NULL && (end == tok || end[0] != '\0')) {
++		// Leading name, quotes are optional
++		size_t len = strlen(tok);
++		if (len >= 2 && tok[0] == '"' && tok[len - 1] == '"') {
++			tok[len - 1] = '\0';
++			tok++;
++		}
++		snprintf(name, name_size, "%s", tok);
++		tok = strtok_r(NULL, " \t", &save);
++	}
++
++	uint32_t *fields[] = {
++		&t->hdisplay, &t->hsync_start, &t->hsync_end, &t->htotal,
++		&t->vdisplay, &t->vsync_start, &t->vsync_end, &t->vtotal,
++	};
++	bool ok = tok != NULL;
++	if (ok) {
++		double clock = strtod(tok, &end);
++		ok = end != tok && end[0] == '\0' && clock > 0;
++		t->clock = round(clock * 1000); // MHz → kHz
++	}
++	for (size_t i = 0; ok && i < sizeof(fields) / sizeof(fields[0]); i++) {
++		tok = strtok_r(NULL, " \t", &save);
++		ok = tok != NULL;
++		if (ok) {
++			long v = strtol(tok, &end, 10);
++			ok = end != tok && end[0] == '\0' && v >= 0;
++			*fields[i] = v;
++		}
++	}
++
++	t->flags = 0;
++	while (ok && (tok = strtok_r(NULL, " \t", &save)) != NULL) {
++		if (strcasecmp(tok, "+hsync") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_PHSYNC;
++		} else if (strcasecmp(tok, "-hsync") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_NHSYNC;
++		} else if (strcasecmp(tok, "+vsync") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_PVSYNC;
++		} else if (strcasecmp(tok, "-vsync") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_NVSYNC;
++		} else if (strcasecmp(tok, "interlace") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_INTERLACE;
++		} else if (strcasecmp(tok, "doublescan") == 0) {
++			t->flags |= ZWLR_OUTPUT_MODE_V1_TIMING_FLAGS_DBLSCAN;
++		} else {
++			fprintf(stderr, "invalid modeline flag: %s\n", tok);
++			ok = false;
++		}
++	}
++	free(copy);
++
++	if (ok && (t->hdisplay == 0 || t->vdisplay == 0 ||
++			t->hdisplay > t->hsync_start || t->hsync_start > t->hsync_end ||
++			t->hsync_end > t->htotal || t->vdisplay > t->vsync_start ||
++			t->vsync_start > t->vsync_end || t->vsync_end > t->vtotal)) {
++		fprintf(stderr, "invalid modeline: inconsistent timings: %s\n", value);
++		return false;
++	}
++	if (!ok) {
++		fprintf(stderr, "invalid modeline: %s\n", value);
++	}
++	return ok;
++}
++
+ static void fixup_disabled_head(struct randr_head *head) {
+ 	if (!head->mode && head->custom_mode.refresh == 0 &&
+ 			head->custom_mode.width == 0 &&
+@@ -814,6 +1014,29 @@ static bool parse_output_arg(struct randr_state *state, struct randr_head *head,
+ 		head->custom_mode.width = width;
+ 		head->custom_mode.height = height;
+ 		head->custom_mode.refresh = refresh;
++	} else if (strcmp(name, "modeline") == 0) {
++		if (zwlr_output_head_v1_get_version(head->wlr_head) <
++				ZWLR_OUTPUT_CONFIGURATION_HEAD_V1_SET_CUSTOM_TIMINGS_SINCE_VERSION) {
++			fprintf(stderr, "setting a modeline not supported by the compositor\n");
++			return false;
++		}
++		if (!parse_modeline(value, &head->custom_timings,
++				head->custom_timings_name, sizeof(head->custom_timings_name))) {
++			return false;
++		}
++
++		head->changed |= RANDR_HEAD_MODE;
++		head->has_custom_timings = true;
++		head->mode = NULL;
++	} else if (strcmp(name, "rmmode") == 0) {
++		if (zwlr_output_head_v1_get_version(head->wlr_head) <
++				ZWLR_OUTPUT_HEAD_V1_REMOVE_CUSTOM_MODE_SINCE_VERSION) {
++			fprintf(stderr, "removing a mode not supported by the compositor\n");
++			return false;
++		}
++		free(head->remove_mode_name);
++		head->remove_mode_name = strdup(value);
++		return true;
+ 	} else if (strcmp(name, "pos") == 0) {
+ 		char *cur = (char *)value;
+ 		char *end;
+@@ -925,11 +1148,16 @@ static const char usage[] =
+ 	"--help\n"
+ 	"--dryrun\n"
+ 	"--json\n"
++	"--verbose\n"
+ 	"--output <name>\n"
+ 	"  --on\n"
+ 	"  --off\n"
+ 	"  --toggle\n"
+ 	"  --mode|--custom-mode <width>x<height>[@<refresh>Hz]\n"
++	"  --modeline \"[<name>] <clock MHz> <hdisplay> <hsync_start> <hsync_end> <htotal>\n"
++	"              <vdisplay> <vsync_start> <vsync_end> <vtotal> [±hsync] [±vsync]\n"
++	"              [interlace] [doublescan]\"\n"
++	"  --rmmode <name>\n"
+ 	"  --preferred\n"
+ 	"  --pos <x>,<y>\n"
+ 	"  --left-of <name>\n"
+@@ -971,7 +1199,8 @@ int main(int argc, char *argv[]) {
+ 		}
+ 	}
+ 
+-	bool changed = false, dry_run = false, json = false;
++	bool changed = false, dry_run = false, json = false, verbose = false;
++	bool remove = false;
+ 	struct randr_head *current_head = NULL;
+ 	while (1) {
+ 		int option_index = -1;
+@@ -997,6 +1226,8 @@ int main(int argc, char *argv[]) {
+ 			dry_run = true;
+ 		} else if (strcmp(name, "json") == 0) {
+ 			json = true;
++		} else if (strcmp(name, "verbose") == 0) {
++			verbose = true;
+ 		} else { // output sub-option
+ 			if (current_head == NULL) {
+ 				fprintf(stderr, "no --output specified before --%s\n", name);
+@@ -1007,7 +1238,11 @@ int main(int argc, char *argv[]) {
+ 				return EXIT_FAILURE;
+ 			}
+ 
+-			changed = true;
++			if (strcmp(name, "rmmode") == 0) {
++				remove = true;
++			} else {
++				changed = true;
++			}
+ 		}
+ 	}
+ 	if (optind < argc) {
+@@ -1015,7 +1250,7 @@ int main(int argc, char *argv[]) {
+ 		return EXIT_FAILURE;
+ 	}
+ 
+-	if (changed && json) {
++	if ((changed || remove) && json) {
+ 		fprintf(stderr, "--json cannot be used when changing the configuration\n");
+ 		return EXIT_FAILURE;
+ 	}
+@@ -1026,10 +1261,22 @@ int main(int argc, char *argv[]) {
+ 		while (state.running && wl_display_dispatch(display) != -1) {
+ 			// This space intentionally left blank
+ 		}
++		if (remove && !state.failed && !dry_run) {
++			// Pick up the new current modes before removing others
++			wl_display_roundtrip(display);
++		}
++	}
++	if (remove && !state.failed && !dry_run) {
++		if (!remove_modes(&state, display)) {
++			state.failed = true;
++		}
++	}
++	if (changed || remove) {
++		// Already done
+ 	} else if (json) {
+ 		print_state_json(&state);
+ 	} else {
+-		print_state(&state);
++		print_state(&state, verbose);
+ 	}
+ 
+ 	struct randr_head *head, *tmp_head;
+@@ -1037,9 +1284,11 @@ int main(int argc, char *argv[]) {
+ 		struct randr_mode *mode, *tmp_mode;
+ 		wl_list_for_each_safe(mode, tmp_mode, &head->modes, link) {
+ 			zwlr_output_mode_v1_destroy(mode->wlr_mode);
++			free(mode->name);
+ 			free(mode);
+ 		}
+ 		zwlr_output_head_v1_destroy(head->wlr_head);
++		free(head->remove_mode_name);
+ 		free(head->name);
+ 		free(head->description);
+ 		free(head->make);
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 411e2f0..0d5a608 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -39,7 +39,7 @@
+     interface version number is reset.
+   </description>
+ 
+-  <interface name="zwlr_output_manager_v1" version="4">
++  <interface name="zwlr_output_manager_v1" version="5">
+     <description summary="output device configuration manager">
+       This interface is a manager that allows reading and writing the current
+       output device configuration.
+@@ -125,7 +125,7 @@
+     </event>
+   </interface>
+ 
+-  <interface name="zwlr_output_head_v1" version="4">
++  <interface name="zwlr_output_head_v1" version="5">
+     <description summary="output device">
+       A head is an output device. The difference between a wl_output object and
+       a head is that heads are advertised even if they are turned off. A head
+@@ -156,8 +156,8 @@
+         not assume that the name is a reflection of an underlying DRM
+         connector, X11 connection, etc.
+ 
+-        If the compositor implements the xdg-output protocol and this head is
+-        enabled, the xdg_output.name event must report the same name.
++        If this head matches a wl_output, the wl_output.name event must report
++        the same name.
+ 
+         The name event is sent after a wlr_output_head object is created. This
+         event is only sent once per object, and the name does not change over
+@@ -176,8 +176,8 @@
+         the make, model, serial of the underlying DRM connector or the display
+         name of the underlying X11 connection, etc.
+ 
+-        If the compositor implements xdg-output and this head is enabled,
+-        the xdg_output.description must report the same description.
++        If this head matches a wl_output, the wl_output.description event must
++        report the same name.
+ 
+         The description event is sent after a wlr_output_head object is created.
+         This event is only sent once per object, and the description does not
+@@ -191,6 +191,10 @@
+         This event describes the physical size of the head. This event is only
+         sent if the head has a physical size (e.g. is not a projector or a
+         virtual device).
++
++        The physical size event is sent after a wlr_output_head object is created. This
++        event is only sent once per object, and the physical size does not change over
++        the lifetime of the wlr_output_head object.
+       </description>
+       <arg name="width" type="int" summary="width in millimeters of the output"/>
+       <arg name="height" type="int" summary="height in millimeters of the output"/>
+@@ -264,9 +268,6 @@
+       <description summary="head manufacturer">
+         This event describes the manufacturer of the head.
+ 
+-        This must report the same make as the wl_output interface does in its
+-        geometry event.
+-
+         Together with the model and serial_number events the purpose is to
+         allow clients to recognize heads from previous sessions and for example
+         load head-specific configurations back.
+@@ -278,6 +279,10 @@
+         identify the head by available information from other events but should
+         be aware that there is an increased risk of false positives.
+ 
++        If sent, the make event is sent after a wlr_output_head object is
++        created and only sent once per object. The make does not change over
++        the lifetime of the wlr_output_head object.
++
+         It is not recommended to display the make string in UI to users. For
+         that the string provided by the description event should be preferred.
+       </description>
+@@ -288,9 +293,6 @@
+       <description summary="head model">
+         This event describes the model of the head.
+ 
+-        This must report the same model as the wl_output interface does in its
+-        geometry event.
+-
+         Together with the make and serial_number events the purpose is to
+         allow clients to recognize heads from previous sessions and for example
+         load head-specific configurations back.
+@@ -302,6 +304,10 @@
+         identify the head by available information from other events but should
+         be aware that there is an increased risk of false positives.
+ 
++        If sent, the model event is sent after a wlr_output_head object is
++        created and only sent once per object. The model does not change over
++        the lifetime of the wlr_output_head object.
++
+         It is not recommended to display the model string in UI to users. For
+         that the string provided by the description event should be preferred.
+       </description>
+@@ -323,6 +329,10 @@
+         available information from other events but should be aware that there
+         is an increased risk of false positives.
+ 
++        If sent, the serial number event is sent after a wlr_output_head object
++        is created and only sent once per object. The serial number does not
++        change over the lifetime of the wlr_output_head object.
++
+         It is not recommended to display the serial_number string in UI to
+         users. For that the string provided by the description event should be
+         preferred.
+@@ -354,9 +364,31 @@
+       </description>
+       <arg name="state" type="uint" enum="adaptive_sync_state"/>
+     </event>
++
++    <!-- Version 5 additions -->
++
++    <enum name="error" since="5">
++      <entry name="invalid_mode" value="1" summary="mode doesn't belong to head"/>
++      <entry name="not_custom" value="2"
++        summary="mode wasn't created with set_custom_timings"/>
++    </enum>
++
++    <request name="remove_custom_mode" since="5">
++      <description summary="remove a custom mode">
++        This request removes a mode created with
++        zwlr_output_configuration_head_v1.set_custom_timings. Removing any
++        other mode raises the not_custom protocol error.
++
++        A mode in use by the head can't be removed: the request is then
++        ignored. Otherwise the compositor sends the finished event on every
++        object of the mode, followed by a done event on the manager. As the
++        serial changes, pending configurations are cancelled.
++      </description>
++      <arg name="mode" type="object" interface="zwlr_output_mode_v1"/>
++    </request>
+   </interface>
+ 
+-  <interface name="zwlr_output_mode_v1" version="3">
++  <interface name="zwlr_output_mode_v1" version="5">
+     <description summary="output mode">
+       This object describes an output mode.
+ 
+@@ -409,9 +441,56 @@
+         object.
+       </description>
+     </request>
++
++    <!-- Version 5 additions -->
++
++    <enum name="timing_flags" bitfield="true" since="5">
++      <description summary="mode timing flags">
++        Flags describing sync polarity and scan type of a mode. The values
++        match the DRM_MODE_FLAG_* values of the Linux kernel.
++      </description>
++      <entry name="phsync" value="0x1" summary="positive horizontal sync"/>
++      <entry name="nhsync" value="0x2" summary="negative horizontal sync"/>
++      <entry name="pvsync" value="0x4" summary="positive vertical sync"/>
++      <entry name="nvsync" value="0x8" summary="negative vertical sync"/>
++      <entry name="interlace" value="0x10" summary="interlaced scan"/>
++      <entry name="dblscan" value="0x20" summary="double scan"/>
++      <entry name="csync" value="0x40" summary="composite sync"/>
++      <entry name="pcsync" value="0x80" summary="positive composite sync"/>
++      <entry name="ncsync" value="0x100" summary="negative composite sync"/>
++    </enum>
++
++    <event name="name" since="5">
++      <description summary="mode name">
++        This event describes the name of the mode, as known by the display
++        hardware or given with set_custom_timings. It is only sent if the head
++        exposes hardware timings, along with the timings event.
++      </description>
++      <arg name="name" type="string" summary="mode name"/>
++    </event>
++
++    <event name="timings" since="5">
++      <description summary="detailed mode timings">
++        This event describes the exact timings of the mode, as they would be
++        programmed into the display hardware. It is only sent if the head
++        exposes hardware timings, such as a DRM connector.
++
++        For interlaced modes, vertical values describe the full frame.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++    </event>
+   </interface>
+ 
+-  <interface name="zwlr_output_configuration_v1" version="4">
++  <interface name="zwlr_output_configuration_v1" version="5">
+     <description summary="output configuration">
+       This object is used by the client to describe a full output configuration.
+ 
+@@ -529,7 +608,7 @@
+     </request>
+   </interface>
+ 
+-  <interface name="zwlr_output_configuration_head_v1" version="4">
++  <interface name="zwlr_output_configuration_head_v1" version="5">
+     <description summary="head configuration">
+       This object is used by the client to update a single head's configuration.
+ 
+@@ -544,6 +623,8 @@
+       <entry name="invalid_scale" value="5" summary="scale negative or zero"/>
+       <entry name="invalid_adaptive_sync_state" value="6" since="4"
+         summary="invalid enum value used in the set_adaptive_sync request"/>
++      <entry name="invalid_custom_timings" value="7" since="5"
++        summary="timings are inconsistent"/>
+     </enum>
+ 
+     <request name="set_mode">
+@@ -597,5 +678,42 @@
+       </description>
+       <arg name="state" type="uint" enum="zwlr_output_head_v1.adaptive_sync_state"/>
+     </request>
++
++    <!-- Version 5 additions -->
++
++    <request name="set_custom_timings" since="5">
++      <description summary="set a mode from detailed timings">
++        This request assigns a mode described by its exact hardware timings to
++        the head, like a modeline. This allows modes which are not advertised
++        by the display, for instance for CRT monitors.
++
++        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
++        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
++        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
++        protocol error is raised. The compositor may still reject timings that
++        the hardware cannot drive by sending the failed event on the
++        configuration.
++
++        Once applied, the compositor advertises the mode as a regular
++        zwlr_output_mode_v1 object with matching timings and name. The mode
++        stays available until it is removed with
++        zwlr_output_head_v1.remove_custom_mode.
++
++        It is a protocol error to combine this request with set_mode or
++        set_custom_mode.
++      </description>
++      <arg name="clock" type="uint" summary="pixel clock in kHz"/>
++      <arg name="hdisplay" type="uint" summary="horizontal active pixels"/>
++      <arg name="hsync_start" type="uint" summary="horizontal sync start"/>
++      <arg name="hsync_end" type="uint" summary="horizontal sync end"/>
++      <arg name="htotal" type="uint" summary="horizontal total"/>
++      <arg name="vdisplay" type="uint" summary="vertical active lines"/>
++      <arg name="vsync_start" type="uint" summary="vertical sync start"/>
++      <arg name="vsync_end" type="uint" summary="vertical sync end"/>
++      <arg name="vtotal" type="uint" summary="vertical total"/>
++      <arg name="flags" type="uint" enum="zwlr_output_mode_v1.timing_flags"/>
++      <arg name="name" type="string"
++        summary="mode name, truncated by the compositor if too long"/>
++    </request>
+   </interface>
+ </protocol>
+diff --git a/wlr-randr.1.scd b/wlr-randr.1.scd
+index a2e4b3f..aabfcad 100644
+--- a/wlr-randr.1.scd
++++ b/wlr-randr.1.scd
+@@ -25,6 +25,10 @@ output for a screen. This utility requires the compositor to implement the
+ *--json*
+ 	Print current state as JSON.
+ 
++*--verbose*
++	Also print the name and timings of each mode, when the compositor
++	exposes them.
++
+ *--output* <name>
+ 	Selects an output to reconfigure. This option must be set when making
+ 	making changes to the output using below options.
+@@ -38,6 +42,16 @@ output for a screen. This utility requires the compositor to implement the
+ *--mode* | *--custom-mode* <width>x<height>[@<refresh>Hz]
+ 	Set output resolution and, optionally, refresh rate.
+ 
++*--modeline* "[<name>] <clock> <hdisplay> <hsync-start> <hsync-end> <htotal> <vdisplay> <vsync-start> <vsync-end> <vtotal> [+hsync|-hsync] [+vsync|-vsync] [interlace] [doublescan]"
++	Set a mode from detailed timings, like a modeline of *xrandr*(1)
++	*--newmode*. The pixel clock is in MHz. The compositor keeps the mode
++	until it is removed with *--rmmode*. Out of range timings may damage
++	the display, especially CRT monitors.
++
++*--rmmode* <name>
++	Remove a mode added with *--modeline*. The mode in use can't be
++	removed: combine with *--mode* to switch to another mode first.
++
+ *--pos* <x>,<y>
+ 	Position the output with absolute layout coordinates.
+ 
+
+From 2e698c73ed7c0387b481df7bda1181c85229f04c Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Sat, 17 Oct 2026 18:37:06 +0200
+Subject: [PATCH 2/3] protocol: avoid XML entities in set_custom_timings
+
+The Rust wayland-scanner rejects entities such as &lt; in descriptions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ protocol/wlr-output-management-unstable-v1.xml | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 0d5a608..7b6411e 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -687,10 +687,11 @@
+         the head, like a modeline. This allows modes which are not advertised
+         by the display, for instance for CRT monitors.
+ 
+-        Timings must satisfy hdisplay &lt;= hsync_start &lt;= hsync_end &lt;= htotal
+-        and vdisplay &lt;= vsync_start &lt;= vsync_end &lt;= vtotal, with non-zero
+-        clock, hdisplay and vdisplay, otherwise the invalid_custom_timings
+-        protocol error is raised. The compositor may still reject timings that
++        Horizontal values must not decrease from hdisplay to hsync_start,
++        hsync_end and htotal, likewise for vertical values from vdisplay to
++        vsync_start, vsync_end and vtotal, and clock, hdisplay and vdisplay
++        must be non-zero, otherwise the invalid_custom_timings protocol error
++        is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+         configuration.
+ 
+
+From f1fefeeb3b903a04d1e18027a34a61126bfcf726 Mon Sep 17 00:00:00 2001
+From: Substring <frog2wah@gmail.com>
+Date: Mon, 26 Oct 2026 21:45:08 +0100
+Subject: [PATCH 3/3] protocol: set_custom_timings never applies other timings
+
+Sync with the compositor side: if the exact timings can't be
+programmed, the configuration fails.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ protocol/wlr-output-management-unstable-v1.xml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/protocol/wlr-output-management-unstable-v1.xml b/protocol/wlr-output-management-unstable-v1.xml
+index 7b6411e..ba5922f 100644
+--- a/protocol/wlr-output-management-unstable-v1.xml
++++ b/protocol/wlr-output-management-unstable-v1.xml
+@@ -693,7 +693,8 @@
+         must be non-zero, otherwise the invalid_custom_timings protocol error
+         is raised. The compositor may still reject timings that
+         the hardware cannot drive by sending the failed event on the
+-        configuration.
++        configuration. It never applies other timings instead: if the exact
++        timings can't be programmed, the configuration fails.
+ 
+         Once applied, the compositor advertises the mode as a regular
+         zwlr_output_mode_v1 object with matching timings and name. The mode

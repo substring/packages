@@ -1,1 +1,2 @@
+pkgrel++
 source+=sway.patch
