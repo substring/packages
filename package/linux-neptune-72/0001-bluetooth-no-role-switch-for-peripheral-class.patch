@@ -1,0 +1,32 @@
+Subject: [PATCH] Bluetooth: do not request a role switch for peripheral-class devices
+
+When accepting an incoming ACL connection, the host asks to become central
+as soon as one listening socket has role switch set (bluetoothd's SDP server
+and A2DP do). After that role switch, DualShock 3 clones (ShanWan, Gasia)
+stop answering the host's L2CAP signalling (Information and Configure
+requests), so the HID channels are never configured and the pad drops.
+
+Stay peripheral when the Class of Device major class is Peripheral (0x05:
+keyboards, mice, gamepads), which have no use for the role switch.
+
+Heuristic: an upstreamable version would rather use a per-device flag set
+by bluetoothd. Proven by A/B test (same L2CAP server, with and without a
+socket requesting central).
+---
+--- a/net/bluetooth/hci_event.c
++++ b/net/bluetooth/hci_event.c
+@@ -3354,7 +3354,13 @@
+ 
+ 		bacpy(&cp.bdaddr, &ev->bdaddr);
+ 
+-		if (lmp_rswitch_capable(hdev) && (mask & HCI_LM_MASTER))
++		/* Some HID peripherals (e.g. Sixaxis clones) stop answering
++		 * L2CAP signalling after a role switch at accept time, and
++		 * a HID peripheral has no use for it: stay peripheral for
++		 * devices whose Class of Device major class is Peripheral.
++		 */
++		if (lmp_rswitch_capable(hdev) && (mask & HCI_LM_MASTER) &&
++		    (ev->dev_class[1] & 0x1f) != 0x05)
+ 			cp.role = 0x00; /* Become central */
+ 		else
+ 			cp.role = 0x01; /* Remain peripheral */

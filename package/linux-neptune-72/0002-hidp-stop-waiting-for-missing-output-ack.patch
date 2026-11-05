@@ -1,0 +1,62 @@
+Subject: [PATCH] HID: hidp: stop waiting for output report handshakes that never come
+
+Some devices (DualShock 3 clones) apply output reports sent with SET_REPORT
+on the control channel but never answer with a HIDP handshake.
+hidp_set_raw_report() then blocks for 10 s on each report: rumble lasts
+~10 s and the next commands are delayed.
+
+On the first output report that times out, remember it for the session and
+stop waiting for handshakes on output reports from then on (the report
+already went out). Feature reports are unchanged.
+
+Tested: rumble short and crisp on ShanWan and Gasia clones.
+---
+--- a/net/bluetooth/hidp/hidp.h
++++ b/net/bluetooth/hidp/hidp.h
+@@ -85,6 +85,7 @@
+ #define HIDP_BLUETOOTH_VENDOR_ID	9
+ #define HIDP_WAITING_FOR_RETURN		10
+ #define HIDP_WAITING_FOR_SEND_ACK	11
++#define HIDP_NO_OUTPUT_ACK		12
+ 
+ struct hidp_connadd_req {
+ 	int   ctrl_sock;	/* Connected control socket */
+--- a/net/bluetooth/hidp/core.c
++++ b/net/bluetooth/hidp/core.c
+@@ -352,8 +352,21 @@
+ 	if (mutex_lock_interruptible(&session->report_mutex))
+ 		return -ERESTARTSYS;
+ 
+-	/* Set up our wait, and send the report request to the device. */
+ 	data[0] = reportnum;
++
++	/* Some devices (e.g. Sixaxis clones) apply output reports but never
++	 * answer with a handshake: once seen, stop waiting for it.
++	 */
++	if (test_bit(HIDP_NO_OUTPUT_ACK, &session->flags) &&
++	    report_type == (HIDP_TRANS_SET_REPORT | HIDP_DATA_RTYPE_OUPUT)) {
++		ret = hidp_send_ctrl_message(session, report_type, data, count);
++		if (ret >= 0)
++			ret = count;
++		mutex_unlock(&session->report_mutex);
++		return ret;
++	}
++
++	/* Set up our wait, and send the report request to the device. */
+ 	set_bit(HIDP_WAITING_FOR_SEND_ACK, &session->flags);
+ 	ret = hidp_send_ctrl_message(session, report_type, data, count);
+ 	if (ret < 0)
+@@ -370,6 +383,13 @@
+ 			10*HZ);
+ 		if (res == 0) {
+ 			/* timeout */
++			if (report_type == (HIDP_TRANS_SET_REPORT |
++					    HIDP_DATA_RTYPE_OUPUT)) {
++				hid_warn(hid, "no handshake for output reports, not waiting anymore\n");
++				set_bit(HIDP_NO_OUTPUT_ACK, &session->flags);
++				ret = count;
++				goto err;
++			}
+ 			ret = -EIO;
+ 			goto err;
+ 		}

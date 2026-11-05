@@ -1,0 +1,32 @@
+Subject: [PATCH] HID: sony: apply the ShanWan quirk over USB only
+
+SHANWAN_GAMEPAD sends output reports on the interrupt channel only. Over
+Bluetooth, ShanWan controllers ignore that channel (LEDs keep blinking and
+the pad disconnects after ~50 s): they want the control channel like genuine
+controllers.
+
+The quirk never triggered over Bluetooth because the BT name differs, but
+with bluez/0004 the pad keeps its USB name; restrict the quirk to USB.
+
+Tested: ShanWan named "ShanWan PS(R) Ga`epad" over BT: crisp rumble, steady
+LED.
+---
+--- a/drivers/hid/hid-sony.c
++++ b/drivers/hid/hid-sony.c
+@@ -2183,8 +2183,14 @@
+ 	if (!strcmp(hdev->name, "FutureMax Dance Mat"))
+ 		quirks |= FUTUREMAX_DANCE_MAT;
+ 
+-	if (!strcmp(hdev->name, "SHANWAN PS3 GamePad") ||
+-	    !strcmp(hdev->name, "ShanWan PS(R) Ga`epad"))
++	/*
++	 * Only over USB: over Bluetooth, ShanWan controllers want output
++	 * reports on ctrl like genuine ones, and BlueZ may report their USB
++	 * name for cable-paired controllers.
++	 */
++	if ((quirks & SIXAXIS_CONTROLLER_USB) &&
++	    (!strcmp(hdev->name, "SHANWAN PS3 GamePad") ||
++	     !strcmp(hdev->name, "ShanWan PS(R) Ga`epad")))
+ 		quirks |= SHANWAN_GAMEPAD;
+ 
+ 	sc = devm_kzalloc(&hdev->dev, sizeof(*sc), GFP_KERNEL);

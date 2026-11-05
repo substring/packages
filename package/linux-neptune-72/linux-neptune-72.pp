@@ -1,0 +1,15 @@
+pkgbase=linux-neptune-72-15khz
+_kernelversion="$(echo ${pkgver} | cut -d '.' -f 1,2)"
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/01_linux_15khz.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/02_linux_15khz_interlaced_mode_fix.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/03_linux_15khz_dcn1_dcn2_dcn3_dcn4_interlaced_mode_fix.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/04_linux_15khz_dce_interlaced_mode_fix.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/05_linux_15khz_amdgpu_pll_fix.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/06_linux_switchres_kms_drm_modesetting.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/07_linux_15khz_fix_ddc.patch
+source+=https://raw.githubusercontent.com/D0023R/linux_kernel_15khz/master/linux-${_kernelversion}/08_linux_15khz_interlace_force_even.patch
+source+=0001-bluetooth-no-role-switch-for-peripheral-class.patch
+source+=0002-hidp-stop-waiting-for-missing-output-ack.patch
+source+=0003-hid-sony-shanwan-quirk-usb-only.patch
+source+=0004-hid-sony-gasia-detection-bt.patch
+

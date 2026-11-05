@@ -247,6 +247,27 @@ done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 }
 
 
+build_jupiter_single() {
+  package="$1"
+  header "$package"
+  cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
+  mkdir "$package"
+  for f in $(curl -q https://github.com/evlaV/jupiter/tree/main/"${package}" | grep title | grep href | grep -oE "href=\"/evlaV/jupiter/blob/main/${package}/[a-zA-Z0-9._-]+\"" | cut -d '"' -f2 | uniq | sed "s+blob+refs/heads+") ; do echo $f ; wget -nv -P "$package" "https://raw.githubusercontent.com/$f" ; done
+  pwd
+  ls -l
+  do_the_job "$package" || exit 1
+}
+
+
+build_jupiter() {
+while read -r package ; do
+  echo "$package" | grep -q "^#" && continue
+  build_jupiter_single "$package" || exit 1
+done < <(grep "^${package_to_build}$" /work/packages_jupiter.lst)
+}
+
+
+
 build_dkms() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
@@ -275,6 +296,10 @@ build_single_package() {
     # that's a groovy package, let's build it
     build_groovy_single "$pkgname" || exit $?
     #[[ $? != 0 ]] && exit $?
+  elif [[ $cmd_arg =~ ^jupiter/ ]] ; then
+    # that's a AUR package, let's build it
+    build_jupiter_single "$pkgname" || exit "$?"
+    #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
     realpkg="$(grep "^$cmd_arg$" /work/packages_arch.lst)"
@@ -294,7 +319,7 @@ mkdir -p "$BUILD_DIR"
 package_to_build=".*"
 # Parse command line
 # shellcheck disable=SC2220
-while getopts "nagcs:dp:t:" option; do
+while getopts "nagcjs:dp:t:" option; do
   case "${option}" in
     n)
       # WARNING: very dirty trick to exclude building mame and linux
@@ -310,6 +335,9 @@ while getopts "nagcs:dp:t:" option; do
       ;;
     c)
       cmd=namcap_packages
+      ;;
+    j)
+      cmd=build_jupiter
       ;;
     s)
       cmd=build_single_package
@@ -335,6 +363,6 @@ fi
 # Tricky thing : if $1 exists, it's a package
 # as we'll grep the .lst files, we need a trick if $1 is empty
 package_to_build=${1:-".*"}
-build_native ; build_aur ; build_groovy
+build_native ; build_aur ; build_jupiter ; build_groovy
 
 # run tests on output packages

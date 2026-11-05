@@ -144,6 +144,14 @@ build:aur:dev:
   <<: *buildpackages
 
 
+build:jupiter:dev:
+  stage: build
+  <<: *notmaster
+  variables:
+    MAKEPKG_ARGS: "-j"
+  <<: *buildpackages
+
+
 build:groovy:dev:
   stage: build
   <<: *notmaster
@@ -203,6 +211,14 @@ build:aur:
   <<: *onlymasterortags
   variables:
     MAKEPKG_ARGS: "-a"
+  <<: *buildpackages
+
+
+build:jupiter:
+  stage: build
+  <<: *onlymasterortags
+  variables:
+    MAKEPKG_ARGS: "-j"
   <<: *buildpackages
 
 
