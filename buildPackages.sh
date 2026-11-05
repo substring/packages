@@ -252,7 +252,10 @@ build_jupiter_single() {
   header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   mkdir "$package"
-  for f in $(curl -q https://github.com/evlaV/jupiter/tree/main/"${package}" | grep title | grep href | grep -oE "href=\"/evlaV/jupiter/blob/main/${package}/[a-zA-Z0-9._-]+\"" | cut -d '"' -f2 | uniq | sed "s+blob+refs/heads+") ; do echo $f ; wget -nv -P "$package" "https://raw.githubusercontent.com/$f" ; done
+  for f in $(curl -q https://github.com/evlaV/jupiter/tree/main/"${package}" | grep title | grep href | grep -oE "href=\"/evlaV/jupiter/blob/main/${package}/[a-zA-Z0-9._-]+\"" | cut -d '"' -f2 | uniq | sed "s+blob+refs/heads+") ; do 
+    echo "Download $f"
+    wget -nv -P "$package" "https://raw.githubusercontent.com/$f"
+  done
   pwd
   ls -l
   do_the_job "$package" || exit 1
