@@ -247,12 +247,18 @@ done < <(grep "^${package_to_build}$" /work/packages_groovy.lst)
 }
 
 
-build_jupiter_single() {
-  package="$1"
+build_steamos_single() {
+  line="$1"
+  repo="jupiter"
+  package="$line"
+  if echo "$line" | grep -q ":" ; then
+    repo="${line%:*}"
+    package="${line#*:}"
+  fi
   header "$package"
   cd "$BUILD_DIR" || { echo "Couldn't cd to $BUILD_DIR dir" ; exit 1 ; }
   mkdir "$package"
-  for f in $(curl -q https://github.com/evlaV/jupiter/tree/main/"${package}" | grep title | grep href | grep -oE "href=\"/evlaV/jupiter/blob/main/${package}/[a-zA-Z0-9._-]+\"" | cut -d '"' -f2 | uniq | sed "s+blob+refs/heads+") ; do 
+  for f in $(curl -q https://github.com/evlaV/"${repo}"/tree/main/"${package}" | grep title | grep href | grep -oE "href=\"/evlaV/${repo}/blob/main/${package}/[a-zA-Z0-9._-]+\"" | cut -d '"' -f2 | uniq | sed "s+blob+refs/heads+") ; do
     echo "Download $f"
     wget -nv -P "$package" "https://raw.githubusercontent.com/$f"
   done
@@ -262,11 +268,11 @@ build_jupiter_single() {
 }
 
 
-build_jupiter() {
+build_steamos() {
 while read -r package ; do
   echo "$package" | grep -q "^#" && continue
-  build_jupiter_single "$package" || exit 1
-done < <(grep "^${package_to_build}$" /work/packages_jupiter.lst)
+  build_steamos_single "$package" || exit 1
+done < <(grep "^${package_to_build}$" /work/packages_steamos.lst)
 }
 
 
@@ -299,9 +305,9 @@ build_single_package() {
     # that's a groovy package, let's build it
     build_groovy_single "$pkgname" || exit $?
     #[[ $? != 0 ]] && exit $?
-  elif [[ $cmd_arg =~ ^jupiter/ ]] ; then
-    # that's a AUR package, let's build it
-    build_jupiter_single "$pkgname" || exit "$?"
+  elif [[ $cmd_arg =~ ^steamos/ ]] ; then
+    # that's a SteamOS package, let's build it
+    build_steamos_single "$pkgname" || exit "$?"
     #[[ $? != 0 ]] && exit $?
   else
     # Fallback to a genuine arch package, but it might be a fake package like linux-rt
@@ -340,7 +346,7 @@ while getopts "nagcjs:dp:t:" option; do
       cmd=namcap_packages
       ;;
     j)
-      cmd=build_jupiter
+      cmd=build_steamos
       ;;
     s)
       cmd=build_single_package

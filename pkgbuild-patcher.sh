@@ -35,7 +35,14 @@ increment_value() {
 	# Get the original value and make sure it's just a number
 	current_val=$(grep "^$param=" "$source_file" | cut -d '=' -f 2)
 	# Calculate the new value
-	new_value=$((current_val + value))
+	# Steam os uses a a.b darn notation for pkgrel
+	if echo "$current_val" | grep "\." ; then
+		major_val="${current_val%.*}"
+		minor_val="${current_val#*.}"
+		new_value="${major_val}.$((minor_val + value))"
+	else
+		new_value=$((current_val + value))
+	fi
 	#set_value
 	set_value "$source_file" "$param" "$new_value"
 }

@@ -47,7 +47,7 @@ COPY include.sh /work
 COPY packages_arch.lst /work
 COPY packages_aur.lst /work
 COPY packages_groovy.lst /work
-COPY packages_jupiter.lst /work
+COPY packages_steamos.lst /work
 COPY packages_dkms.lst /work
 COPY groovy-ux-repo.conf /etc/pacman.d
 COPY release.sh /work
