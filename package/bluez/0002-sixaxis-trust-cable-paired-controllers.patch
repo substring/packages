@@ -12,8 +12,8 @@ no prompt.
 --- a/plugins/sixaxis.c
 +++ b/plugins/sixaxis.c
 @@ -297,6 +297,12 @@
- 	remove_device = false;
- 	btd_device_set_temporary(closure->device, false);
+ 			goto out;
+ 	}
  
 +	/* The user authorized this controller over a cable, so trust it:
 +	 * it can't bond, and an untrusted device would be asked for
@@ -21,6 +21,6 @@ no prompt.
 +	 */
 +	btd_device_set_trusted(closure->device, true);
 +
- 	if (closure->type == CABLE_PAIRING_SIXAXIS) {
- 		btd_device_set_record(closure->device, HID_UUID,
- 						 SIXAXIS_HID_SDP_RECORD);
+ 	remove_device = false;
+ 	btd_device_set_temporary(closure->device, false);
+ 

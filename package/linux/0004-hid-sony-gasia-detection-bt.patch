@@ -45,15 +45,15 @@ LED 1, crisp rumble; ShanWan unaffected (no false detection).
  	/* GH Live */
  	struct urb *ghl_urb;
  	struct timer_list ghl_poke_timer;
-@@ -1158,6 +1168,8 @@
- 		if (rd[1] == 0xff)
- 			return -EINVAL;
+@@ -975,6 +985,8 @@
+ 		sc->battery_status = battery_status;
+ 	}
  
-+		WRITE_ONCE(sc->got_input, true);
++	WRITE_ONCE(sc->got_input, true);
 +
- 		swap(rd[41], rd[42]);
- 		swap(rd[43], rd[44]);
- 		swap(rd[45], rd[46]);
+ 	if (sc->quirks & SIXAXIS_CONTROLLER) {
+ 		int val;
+ 
 @@ -1713,8 +1725,14 @@
  	return 0;
  }
@@ -171,20 +171,21 @@ LED 1, crisp rumble; ShanWan unaffected (no false detection).
  }
  
  static void sony_cleanup(struct sony_sc *sc)
-@@ -2255,6 +2316,12 @@
- 		}
+@@ -2298,6 +2359,13 @@
+ 			goto err_close;
+ 	}
  
- 		sony_init_output_report(sc, sixaxis_send_output_report);
++	/* Armed last, once probe can no longer fail */
++	if ((sc->quirks & SIXAXIS_CONTROLLER_BT) && !sc->gasia) {
++		INIT_DELAYED_WORK(&sc->gasia_detect, sixaxis_gasia_detect);
++		sc->gasia_detect_armed = true;
++		schedule_delayed_work(&sc->gasia_detect, 2 * HZ);
++	}
 +
-+		if (!sc->gasia) {
-+			INIT_DELAYED_WORK(&sc->gasia_detect, sixaxis_gasia_detect);
-+			sc->gasia_detect_armed = true;
-+			schedule_delayed_work(&sc->gasia_detect, 2 * HZ);
-+		}
- 	} else if (sc->quirks & NSG_MRXU_REMOTE) {
- 		/*
- 		 * The NSG-MRxU touchpad supports 2 touches and has a
-@@ -2336,6 +2403,11 @@
+ 	return 0;
+ err_close:
+ 	hid_hw_close(hdev);
+@@ -2336,6 +2404,11 @@
  	sc->device_id = -1;
  
  	sc->quirks = quirks;

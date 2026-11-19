@@ -6,42 +6,28 @@ Gamepad", ...). get_pairing() only accepts the names listed in its table, so
 the sixaxis plugin ignores them and cable pairing never happens.
 
 When no entry matches by name, fall back to the first CABLE_PAIRING_SIXAXIS
-entry with the same VID/PID.
+entry with the same VID/PID. Written as a second loop so the patch applies
+whether get_pairing() compares names exactly (<= 5.79) or by suffix.
 
-Tested on BlueZ 5.85 with 3 ShanWan and 1 Gasia clones.
+Tested on BlueZ 5.85 with 3 ShanWan and 1 Gasia clones; applies on 5.79
+(upstream and SteamOS), 5.85, 5.87, 5.88.
 ---
 --- a/profiles/input/sixaxis.h
 +++ b/profiles/input/sixaxis.h
-@@ -73,6 +73,7 @@
- 			.type = CABLE_PAIRING_DS4,
- 		},
- 	};
-+	const struct cable_pairing *fallback = NULL;
- 	guint i;
- 
- 	for (i = 0; i < G_N_ELEMENTS(devices); i++) {
-@@ -81,13 +82,22 @@
- 		if (devices[i].pid != pid)
- 			continue;
- 
--		if (name && !g_str_has_suffix(name, devices[i].name))
-+		if (name && !g_str_has_suffix(name, devices[i].name)) {
-+			/* Many third-party Sixaxis clones reuse Sony's VID/PID
-+			 * but report odd product names (e.g. "ShanWan PS(R)
-+			 * Ga`epad"). They speak the same protocol, so fall
-+			 * back to the first entry matching the VID/PID.
-+			 */
-+			if (!fallback &&
-+				devices[i].type == CABLE_PAIRING_SIXAXIS)
-+				fallback = &devices[i];
- 			continue;
-+		}
- 
+@@ -87,6 +87,16 @@
  		return &devices[i];
  	}
  
--	return NULL;
-+	return fallback;
++	/* Many third-party Sixaxis clones reuse Sony's VID/PID but report odd
++	 * product names (e.g. "ShanWan PS(R) Ga`epad"). They speak the same
++	 * protocol, so fall back to the first Sixaxis entry with that VID/PID.
++	 */
++	for (i = 0; i < G_N_ELEMENTS(devices); i++) {
++		if (devices[i].vid == vid && devices[i].pid == pid &&
++				devices[i].type == CABLE_PAIRING_SIXAXIS)
++			return &devices[i];
++	}
++
+ 	return NULL;
  }
  
- #endif /* _SIXAXIS_H_ */
